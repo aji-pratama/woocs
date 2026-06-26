@@ -1,6 +1,6 @@
 .PHONY: help \
         infra-up infra-down infra-logs \
-        backend-install backend-migrate backend-createsuperuser \
+        backend-install backend-migrate backend-createsuperuser backend-format \
         dev-api dev-celery dev-widget widget-install \
         dev wp-build db-dump
 
@@ -30,6 +30,7 @@ help:
 	@echo "  backend-install       Create .venv and pip install"
 	@echo "  backend-migrate       Run Django migrations"
 	@echo "  backend-createsuperuser  Create Django admin user"
+	@echo "  backend-format        Format Python code (PEP8)"
 	@echo "  dev-api               Start Django dev server (port 8000)"
 	@echo "  dev-celery            Start Celery worker"
 	@echo ""
@@ -71,6 +72,10 @@ backend-migrate:
 
 backend-createsuperuser:
 	cd backend && $(abspath $(PYTHON)) manage.py createsuperuser
+
+backend-format:
+	@chmod +x backend/scripts/formatter.sh
+	@./backend/scripts/formatter.sh
 
 dev-api:
 	cd backend && $(abspath $(PYTHON)) manage.py runserver

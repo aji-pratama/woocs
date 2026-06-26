@@ -21,3 +21,8 @@ python-decouple>=3.8
 
 # Production
 gunicorn>=22.0
+
+# Testing
+pytest>=8.0
+pytest-django>=4.8
+pytest-mock>=3.12

@@ -34,17 +34,19 @@
 > Start here when scaffolding is confirmed working.
 
 ### Phase 1 — Store & Auth
-- [ ] `store/models.py` — Store model (UUID PK, name, api_key_hash, created_at)
-- [ ] `store/api.py` — `POST /api/stores/register/` endpoint
-- [ ] `store/schemas.py` — request/response Pydantic schemas
-- [ ] `config/auth.py` — API key auth class for Django Ninja
-- [ ] Migrations + `make backend-migrate`
+- [x] `store/models.py` — Store model (UUID PK, name, api_key_hash, created_at)
+- [x] `store/api.py` — `POST /api/stores/register/` endpoint
+- [x] `store/schemas.py` — request/response Pydantic schemas
+- [x] `config/auth.py` — API key auth class for Django Ninja
+- [x] Migrations + `make backend-migrate`
 
 ### Phase 2 — Catalog Sync
-- [ ] `store/models.py` — Product, ProductVariation, FAQ models (with VectorField)
-- [ ] `store/api.py` — `POST /api/stores/sync/` ingest endpoint
-- [ ] `store/tasks.py` — Celery embedding pipeline tasks
-- [ ] Migrations
+- [x] `store/models.py` — Product, ProductVariation, FAQ models (with VectorField)
+- [x] `store/api.py` — `POST /api/stores/sync/` endpoint
+- [x] `store/tasks.py` — Celery task `ingest_catalog` (stub/setup)
+- [x] Vector extension migration (`VectorExtension()`)
+- [x] Migrations + `make backend-migrate` & RAG
+- [x] Automated Tests (`test_models`, `test_services`, `test_api`, `test_tasks`)
 
 ### Phase 3 — Chat & RAG
 - [ ] `chat/models.py` — ChatSession, ChatMessage models
