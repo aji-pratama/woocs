@@ -15,7 +15,7 @@ trigger:
 ## 2. App Responsibilities
 | App | Responsibility |
 |---|---|
-| `store` | Store model, API key auth, registration endpoint (`POST /api/store/register/`), catalog ingest endpoint (`POST /api/store/sync/`), Celery ingest + embedding tasks |
+| `store` | Store model, API key auth, registration endpoint (`POST /api/stores/register/`), catalog ingest endpoint (`POST /api/stores/sync/`), Celery ingest + embedding tasks |
 | `chat` | ChatSession, ChatMessage models; RAG pipeline; escalation logic; order status proxy |
 
 ## 3. Models
@@ -31,8 +31,8 @@ trigger:
 - API key validation happens in a shared middleware/auth class in `config/auth.py`.
 
 ## 5. Authentication
-- Plugin-facing endpoints (`/api/sync/`, `/api/sync/status/`) require `X-API-Key` header.
-- Widget-facing endpoints (`/api/chat/`, `/api/order-status/`) are public but scoped to `store_id`.
+- Plugin-facing endpoints (`/api/stores/sync/`, `/api/stores/sync/status/`) require `X-API-Key` header.
+- Widget-facing endpoints (`/api/widget/chat/`, `/api/widget/order-status/`) are public but scoped to `store_id`.
 - Key validation: hash incoming key (SHA-256), compare against `Store.api_key_hash`.
 
 ## 6. Celery
@@ -50,6 +50,7 @@ trigger:
 - All functions and methods have type annotations.
 - Use `python-decouple` for config, not `os.environ` directly.
 - Never query the database directly with raw SQL — use Django ORM.
+- **Architecture Pattern**: Gunakan pendekatan "fat models" (model yang kaya akan kapabilitas) untuk operasi berbasis data dan state changes. Untuk mengorkestrasi *complex business logic* dan *external API calls*, buat sebuah **service layer** terdedikasi (misal: `<app>/services.py`).
 
 ## 9. Testing
 - Tests in `<app>/tests/` directory.
