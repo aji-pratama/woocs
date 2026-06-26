@@ -1,0 +1,54 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.pyc
+ehthumbs.db
+Thumbs.db
+backend/*.pyc
+backend/.pytest_cache
+
+# Node.js / React (Widget)
+widget/node_modules/
+widget/dist/
+widget/build/
+widget/.env
+widget/.env.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python / Django (Backend)
+__pycache__/
+*.py[cod]
+*$py.class
+backend/.env
+backend/venv/
+backend/env/
+backend/.venv/
+backend/db.sqlite3
+backend/media/
+backend/staticfiles/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+woocs.zip
+plugin/assets/woocs-widget.js
+
+# Docker & Database local volumes (if mounted)
+data/
+db_data/
+postgres_data/
+wp_data/
+mysql_data/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*.pyc

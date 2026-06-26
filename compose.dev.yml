@@ -1,0 +1,80 @@
+services:
+  # PostgreSQL 15 + pgvector — Django backend database
+  backend_db:
+    image: pgvector/pgvector:pg15
+    container_name: woocs_backend_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: woocs
+      POSTGRES_USER: woocs
+      POSTGRES_PASSWORD: woocs_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - backend_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U woocs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL 8 — WordPress database
+  wp_db:
+    image: mysql:8.0
+    container_name: woocs_wp_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress_dev
+      MYSQL_ROOT_PASSWORD: root_dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - wp_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "wordpress", "-pwordpress_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # WordPress + WooCommerce storefront (PoC test environment)
+  wp:
+    image: wordpress:latest
+    container_name: woocs_wp
+    restart: unless-stopped
+    depends_on:
+      wp_db:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: wp_db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress_dev
+      WORDPRESS_DEBUG: "1"
+    volumes:
+      - wp_data:/var/www/html
+      - ./plugin:/var/www/html/wp-content/plugins/woocs-ai:ro
+
+  # Redis 7 — Celery message broker and result backend
+  redis:
+    image: redis:7-alpine
+    container_name: woocs_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  backend_db_data:
+  wp_db_data:
+  wp_data:
+  redis_data:

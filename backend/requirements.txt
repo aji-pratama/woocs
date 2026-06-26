@@ -1,0 +1,23 @@
+# Core Django
+Django>=5.0,<6.0
+django-ninja>=1.0
+
+# Async task queue
+celery[redis]>=5.3
+redis>=5.0
+
+# Database
+psycopg2-binary>=2.9
+pgvector>=0.3
+
+# RAG + AI
+llama-index>=0.11
+llama-index-vector-stores-postgres>=0.2
+llama-index-llms-anthropic>=0.3
+anthropic>=0.30
+
+# Config & utilities
+python-decouple>=3.8
+
+# Production
+gunicorn>=22.0
