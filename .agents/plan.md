@@ -1,62 +1,34 @@
 # WooCS.ai — Development Plan
 
-## Scaffolding Status
-> Updated: 2026-06-26
-
-### Infrastructure
-- [x] `compose.dev.yml` — PostgreSQL (pgvector), MySQL, WordPress, Redis
-- [x] `Makefile` — all dev targets (infra-up, dev-api, dev-celery, dev-widget, wp-build, db-dump)
-- [x] `.gitignore` — backend/.env, backend/.venv, widget/.env
-
-### Backend (Django)
-- [x] Django project initialized (`backend/config/`)
-- [x] `settings.py` — PostgreSQL, decouple, Celery config
-- [x] `config/celery.py` — Celery app definition
-- [x] `config/__init__.py` — auto-import Celery on startup
-- [x] Apps: `store`, `chat` registered in INSTALLED_APPS
-- [x] `backend/.venv` — Python 3.13 virtual environment
-- [x] `backend/requirements.txt` — all deps installed
-- [x] `backend/.env` — dev credentials (from .env.example)
-
-### Widget (React/Vite)
-- [x] Vite + React project initialized in `widget/`
-- [x] `npm install` complete
-
-### Docs & Agent Workspace
-- [x] `AGENTS.md` — updated to 2-app architecture (store, chat)
-- [x] `.agents/rules/backend.md` — updated app responsibilities
-- [x] `.agents/plan.md` — this file
-
----
+> **Note:** Scaffolding, Phase 1, and Phase 2 have been completed and moved to `.agents/artifacts/changelog.md`.
 
 ## Next: Feature Development
 
-> Start here when scaffolding is confirmed working.
-
-### Phase 1 — Store & Auth
-- [x] `store/models.py` — Store model (UUID PK, name, api_key_hash, created_at)
-- [x] `store/api.py` — `POST /api/stores/register/` endpoint
-- [x] `store/schemas.py` — request/response Pydantic schemas
-- [x] `config/auth.py` — API key auth class for Django Ninja
-- [x] Migrations + `make backend-migrate`
-
-### Phase 2 — Catalog Sync
-- [x] `store/models.py` — Product, ProductVariation, FAQ models (with VectorField)
-- [x] `store/api.py` — `POST /api/stores/sync/` endpoint
-- [x] `store/tasks.py` — Celery task `ingest_catalog` (stub/setup)
-- [x] Vector extension migration (`VectorExtension()`)
-- [x] Migrations + `make backend-migrate` & RAG
-- [x] Automated Tests (`test_models`, `test_services`, `test_api`, `test_tasks`)
-
 ### Phase 3 — Chat & RAG
-- [ ] `chat/models.py` — ChatSession, ChatMessage models
-- [ ] `chat/api.py` — `POST /api/widget/chat/` widget-facing endpoint (keyless, scoped by store_id)
-- [ ] `chat/rag.py` — LlamaIndex query engine + pgvector integration
-- [ ] `chat/escalation.py` — email escalation via SMTP
+- [ ] `chat/models.py` — `ChatSession`, `ChatMessage` (with `confidence_score`, `escalated`, `escalation_reason`)
+- [ ] `chat/schemas.py` — request/response Pydantic schemas for `/chat/` and `/order-status/` endpoints
+- [ ] `chat/services.py` — core RAG pipeline (keyword check, `pgvector` search via LlamaIndex, Claude Haiku LLM call, confidence evaluation)
+- [ ] `chat/api.py` — `POST /api/widget/chat/` (keyless, scoped by `store_id`) and `GET /api/widget/order-status/` (passes through to WC API)
+- [ ] `chat/tasks.py` — Celery task for async escalation email dispatch via SMTP
+- [ ] Automated Tests (`test_models`, `test_services`, `test_api`, `test_tasks` for `chat` app)
+- [ ] Migrations + `make backend-migrate`
 
-### Phase 4 — Widget UI
-- [ ] React widget UI — chat bubble, message thread, escalation form
-- [ ] `make wp-build` — bundle + WordPress plugin zip
+### Phase 4 — Widget UI (React/Vite)
+- [ ] `widget/src/api/` — API client logic (fetch from `/api/widget/*`)
+- [ ] `widget/src/components/C01_Bubble.jsx` — Floating bubble launcher
+- [ ] `widget/src/components/C02_Header.jsx` — Chat panel header
+- [ ] `widget/src/components/C03_Thread.jsx` — Message thread layout
+- [ ] `widget/src/components/C05_ProductCard.jsx` — Inline product layout
+- [ ] `widget/src/components/C06_OrderCard.jsx` — Inline order status layout
+- [ ] `widget/src/components/C07_Escalation.jsx` — Warning bubble with CTAs
+- [ ] `widget/src/components/C08_Typing.jsx` — Loading indicator
+- [ ] `widget/src/components/C09_Input.jsx` — Text input bar
+- [ ] `widget/src/components/C10_Footer.jsx` — "Powered by WooCS.ai"
+- [ ] `make wp-build` — bundle JS for WordPress injection
 
-### Phase 5 — WordPress Plugin
-- [ ] `plugin/woocs-ai.php` — plugin entry point, settings page, widget injection
+### Phase 5 — WordPress Plugin (PHP)
+- [ ] `plugin/woocs-ai.php` — Main plugin entry point and enqueuing widget JS bundle
+- [ ] Settings Page (`A1`) — Connection status, API key input, widget toggle
+- [ ] Sync Status Page (`A2`) — Displays products, FAQs counts, and trigger manual sync
+- [ ] FAQ Manager Page (`A3`) — CRUD for FAQs natively in WordPress
+- [ ] Widget Preview Page (`A4`) — Live test the widget inside WP Admin
