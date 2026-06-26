@@ -19,6 +19,7 @@ from django.contrib import admin
 from django.urls import path
 from ninja import NinjaAPI
 
+from chat.api import router as chat_router
 from store.api import router as store_router
 
 api = NinjaAPI(
@@ -26,6 +27,7 @@ api = NinjaAPI(
 )
 
 api.add_router("/stores/", store_router)
+api.add_router("/widget/", chat_router)
 
 urlpatterns = [
     path("admin/", admin.site.urls),

@@ -49,3 +49,19 @@
 - [x] Vector extension migration (`VectorExtension()`)
 - [x] Migrations + `make backend-migrate` & RAG
 - [x] Automated Tests (`test_models`, `test_services`, `test_api`, `test_tasks`)
+
+---
+
+## Phase 3 — Chat & RAG
+> Completed: 2026-06-27
+
+- [x] `chat/models.py` — ChatSession, ChatMessage (with confidence_score, escalated, escalation_reason)
+- [x] `chat/schemas.py` — request/response Pydantic schemas for `/chat/` and `/order-status/`
+- [x] `chat/services.py` — ChatService (keyword check → RAG stub → confidence evaluation) + OrderService (WC proxy stub)
+- [x] `chat/api.py` — `POST /api/widget/chat/` and `GET /api/widget/order-status/` (keyless, scoped by store_id)
+- [x] `chat/tasks.py` — Celery task `send_escalation_email` (async email dispatch)
+- [x] `config/urls.py` — registered chat router under `/widget/`
+- [x] `config/settings.py` — added SMTP email config (console backend for PoC)
+- [x] Automated Tests (23 tests across 4 test files)
+- [x] Migrations + `make backend-migrate`
+

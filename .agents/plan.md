@@ -5,13 +5,15 @@
 ## Next: Feature Development
 
 ### Phase 3 — Chat & RAG
-- [ ] `chat/models.py` — `ChatSession`, `ChatMessage` (with `confidence_score`, `escalated`, `escalation_reason`)
-- [ ] `chat/schemas.py` — request/response Pydantic schemas for `/chat/` and `/order-status/` endpoints
-- [ ] `chat/services.py` — core RAG pipeline (keyword check, `pgvector` search via LlamaIndex, Claude Haiku LLM call, confidence evaluation)
-- [ ] `chat/api.py` — `POST /api/widget/chat/` (keyless, scoped by `store_id`) and `GET /api/widget/order-status/` (passes through to WC API)
-- [ ] `chat/tasks.py` — Celery task for async escalation email dispatch via SMTP
-- [ ] Automated Tests (`test_models`, `test_services`, `test_api`, `test_tasks` for `chat` app)
-- [ ] Migrations + `make backend-migrate`
+- [x] `chat/models.py` — `ChatSession`, `ChatMessage` (with `confidence_score`, `escalated`, `escalation_reason`)
+- [x] `chat/schemas.py` — request/response Pydantic schemas for `/chat/` and `/order-status/` endpoints
+- [x] `chat/services.py` — core RAG pipeline (keyword check, stub RAG, confidence evaluation) + OrderService
+- [x] `chat/api.py` — `POST /api/widget/chat/` (keyless, scoped by `store_id`) and `GET /api/widget/order-status/`
+- [x] `chat/tasks.py` — Celery task for async escalation email dispatch via SMTP
+- [x] `config/urls.py` — registered chat router under `/widget/`
+- [x] `config/settings.py` — added SMTP email config (console backend for PoC)
+- [x] Automated Tests (23 tests: `test_models`, `test_services`, `test_api`, `test_tasks`)
+- [x] Migrations + `make backend-migrate`
 
 ### Phase 4 — Widget UI (React/Vite)
 - [ ] `widget/src/api/` — API client logic (fetch from `/api/widget/*`)
