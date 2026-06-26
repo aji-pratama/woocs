@@ -50,6 +50,19 @@ WooCS.ai is a three-layer system that brings zero-setup RAG-based chat support t
 
 ---
 
+## Port Allocation
+
+| Service | Port | Notes |
+|---|---|---|
+| Django API | `8000` | `make dev-api` |
+| Vite (Widget) | `5173` | `make dev-widget` |
+| WordPress | `8080` | `make infra-up` |
+| PostgreSQL | `5432` | `make infra-up` |
+| MySQL | `3306` | `make infra-up` |
+| Redis | `6379` | `make infra-up` |
+
+---
+
 ## Quickstart
 
 ### Prerequisites
@@ -115,23 +128,34 @@ woocs/
 
 ---
 
-## All-in-one
+## Development Flow
+
+The project is orchestrated entirely via `make`.
+
+### Daily Development
 
 ```bash
-make dev
+make dev                   # Start EVERYTHING (containers, API, Celery, Vite) in parallel
 ```
+*Note: If port 5173 is in use, Vite will automatically try 5174.*
 
-Starts containers + Django + Celery + Vite in parallel.
-
----
-
-## Build & Package Plugin
+### Individual Commands
 
 ```bash
-make wp-build
+make infra-up              # Start PostgreSQL, MySQL, Redis, WordPress
+make dev-api               # Start Django dev server
+make dev-celery            # Start Celery worker
+make dev-widget            # Start Vite dev server
 ```
 
-Builds the widget bundle, copies it into `plugin/assets/`, and zips `plugin/` as `woocs.zip` for WP Admin upload.
+### Setup & Build
+
+```bash
+make backend-install       # Install Python dependencies
+make backend-migrate       # Run Django migrations
+make wp-build              # Build widget and package plugin into woocs.zip
+make db-dump               # Dump Postgres data to fixtures/init.sql
+```
 
 ---
 
