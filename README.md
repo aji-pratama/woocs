@@ -11,14 +11,14 @@ WooCS.ai is a three-layer system that brings zero-setup RAG-based chat support t
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  Storefront (customer-facing)                            │
-│  React widget  →  POST /api/chat/                        │
-│                →  GET  /api/order-status/                │
+│  React widget  →  POST /api/widget/chat/                 │
+│                →  GET  /api/widget/order-status/         │
 └──────────────────────┬───────────────────────────────────┘
                        │ HTTP
 ┌──────────────────────▼───────────────────────────────────┐
 │  Django Backend (host)                                   │
 │  django-ninja API  +  Celery workers                     │
-│  Apps: stores · sync · catalog · chat                    │
+│  Apps: store · chat                                      │
 └──────┬──────────────────────────────┬────────────────────┘
        │                              │
 ┌──────▼──────┐              ┌────────▼───────┐
@@ -29,7 +29,7 @@ WooCS.ai is a three-layer system that brings zero-setup RAG-based chat support t
 
 ┌──────────────────────────────────────────────────────────┐
 │  WordPress Plugin (PHP)                                  │
-│  Pulls WC catalog  →  POST /api/sync/                    │
+│  Pulls WC catalog  →  POST /api/stores/sync/             │
 │  Admin UI: Settings · Sync · FAQs · Preview              │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -104,9 +104,7 @@ WordPress is available at http://localhost:8080. The `plugin/` directory is bind
 woocs/
 ├── backend/          # Django backend (runs on host)
 │   ├── config/       # Django project config + Celery
-│   ├── stores/       # Store registration app
-│   ├── sync/         # Catalog ingest app
-│   ├── catalog/      # Product / FAQ / embedding app
+│   ├── store/        # Store model, registration API, catalog ingest
 │   ├── chat/         # RAG chat + escalation app
 │   └── requirements.txt
 ├── plugin/           # WordPress plugin (PHP)
