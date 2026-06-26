@@ -38,10 +38,10 @@ woocs/
 
 ### Django Architecture
 - **2 apps**: `store`, `chat`
-- **API layer**: Django Ninja — all endpoints under `/api/`
+- **API layer**: Django Ninja — endpoints are prefixed with `/api/stores/` (plugin calls) and `/api/widget/` (widget calls)
 - **Async tasks**: Celery + Redis — all heavy work (embedding pipeline, emails) offloaded to workers
 - **Database**: PostgreSQL 15 + pgvector extension — all models use UUID primary keys
-- **Auth model**: Static API key per store (hashed SHA-256 in DB), sent as `X-API-Key` header. Widget endpoints are keyless (scoped by `store_id`).
+- **Auth model**: Static API key per store (hashed SHA-256 in DB), sent as `X-API-Key` header for `/api/stores/`. `/api/widget/` endpoints are keyless (scoped by `store_id`).
 
 ### WordPress Plugin Architecture
 - Plugin resides in `plugin/` directory

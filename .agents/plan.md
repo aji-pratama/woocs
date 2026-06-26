@@ -35,20 +35,20 @@
 
 ### Phase 1 — Store & Auth
 - [ ] `store/models.py` — Store model (UUID PK, name, api_key_hash, created_at)
-- [ ] `store/api.py` — `POST /api/store/register/` endpoint
+- [ ] `store/api.py` — `POST /api/stores/register/` endpoint
 - [ ] `store/schemas.py` — request/response Pydantic schemas
 - [ ] `config/auth.py` — API key auth class for Django Ninja
 - [ ] Migrations + `make backend-migrate`
 
 ### Phase 2 — Catalog Sync
 - [ ] `store/models.py` — Product, ProductVariation, FAQ models (with VectorField)
-- [ ] `store/api.py` — `POST /api/store/sync/` ingest endpoint
+- [ ] `store/api.py` — `POST /api/stores/sync/` ingest endpoint
 - [ ] `store/tasks.py` — Celery embedding pipeline tasks
 - [ ] Migrations
 
 ### Phase 3 — Chat & RAG
 - [ ] `chat/models.py` — ChatSession, ChatMessage models
-- [ ] `chat/api.py` — `POST /api/chat/` widget-facing endpoint (keyless, scoped by store_id)
+- [ ] `chat/api.py` — `POST /api/widget/chat/` widget-facing endpoint (keyless, scoped by store_id)
 - [ ] `chat/rag.py` — LlamaIndex query engine + pgvector integration
 - [ ] `chat/escalation.py` — email escalation via SMTP
 
