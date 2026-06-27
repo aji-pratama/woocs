@@ -1,0 +1,120 @@
+<?php
+declare(strict_types=1);
+if (!defined('ABSPATH')) exit;
+
+// Mock states for PoC
+$is_connected = get_option('woocs_store_id') !== false;
+$api_key = get_option('woocs_api_key', '');
+?>
+<div class="wrap woocs-wrap">
+    <h1>WooCS.ai &rsaquo; Settings</h1>
+
+    <?php if (!$is_connected): ?>
+        <div class="woocs-card woocs-connect-card">
+            <div class="woocs-card-header">
+                <h2>Connection</h2>
+                <span class="woocs-badge woocs-badge-neutral"><span class="woocs-dot"></span> Not connected</span>
+            </div>
+            <div class="woocs-card-body">
+                <p>Connect your store to start automating support.<br>
+                Free 14-day trial — no credit card required.</p>
+                <a href="#" class="button button-primary button-hero">Connect to WooCS.ai</a>
+                
+                <hr class="woocs-divider">
+                
+                <p>Already have an API key? <a href="#" onclick="document.getElementById('manual-key-form').style.display='block'; return false;">Enter key manually &triangledown;</a></p>
+                <div id="manual-key-form" style="display: none;">
+                    <form method="post" action="">
+                        <input type="text" name="woocs_api_key" class="regular-text" placeholder="Enter API Key">
+                        <button type="submit" class="button">Connect</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    <?php else: ?>
+        <form method="post" action="options.php">
+            <div class="woocs-card">
+                <div class="woocs-card-header">
+                    <h2>Connection</h2>
+                    <span class="woocs-badge woocs-badge-success"><span class="woocs-dot"></span> Connected</span>
+                </div>
+                <div class="woocs-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Store ID</th>
+                            <td><code><?php echo esc_html(get_option('woocs_store_id', 'xxxxxxxx-xxxx-xxxx')); ?></code></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">API Key</th>
+                            <td>
+                                <div class="woocs-input-group">
+                                    <input type="password" value="<?php echo esc_attr($api_key); ?>" class="regular-text" readonly id="woocs-api-key">
+                                    <button type="button" class="button woocs-copy-btn" data-target="woocs-api-key">Copy</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="woocs-card">
+                <div class="woocs-card-header">
+                    <h2>WooCommerce Credentials</h2>
+                </div>
+                <div class="woocs-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Store URL</th>
+                            <td><input type="url" name="woocs_wc_url" value="<?php echo esc_attr(get_option('woocs_wc_url', get_site_url())); ?>" class="regular-text"></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Consumer Key</th>
+                            <td><input type="text" name="woocs_wc_consumer_key" value="<?php echo esc_attr(get_option('woocs_wc_consumer_key')); ?>" class="regular-text" placeholder="ck_..."></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Consumer Secret</th>
+                            <td><input type="password" name="woocs_wc_consumer_secret" value="<?php echo esc_attr(get_option('woocs_wc_consumer_secret')); ?>" class="regular-text" placeholder="cs_..."></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Email</th>
+                            <td><input type="email" name="woocs_merchant_email" value="<?php echo esc_attr(get_option('woocs_merchant_email', get_option('admin_email'))); ?>" class="regular-text"></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="woocs-card">
+                <div class="woocs-card-header">
+                    <h2>Widget Settings</h2>
+                </div>
+                <div class="woocs-card-body">
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Enable Widget</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="woocs_widget_enabled" value="1" checked>
+                                    Show chat widget on storefront
+                                </label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Position</th>
+                            <td>
+                                <fieldset>
+                                    <label><input type="radio" name="woocs_widget_position" value="bottom-right" checked> Bottom-right</label><br>
+                                    <label><input type="radio" name="woocs_widget_position" value="bottom-left"> Bottom-left</label>
+                                </fieldset>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <p class="submit">
+                <button type="submit" class="button button-primary">Save settings</button>
+                <a href="#" class="button woocs-text-danger" style="float: right;">Disconnect store</a>
+            </p>
+        </form>
+    <?php endif; ?>
+</div>

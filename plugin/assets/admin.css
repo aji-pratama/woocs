@@ -1,0 +1,212 @@
+/* Premium Vanilla CSS for WooCS.ai WP Admin */
+.woocs-wrap {
+    max-width: 1000px;
+    margin: 20px 20px 20px 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+.woocs-card {
+    background: #fff;
+    border: 1px solid #e2e4e7;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease-in-out;
+}
+
+.woocs-card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.woocs-card-header {
+    background: #f8f9fa;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e2e4e7;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.woocs-card-header h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.woocs-card-body {
+    padding: 24px;
+}
+.woocs-card-body.p-0 {
+    padding: 0;
+}
+
+/* Badges */
+.woocs-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 500;
+}
+.woocs-badge-success { background: #dcfce7; color: #166534; }
+.woocs-badge-neutral { background: #f3f4f6; color: #374151; }
+
+.woocs-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+.woocs-badge-success .woocs-dot { background: #22c55e; }
+.woocs-badge-neutral .woocs-dot { background: #9ca3af; }
+
+/* Utilities */
+.woocs-text-success { color: #16a34a !important; }
+.woocs-text-danger { color: #dc2626 !important; }
+.woocs-text-muted { color: #6b7280 !important; }
+
+/* Input groups */
+.woocs-input-group {
+    display: flex;
+    max-width: 400px;
+}
+.woocs-input-group input {
+    flex: 1;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.woocs-input-group button {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    margin-left: -1px !important;
+}
+
+/* Sync Grid */
+.woocs-sync-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.woocs-sync-item {
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+}
+.woocs-sync-label {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+.woocs-sync-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.woocs-sync-time {
+    font-size: 13px;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Icons action */
+.woocs-icon-action {
+    text-decoration: none !important;
+    color: #64748b;
+    margin-right: 8px;
+    transition: color 0.2s;
+}
+.woocs-icon-action:hover { color: #2271b1; }
+.woocs-icon-action.woocs-text-danger:hover { color: #b32d2e; }
+
+/* Preview Container */
+.woocs-preview-container {
+    background: #e5e7eb;
+    padding: 40px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+}
+.woocs-preview-frame {
+    width: 100%;
+    max-width: 1200px;
+    height: 700px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    position: relative;
+}
+
+/* Simulated Store */
+.woocs-sim-header { padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+.woocs-sim-body { padding: 40px 20px; text-align: center; }
+.woocs-sim-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 20px 0; }
+.woocs-sim-item { height: 200px; background: #f3f4f6; border-radius: 4px; }
+
+/* Mock Widget */
+.woocs-sim-widget {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    width: 320px;
+    height: 450px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.woocs-sim-widget-header {
+    background: #2563eb;
+    color: #fff;
+    padding: 16px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+}
+.woocs-sim-widget-body {
+    flex: 1;
+    background: #f8fafc;
+    padding: 16px;
+    overflow-y: auto;
+}
+.woocs-sim-bubble {
+    padding: 12px;
+    border-radius: 12px;
+    background: #e2e8f0;
+    font-size: 14px;
+    max-width: 85%;
+}
+.woocs-sim-bot { border-bottom-left-radius: 4px; }
+.woocs-sim-widget-input {
+    padding: 16px;
+    border-top: 1px solid #e2e8f0;
+}
+.woocs-sim-widget-input input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 20px;
+    outline: none;
+}
+.woocs-debug-overlay {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-family: monospace;
+}
