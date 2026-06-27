@@ -55,6 +55,8 @@ class ChatMessage(models.Model):
         null=True,
         blank=True,
     )
+    response_type = models.CharField(max_length=20, default="text")
+    metadata = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

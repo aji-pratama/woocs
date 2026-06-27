@@ -6,6 +6,14 @@
     <title>WooCS Widget Fullscreen</title>
   </head>
   <body>
+    <!-- Local development config injection -->
+    <script>
+      window.WooCS = {
+        store_id: "%VITE_STORE_ID%",
+        api_url: "%VITE_API_URL%",
+        store_name: "Demo Store"
+      };
+    </script>
     <div id="woocs-widget-root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

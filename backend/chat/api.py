@@ -3,7 +3,7 @@ from ninja.errors import HttpError
 
 from store.models import Store
 
-from .schemas import ChatRequestIn, ChatResponseOut, OrderStatusResponseOut
+from .schemas import ChatHistoryResponseOut, ChatRequestIn, ChatResponseOut, OrderStatusResponseOut
 from .services import ChatService, OrderService
 from .tasks import send_escalation_email
 
@@ -33,6 +33,34 @@ def chat(request, payload: ChatRequestIn):
         send_escalation_email.delay(str(session.id))
 
     return 200, result
+
+
+@router.get("/history/", response={200: ChatHistoryResponseOut})
+def get_chat_history(request, store_id: str, session_id: str):
+    """
+    Fetches the last N messages for a given store and session.
+    """
+    try:
+        store = Store.objects.get(id=store_id)
+        session = ChatSession.objects.get(store=store, session_id=session_id)
+    except (Store.DoesNotExist, ChatSession.DoesNotExist):
+        return 200, {"session_id": session_id, "messages": []}
+
+    messages = session.get_last_n_messages(n=50)
+    return 200, {
+        "session_id": session_id,
+        "messages": [
+            {
+                "id": m.id,
+                "role": m.role,
+                "content": m.content,
+                "response_type": m.response_type,
+                "metadata": m.metadata,
+                "error": m.error if hasattr(m, "error") else False,
+            }
+            for m in messages
+        ],
+    }
 
 
 @router.get("/order-status/", response={200: OrderStatusResponseOut})

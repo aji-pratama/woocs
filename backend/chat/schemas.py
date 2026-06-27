@@ -20,6 +20,18 @@ class ChatResponseOut(BaseModel):
     metadata: Optional[dict[str, Any]] = None  # structured data for card rendering
 
 
+class ChatMessageOut(BaseModel):
+    id: UUID
+    role: str
+    content: str
+    response_type: str = "text"
+    metadata: Optional[dict[str, Any]] = None
+    error: bool = False
+
+class ChatHistoryResponseOut(BaseModel):
+    session_id: UUID
+    messages: list[ChatMessageOut]
+
 class OrderStatusRequestIn(BaseModel):
     store_id: UUID
     order_id: str

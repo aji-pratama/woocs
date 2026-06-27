@@ -69,45 +69,79 @@ export default function App() {
   // Init config + restore state
   useEffect(() => {
     const wc = typeof window !== "undefined" ? window.WooCS : undefined;
+    if (!wc?.store_id) {
+      console.warn("WooCS widget requires window.WooCS.store_id to be set.");
+    }
     const cfg = {
-      store_id: wc?.store_id ?? "demo-store",
+      store_id: wc?.store_id ?? "",
       api_url: wc?.api_url ?? "http://localhost:8000",
       store_name: wc?.store_name ?? "Store assistant",
     };
     setConfig(cfg);
 
+    let savedSessionId = "";
+    let savedIsOpen = false;
     try {
       const raw = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
       if (raw) {
-        const parsed = JSON.parse(raw) as { sessionId: string; messages: Message[]; isOpen?: boolean };
-        setSessionId(parsed.sessionId || uuid());
-        setMessages(parsed.messages || []);
-        if (parsed.isOpen !== undefined) setIsOpen(parsed.isOpen);
-        return;
+        const parsed = JSON.parse(raw) as { sessionId: string; isOpen?: boolean };
+        savedSessionId = parsed.sessionId || "";
+        savedIsOpen = parsed.isOpen ?? false;
       }
     } catch {
       /* ignore */
     }
-    setSessionId(uuid());
-    setMessages([
-      {
-        id: uuid(),
-        role: "bot",
-        text: `Hi! I'm your ${cfg.store_name}. I can help you find products, check stock, or track your order.`,
-        response_type: "text",
-      },
-    ]);
+
+    const currentSessionId = savedSessionId || uuid();
+    setSessionId(currentSessionId);
+    setIsOpen(savedIsOpen);
+
+    // Fetch history from DB
+    async function fetchHistory() {
+      try {
+        const res = await fetch(`${cfg.api_url.replace(/\/$/, "")}/api/widget/history/?store_id=${cfg.store_id}&session_id=${currentSessionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.messages && data.messages.length > 0) {
+            const mapped = data.messages.map((m: any) => ({
+              id: m.id,
+              role: m.role === "assistant" ? "bot" : m.role,
+              text: m.content,
+              response_type: m.response_type,
+              metadata: m.metadata,
+              error: m.error
+            }));
+            setMessages(mapped);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load chat history", err);
+      }
+      
+      // Fallback: new chat if no history
+      setMessages([
+        {
+          id: uuid(),
+          role: "bot",
+          text: `Hi! I'm your ${cfg.store_name}. I can help you find products, check stock, or track your order.`,
+          response_type: "text",
+        },
+      ]);
+    }
+    
+    fetchHistory();
   }, []);
 
   // Persist
   useEffect(() => {
     if (!sessionId) return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessionId, messages, isOpen }));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessionId, isOpen }));
     } catch {
       /* ignore */
     }
-  }, [sessionId, messages, isOpen]);
+  }, [sessionId, isOpen]);
 
   // Auto-scroll
   useEffect(() => {

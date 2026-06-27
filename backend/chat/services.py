@@ -96,6 +96,7 @@ class ChatService:
                 content=escalation_msg,
                 escalated=True,
                 escalation_reason="keyword_trigger",
+                response_type="escalation",
             )
             return {
                 "answer": escalation_msg,
@@ -121,6 +122,8 @@ class ChatService:
                 role="assistant",
                 content=answer,
                 confidence_score=1.0 if order_result["found"] else None,
+                response_type="order_card" if order_result["found"] else "text",
+                metadata=order_result if order_result["found"] else None,
             )
             return {
                 "answer": answer,
@@ -149,6 +152,7 @@ class ChatService:
                 confidence_score=confidence,
                 escalated=True,
                 escalation_reason="low_confidence",
+                response_type="escalation",
             )
             return {
                 "answer": escalation_msg,
@@ -168,6 +172,8 @@ class ChatService:
             role="assistant",
             content=answer,
             confidence_score=confidence,
+            response_type=response_type,
+            metadata=product_data,
         )
         return {
             "answer": answer,
@@ -194,33 +200,20 @@ class ChatService:
 
         For PoC validation, returns a canned response with product data if available.
         """
-        # TODO: Replace with real LlamaIndex + Anthropic integration
-        logger.info(f"[STUB] RAG query for store {store.id}: '{message[:50]}...'")
-
-        # Check if there are any products in the store
-        products = store.products.all()[:1]
-        if products:
-            product = products[0]
-            product_data = {
-                "name": product.name,
-                "price": str(product.price) if product.price else None,
-                "stock_status": product.stock_status,
-                "stock_quantity": product.stock_quantity,
-                "categories": product.categories,
-                "wc_url": f"{store.wc_url}/product/{product.wc_id}/",
-            }
-            return (
-                f"Yes! Here's what I found:",
-                0.85,
-                product_data,
-            )
-        else:
-            return (
-                "I don't have enough information to answer that right now. "
-                "(This is a stub response — real RAG pipeline coming soon.)",
-                0.50,
-                None,
-            )
+        # For FE rendering tests, we'll return a hardcoded dummy product
+        product_data = {
+            "name": "Classic Navy Hoodie",
+            "price": "34.99",
+            "stock_status": "instock",
+            "stock_quantity": 5,
+            "wc_url": "https://example.com/product/123",
+            "image_url": "https://placehold.co/400x300/e2e8f0/475569?text=Hoodie",
+        }
+        return (
+            "Yes! Here's what I found:",
+            0.85,
+            product_data,
+        )
 
 
 class OrderService:
