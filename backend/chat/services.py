@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 from uuid import UUID
 
 from store.models import Store
@@ -71,9 +71,10 @@ class ChatService:
         1. Get or create session
         2. Save user message
         3. Keyword check → escalate immediately if matched
-        4. RAG pipeline (stub) → evaluate confidence
-        5. Save assistant message
-        6. Return response dict
+        4. Order intent check → proxy to WC API if matched
+        5. RAG pipeline (stub) → evaluate confidence
+        6. Save assistant message
+        7. Return response dict with response_type for widget rendering
         """
         session = cls.get_or_create_session(store, session_id)
 
@@ -87,7 +88,7 @@ class ChatService:
         # 1. Keyword check (bypass RAG entirely)
         if cls.check_keywords(message):
             escalation_msg = (
-                "I'm not sure about this. " "Want me to connect you with the team?"
+                "I'm not sure about this. Want me to connect you with the team?"
             )
             ChatMessage.objects.create(
                 session=session,
@@ -102,15 +103,44 @@ class ChatService:
                 "escalated": True,
                 "escalation_reason": "keyword_trigger",
                 "session_id": session_id,
+                "response_type": "escalation",
+                "metadata": None,
             }
 
-        # 2. RAG pipeline (STUB for PoC)
-        answer, confidence = cls._rag_query_stub(store, message, session)
+        # 2. Order intent check (bypass RAG, proxy to WC)
+        order_id = cls.detect_order_intent(message)
+        if order_id:
+            order_result = OrderService.get_order_status(store, order_id)
+            if order_result["found"]:
+                answer = f"Here's the status for order #{order_id}."
+            else:
+                answer = order_result["error"]
 
-        # 3. Evaluate confidence
+            ChatMessage.objects.create(
+                session=session,
+                role="assistant",
+                content=answer,
+                confidence_score=1.0 if order_result["found"] else None,
+            )
+            return {
+                "answer": answer,
+                "confidence": 1.0 if order_result["found"] else None,
+                "escalated": False,
+                "escalation_reason": None,
+                "session_id": session_id,
+                "response_type": "order_card" if order_result["found"] else "text",
+                "metadata": order_result if order_result["found"] else None,
+            }
+
+        # 3. RAG pipeline (STUB for PoC)
+        answer, confidence, product_data = cls._rag_query_stub(
+            store, message, session
+        )
+
+        # 4. Evaluate confidence
         if confidence < CONFIDENCE_THRESHOLD:
             escalation_msg = (
-                "I'm not sure about this. " "Want me to connect you with the team?"
+                "I'm not sure about this. Want me to connect you with the team?"
             )
             ChatMessage.objects.create(
                 session=session,
@@ -126,9 +156,13 @@ class ChatService:
                 "escalated": True,
                 "escalation_reason": "low_confidence",
                 "session_id": session_id,
+                "response_type": "escalation",
+                "metadata": None,
             }
 
-        # 4. Normal response
+        # 5. Normal response — determine if product card should render
+        response_type = "product_card" if product_data else "text"
+
         ChatMessage.objects.create(
             session=session,
             role="assistant",
@@ -141,12 +175,14 @@ class ChatService:
             "escalated": False,
             "escalation_reason": None,
             "session_id": session_id,
+            "response_type": response_type,
+            "metadata": product_data,
         }
 
     @staticmethod
     def _rag_query_stub(
         store: Store, message: str, session: ChatSession
-    ) -> Tuple[str, float]:
+    ) -> Tuple[str, float, Optional[dict[str, Any]]]:
         """
         STUB: Simulates the RAG pipeline.
         In production, this will:
@@ -154,28 +190,36 @@ class ChatService:
         2. Search pgvector via LlamaIndex (top-k=5)
         3. Build prompt with context + conversation history
         4. Call Claude Haiku for generation
-        5. Return (answer, confidence_score)
+        5. Return (answer, confidence_score, product_metadata_or_none)
 
-        For PoC validation, returns a canned response with high confidence.
+        For PoC validation, returns a canned response with product data if available.
         """
         # TODO: Replace with real LlamaIndex + Anthropic integration
         logger.info(f"[STUB] RAG query for store {store.id}: '{message[:50]}...'")
 
-        # Check if there are any products in the store to give a slightly
-        # more realistic stub response
-        product_count = store.products.count()
-        if product_count > 0:
+        # Check if there are any products in the store
+        products = store.products.all()[:1]
+        if products:
+            product = products[0]
+            product_data = {
+                "name": product.name,
+                "price": str(product.price) if product.price else None,
+                "stock_status": product.stock_status,
+                "stock_quantity": product.stock_quantity,
+                "categories": product.categories,
+                "wc_url": f"{store.wc_url}/product/{product.wc_id}/",
+            }
             return (
-                f"Based on our catalog of {product_count} products, "
-                f"I can help you with that! "
-                f"(This is a stub response — real RAG pipeline coming soon.)",
+                f"Yes! Here's what I found:",
                 0.85,
+                product_data,
             )
         else:
             return (
                 "I don't have enough information to answer that right now. "
                 "(This is a stub response — real RAG pipeline coming soon.)",
                 0.50,
+                None,
             )
 
 
@@ -192,12 +236,6 @@ class OrderService:
         store.wc_consumer_secret to call WC REST API.
         """
         # TODO: Replace with real WooCommerce REST API call
-        # Real implementation would be:
-        # response = requests.get(
-        #     f"{store.wc_url}/wp-json/wc/v3/orders/{order_id}",
-        #     auth=(store.wc_consumer_key, store.wc_consumer_secret)
-        # )
-
         logger.info(
             f"[STUB] Order status lookup for store {store.id}, order #{order_id}"
         )
@@ -223,6 +261,8 @@ class OrderService:
             "status": None,
             "items": [],
             "total": None,
-            "error": f"I couldn't find order #{order_id}. "
-            f"Please check your order number.",
+            "error": (
+                f"I couldn't find order #{order_id}. "
+                f"Please check your order number."
+            ),
         }

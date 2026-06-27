@@ -3,7 +3,7 @@ import uuid
 import pytest
 
 from chat.models import ChatMessage, ChatSession
-from chat.services import ESCALATION_KEYWORDS, ChatService, OrderService
+from chat.services import ChatService, OrderService
 from store.models import Product, Store
 
 
@@ -44,6 +44,7 @@ class TestChatService:
         )
         assert result["escalated"] is True
         assert result["escalation_reason"] == "keyword_trigger"
+        assert result["response_type"] == "escalation"
         assert result["session_id"] == self.session_id
 
         # Should have 2 messages: user + assistant escalation
@@ -62,6 +63,9 @@ class TestChatService:
         assert result["escalated"] is False
         assert result["confidence"] >= 0.65
         assert result["answer"] is not None
+        assert result["response_type"] == "product_card"
+        assert result["metadata"] is not None
+        assert result["metadata"]["name"] == "Test Product"
 
     def test_handle_message_low_confidence_no_products(self):
         # No products → stub returns low confidence → escalation
@@ -72,6 +76,28 @@ class TestChatService:
         )
         assert result["escalated"] is True
         assert result["escalation_reason"] == "low_confidence"
+        assert result["response_type"] == "escalation"
+
+    def test_handle_message_order_intent(self):
+        result = ChatService.handle_message(
+            store=self.store,
+            session_id=self.session_id,
+            message="Where is my order #4821?",
+        )
+        assert result["escalated"] is False
+        assert result["response_type"] == "order_card"
+        assert result["metadata"] is not None
+        assert result["metadata"]["order_id"] == "4821"
+
+    def test_handle_message_order_not_found(self):
+        result = ChatService.handle_message(
+            store=self.store,
+            session_id=self.session_id,
+            message="Where is my order #99999?",
+        )
+        assert result["escalated"] is False
+        assert result["response_type"] == "text"
+        assert result["metadata"] is None
 
 
 @pytest.mark.django_db

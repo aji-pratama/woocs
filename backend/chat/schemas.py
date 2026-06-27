@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -16,6 +16,8 @@ class ChatResponseOut(BaseModel):
     escalated: bool = False
     escalation_reason: Optional[str] = None
     session_id: UUID
+    response_type: str = "text"  # text | product_card | order_card | escalation
+    metadata: Optional[dict[str, Any]] = None  # structured data for card rendering
 
 
 class OrderStatusRequestIn(BaseModel):
