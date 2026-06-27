@@ -75,3 +75,15 @@
 - [x] Integrated dynamic `store_id` fetching via `.env` (development) and `window.WooCS` (production)
 - [x] Added `make wp-build` support for single JS file bundling
 - [x] Set up Vite + TailwindCSS v4 configurations
+
+---
+
+## Phase 5 — WordPress Plugin (PHP)
+> Completed: 2026-06-27
+
+- [x] `plugin/woocs.php` — Main plugin entry point and enqueuing widget JS bundle
+- [x] Settings Page (`A1`) — Connection status, API key input, widget toggle
+- [x] Sync Status Page (`A2`) — Displays products, FAQs counts, and trigger manual sync
+- [x] FAQ Manager Page (`A3`) — CRUD for FAQs natively in WordPress
+- [x] Widget Preview Page (`A4`) — Live test the widget inside WP Admin
+- [x] Integration with Django Backend (`ApiClient`, `SyncService`, `AjaxHandlers`)
