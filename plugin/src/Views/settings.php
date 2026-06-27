@@ -3,7 +3,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
 
 // Mock states for PoC
-$is_connected = get_option('woocs_store_id') !== false;
+$is_connected = !empty(get_option('woocs_store_id'));
 $api_key = get_option('woocs_api_key', '');
 
 $error_msg = get_transient('woocs_admin_error');
@@ -30,7 +30,11 @@ if ($success_msg) delete_transient('woocs_admin_success');
             <div class="woocs-card-body">
                 <p>Connect your store to start automating support.<br>
                 Free 14-day trial — no credit card required.</p>
-                <a href="#" class="button button-primary button-hero">Connect to WooCS</a>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline;">
+                    <?php wp_nonce_field('woocs_save_settings'); ?>
+                    <input type="hidden" name="action" value="woocs_save_settings">
+                    <button type="submit" class="button button-primary button-hero">Connect to WooCS</button>
+                </form>
                 
                 <hr class="woocs-divider">
                 
@@ -129,7 +133,7 @@ if ($success_msg) delete_transient('woocs_admin_success');
 
             <p class="submit">
                 <button type="submit" class="button button-primary">Save settings</button>
-                <a href="#" class="button woocs-text-danger" style="float: right;">Disconnect store</a>
+                <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=woocs_disconnect_store'), 'woocs_disconnect_store')); ?>" class="button woocs-text-danger" style="float: right;">Disconnect store</a>
             </p>
         </form>
     <?php endif; ?>

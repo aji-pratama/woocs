@@ -9,6 +9,7 @@ class AdminMenu {
         add_action('admin_menu', [$this, 'register_menus']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('admin_post_woocs_save_settings', [$this, 'handle_save_settings']);
+        add_action('admin_post_woocs_disconnect_store', [$this, 'handle_disconnect_store']);
     }
 
     public function enqueue_assets($hook) {
@@ -128,6 +129,21 @@ class AdminMenu {
             set_transient('woocs_admin_success', 'Settings saved and store connected successfully!', 45);
         }
 
+        wp_safe_redirect(admin_url('admin.php?page=woocs-settings'));
+        exit;
+    }
+
+    public function handle_disconnect_store() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die('Unauthorized');
+        }
+
+        check_admin_referer('woocs_disconnect_store');
+
+        delete_option('woocs_store_id');
+        delete_option('woocs_api_key');
+
+        set_transient('woocs_admin_success', 'Store disconnected successfully.', 45);
         wp_safe_redirect(admin_url('admin.php?page=woocs-settings'));
         exit;
     }
