@@ -65,3 +65,13 @@
 - [x] Automated Tests (23 tests across 4 test files)
 - [x] Migrations + `make backend-migrate`
 
+---
+
+## Phase 4 — Widget UI (React/Vite)
+> Completed: 2026-06-27
+
+- [x] Extracted Lovable UI codebase and refactored TanStack Start logic to simple React
+- [x] Restored Chat UI elements (Product Card, Order Card, Escalation Bubble, Typing indicators)
+- [x] Integrated dynamic `store_id` fetching via `.env` (development) and `window.WooCS` (production)
+- [x] Added `make wp-build` support for single JS file bundling
+- [x] Set up Vite + TailwindCSS v4 configurations

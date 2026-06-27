@@ -4,29 +4,11 @@
 
 ## Next: Feature Development
 
-### Phase 3 — Chat & RAG
-- [x] `chat/models.py` — `ChatSession`, `ChatMessage` (with `confidence_score`, `escalated`, `escalation_reason`)
-- [x] `chat/schemas.py` — request/response Pydantic schemas for `/chat/` and `/order-status/` endpoints
-- [x] `chat/services.py` — core RAG pipeline (keyword check, stub RAG, confidence evaluation) + OrderService
-- [x] `chat/api.py` — `POST /api/widget/chat/` (keyless, scoped by `store_id`) and `GET /api/widget/order-status/`
-- [x] `chat/tasks.py` — Celery task for async escalation email dispatch via SMTP
-- [x] `config/urls.py` — registered chat router under `/widget/`
-- [x] `config/settings.py` — added SMTP email config (console backend for PoC)
-- [x] Automated Tests (23 tests: `test_models`, `test_services`, `test_api`, `test_tasks`)
-- [x] Migrations + `make backend-migrate`
+### Next Phase — AI & External API Integration
+- [ ] `chat/services.py` — integrate LlamaIndex + Anthropic Haiku for actual RAG pipeline in `_rag_query_stub`
+- [ ] `chat/services.py` — integrate WooCommerce REST API in `OrderService`
+- [ ] `store/tasks.py` — implement actual catalog embedding logic for `ingest_catalog` (currently stub)
 
-### Phase 4 — Widget UI (React/Vite)
-- [ ] `widget/src/api/` — API client logic (fetch from `/api/widget/*`)
-- [ ] `widget/src/components/C01_Bubble.jsx` — Floating bubble launcher
-- [ ] `widget/src/components/C02_Header.jsx` — Chat panel header
-- [ ] `widget/src/components/C03_Thread.jsx` — Message thread layout
-- [ ] `widget/src/components/C05_ProductCard.jsx` — Inline product layout
-- [ ] `widget/src/components/C06_OrderCard.jsx` — Inline order status layout
-- [ ] `widget/src/components/C07_Escalation.jsx` — Warning bubble with CTAs
-- [ ] `widget/src/components/C08_Typing.jsx` — Loading indicator
-- [ ] `widget/src/components/C09_Input.jsx` — Text input bar
-- [ ] `widget/src/components/C10_Footer.jsx` — "Powered by WooCS.ai"
-- [ ] `make wp-build` — bundle JS for WordPress injection
 
 ### Phase 5 — WordPress Plugin (PHP)
 - [ ] `plugin/woocs-ai.php` — Main plugin entry point and enqueuing widget JS bundle
