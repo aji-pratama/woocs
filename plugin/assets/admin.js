@@ -24,4 +24,43 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Sync Now functionality
+    const syncBtn = document.getElementById('woocs-sync-now-btn');
+    if (syncBtn) {
+        syncBtn.addEventListener('click', function() {
+            const nonce = document.getElementById('woocs_sync_nonce').value;
+            const ajaxUrl = document.getElementById('woocs_ajax_url').value;
+            
+            const originalText = this.innerText;
+            this.innerText = 'Syncing...';
+            this.disabled = true;
+
+            const formData = new FormData();
+            formData.append('action', 'woocs_sync_now');
+            formData.append('nonce', nonce);
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Sync initiated successfully! Check log for details.');
+                    location.reload();
+                } else {
+                    alert('Sync failed: ' + (data.data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error during sync:', error);
+                alert('An error occurred during sync.');
+            })
+            .finally(() => {
+                this.innerText = originalText;
+                this.disabled = false;
+            });
+        });
+    }
 });

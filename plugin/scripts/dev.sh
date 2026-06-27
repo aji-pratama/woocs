@@ -22,7 +22,7 @@ echo "🔧 Installing WP-CLI if not present..."
 docker exec -u root ${CONTAINER_NAME} bash -c "if ! command -v wp &> /dev/null; then curl -sO https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp; fi"
 
 echo "⚙️  Installing WordPress Core (if not installed)..."
-docker exec -u www-data ${CONTAINER_NAME} wp core install \
+docker exec -e WP_CLI_CACHE_DIR=/tmp/.wp-cli-cache -u www-data ${CONTAINER_NAME} wp core install \
   --url=localhost:8080 \
   --title="WooCS Dev Store" \
   --admin_user=admin \
@@ -32,14 +32,14 @@ docker exec -u www-data ${CONTAINER_NAME} wp core install \
   || echo "ℹ️  WordPress is already installed."
 
 echo "🛍️  Installing & Activating WooCommerce..."
-docker exec -u www-data ${CONTAINER_NAME} wp plugin install woocommerce --activate
+docker exec -e WP_CLI_CACHE_DIR=/tmp/.wp-cli-cache -u www-data ${CONTAINER_NAME} wp plugin install woocommerce --activate
 
-echo "🔌 Activating WooCS.ai plugin..."
-docker exec -u www-data ${CONTAINER_NAME} wp plugin activate woocs-ai || echo "ℹ️  WooCS.ai already active."
+echo "🔌 Activating WooCS plugin..."
+docker exec -e WP_CLI_CACHE_DIR=/tmp/.wp-cli-cache -u www-data ${CONTAINER_NAME} wp plugin activate woocs || echo "ℹ️  WooCS already active."
 
 echo "📦 Generating WooCommerce Dummy Data..."
 # Create a few dummy products using WP-CLI
-docker exec -u www-data ${CONTAINER_NAME} bash -c '
+docker exec -e WP_CLI_CACHE_DIR=/tmp/.wp-cli-cache -u www-data ${CONTAINER_NAME} bash -c '
   if ! wp wc product list --format=ids | grep -q "[0-9]"; then
     echo "Creating dummy products..."
     wp wc product create --name="Classic Hoodie" --type="simple" --regular_price="34.99" --description="A cozy classic hoodie." --short_description="Great hoodie." --manage_stock=true --stock_quantity=5 --user=1

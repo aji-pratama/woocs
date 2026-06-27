@@ -56,7 +56,7 @@ services:
       WORDPRESS_DEBUG: "1"
     volumes:
       - wp_data:/var/www/html
-      - ./plugin:/var/www/html/wp-content/plugins/woocs-ai:ro
+      - ./plugin:/var/www/html/wp-content/plugins/woocs:ro
 
   # Redis 7 — Celery message broker and result backend
   redis:

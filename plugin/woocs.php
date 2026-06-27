@@ -1,10 +1,10 @@
 <?php
 /**
- * Plugin Name: WooCS.ai
+ * Plugin Name: WooCS
  * Plugin URI: https://woocs.ai
  * Description: AI-powered customer support widget for WooCommerce.
  * Version: 0.1.0
- * Author: WooCS.ai
+ * Author: WooCS
  * Author URI: https://woocs.ai
  * License: GPL v2 or later
  * Text Domain: woocs
@@ -38,9 +38,10 @@ spl_autoload_register(function ($class) {
     }
 });
 
-// Initialize Admin Menu
+// Initialize Admin Menu & AJAX
 if (is_admin()) {
     new WooCS\AdminMenu();
+    WooCS\AjaxHandlers::init();
 }
 
 // Inject Widget on Frontend

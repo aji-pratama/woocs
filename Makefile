@@ -99,6 +99,10 @@ wp-build:
 	rm -f woocs.zip
 	zip -r woocs.zip plugin/
 
+wp-dev-setup:
+	@chmod +x plugin/scripts/dev.sh
+	@./plugin/scripts/dev.sh
+
 # ─── All-in-one ──────────────────────────────────────────────────────────────
 
 dev: infra-up

@@ -1,13 +1,14 @@
 <?php
-namespace WooCS;
-
 declare(strict_types=1);
+
+namespace WooCS;
 
 class AdminMenu {
 
     public function __construct() {
         add_action('admin_menu', [$this, 'register_menus']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
+        add_action('admin_post_woocs_save_settings', [$this, 'handle_save_settings']);
     }
 
     public function enqueue_assets($hook) {
@@ -23,8 +24,8 @@ class AdminMenu {
         $capability = 'manage_woocommerce';
 
         add_menu_page(
-            'WooCS.ai Settings',
-            'WooCS.ai',
+            'WooCS Settings',
+            'WooCS',
             $capability,
             'woocs-settings',
             [$this, 'render_settings_page'],
@@ -34,7 +35,7 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-settings',
-            'WooCS.ai Settings',
+            'WooCS Settings',
             'Settings',
             $capability,
             'woocs-settings',
@@ -43,7 +44,7 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-settings',
-            'WooCS.ai Sync Status',
+            'WooCS Sync Status',
             'Sync',
             $capability,
             'woocs-sync',
@@ -52,7 +53,7 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-settings',
-            'WooCS.ai FAQs',
+            'WooCS FAQs',
             'FAQs',
             $capability,
             'woocs-faqs',
@@ -61,7 +62,7 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-settings',
-            'WooCS.ai Preview',
+            'WooCS Preview',
             'Preview',
             $capability,
             'woocs-preview',
@@ -83,5 +84,51 @@ class AdminMenu {
 
     public function render_preview_page() {
         require WOOCS_PLUGIN_DIR . 'src/Views/preview.php';
+    }
+
+    public function handle_save_settings() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die('Unauthorized');
+        }
+
+        check_admin_referer('woocs_save_settings');
+
+        $wc_url = sanitize_url($_POST['woocs_wc_url'] ?? get_site_url());
+        $merchant_email = sanitize_email($_POST['woocs_merchant_email'] ?? get_option('admin_email'));
+        $api_key = sanitize_text_field($_POST['woocs_api_key'] ?? '');
+        
+        $client = new ApiClient();
+        $response = $client->register_store($wc_url, $merchant_email, $api_key);
+
+        if (is_wp_error($response)) {
+            set_transient('woocs_admin_error', $response->get_error_message(), 45);
+        } else {
+            update_option('woocs_store_id', sanitize_text_field($response['store_id']));
+            update_option('woocs_wc_url', $wc_url);
+            update_option('woocs_merchant_email', $merchant_email);
+            
+            if (isset($_POST['woocs_wc_consumer_key'])) {
+                update_option('woocs_wc_consumer_key', sanitize_text_field($_POST['woocs_wc_consumer_key']));
+            }
+            if (isset($_POST['woocs_wc_consumer_secret'])) {
+                update_option('woocs_wc_consumer_secret', sanitize_text_field($_POST['woocs_wc_consumer_secret']));
+            }
+            if (isset($_POST['woocs_widget_enabled'])) {
+                update_option('woocs_widget_enabled', '1');
+            } else {
+                update_option('woocs_widget_enabled', '0');
+            }
+            if (isset($_POST['woocs_widget_position'])) {
+                update_option('woocs_widget_position', sanitize_text_field($_POST['woocs_widget_position']));
+            }
+            if (!empty($response['api_key'])) {
+                update_option('woocs_api_key', sanitize_text_field($response['api_key']));
+            }
+
+            set_transient('woocs_admin_success', 'Settings saved and store connected successfully!', 45);
+        }
+
+        wp_safe_redirect(admin_url('admin.php?page=woocs-settings'));
+        exit;
     }
 }

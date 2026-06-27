@@ -3,12 +3,15 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
 ?>
 <div class="wrap woocs-wrap">
-    <h1>WooCS.ai &rsaquo; Sync Status</h1>
+    <h1>WooCS &rsaquo; Sync Status</h1>
+    
+    <input type="hidden" id="woocs_sync_nonce" value="<?php echo esc_attr(wp_create_nonce('woocs_sync_nonce')); ?>">
+    <input type="hidden" id="woocs_ajax_url" value="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">
 
     <div class="woocs-card">
         <div class="woocs-card-header">
             <h2>Sync Summary</h2>
-            <button type="button" class="button button-primary">Sync now</button>
+            <button type="button" class="button button-primary" id="woocs-sync-now-btn">Sync now</button>
         </div>
         <div class="woocs-card-body">
             <div class="woocs-sync-grid">

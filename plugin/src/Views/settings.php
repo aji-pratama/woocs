@@ -5,9 +5,21 @@ if (!defined('ABSPATH')) exit;
 // Mock states for PoC
 $is_connected = get_option('woocs_store_id') !== false;
 $api_key = get_option('woocs_api_key', '');
+
+$error_msg = get_transient('woocs_admin_error');
+$success_msg = get_transient('woocs_admin_success');
+if ($error_msg) delete_transient('woocs_admin_error');
+if ($success_msg) delete_transient('woocs_admin_success');
 ?>
 <div class="wrap woocs-wrap">
-    <h1>WooCS.ai &rsaquo; Settings</h1>
+    <h1>WooCS &rsaquo; Settings</h1>
+
+    <?php if ($error_msg): ?>
+        <div class="notice notice-error is-dismissible"><p><?php echo esc_html($error_msg); ?></p></div>
+    <?php endif; ?>
+    <?php if ($success_msg): ?>
+        <div class="notice notice-success is-dismissible"><p><?php echo esc_html($success_msg); ?></p></div>
+    <?php endif; ?>
 
     <?php if (!$is_connected): ?>
         <div class="woocs-card woocs-connect-card">
@@ -18,21 +30,25 @@ $api_key = get_option('woocs_api_key', '');
             <div class="woocs-card-body">
                 <p>Connect your store to start automating support.<br>
                 Free 14-day trial — no credit card required.</p>
-                <a href="#" class="button button-primary button-hero">Connect to WooCS.ai</a>
+                <a href="#" class="button button-primary button-hero">Connect to WooCS</a>
                 
                 <hr class="woocs-divider">
                 
                 <p>Already have an API key? <a href="#" onclick="document.getElementById('manual-key-form').style.display='block'; return false;">Enter key manually &triangledown;</a></p>
                 <div id="manual-key-form" style="display: none;">
-                    <form method="post" action="">
-                        <input type="text" name="woocs_api_key" class="regular-text" placeholder="Enter API Key">
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <?php wp_nonce_field('woocs_save_settings'); ?>
+                        <input type="hidden" name="action" value="woocs_save_settings">
+                        <input type="text" name="woocs_api_key" class="regular-text" placeholder="Enter API Key" required>
                         <button type="submit" class="button">Connect</button>
                     </form>
                 </div>
             </div>
         </div>
     <?php else: ?>
-        <form method="post" action="options.php">
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <?php wp_nonce_field('woocs_save_settings'); ?>
+            <input type="hidden" name="action" value="woocs_save_settings">
             <div class="woocs-card">
                 <div class="woocs-card-header">
                     <h2>Connection</h2>
@@ -93,7 +109,7 @@ $api_key = get_option('woocs_api_key', '');
                             <th scope="row">Enable Widget</th>
                             <td>
                                 <label>
-                                    <input type="checkbox" name="woocs_widget_enabled" value="1" checked>
+                                    <input type="checkbox" name="woocs_widget_enabled" value="1" <?php checked(get_option('woocs_widget_enabled', '1'), '1'); ?>>
                                     Show chat widget on storefront
                                 </label>
                             </td>
@@ -102,8 +118,8 @@ $api_key = get_option('woocs_api_key', '');
                             <th scope="row">Position</th>
                             <td>
                                 <fieldset>
-                                    <label><input type="radio" name="woocs_widget_position" value="bottom-right" checked> Bottom-right</label><br>
-                                    <label><input type="radio" name="woocs_widget_position" value="bottom-left"> Bottom-left</label>
+                                    <label><input type="radio" name="woocs_widget_position" value="bottom-right" <?php checked(get_option('woocs_widget_position', 'bottom-right'), 'bottom-right'); ?>> Bottom-right</label><br>
+                                    <label><input type="radio" name="woocs_widget_position" value="bottom-left" <?php checked(get_option('woocs_widget_position', 'bottom-right'), 'bottom-left'); ?>> Bottom-left</label>
                                 </fieldset>
                             </td>
                         </tr>

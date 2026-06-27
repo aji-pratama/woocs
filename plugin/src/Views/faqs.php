@@ -3,7 +3,7 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
 ?>
 <div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">WooCS.ai &rsaquo; FAQs</h1>
+    <h1 class="wp-heading-inline">WooCS &rsaquo; FAQs</h1>
     <a href="#" class="page-title-action" id="woocs-add-faq-btn">Add FAQ</a>
     <hr class="wp-header-end">
 
