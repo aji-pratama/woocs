@@ -45,19 +45,22 @@ class WidgetRenderer {
         echo '<!-- WooCS Widget Injected by PHP -->';
         echo '<div id="woocs-widget-root"></div>';
         
+        $css_url = '';
+        if (file_exists(WOOCS_PLUGIN_DIR . 'assets/woocs-widget.css')) {
+            $css_url = esc_url(WOOCS_PLUGIN_URL . 'assets/woocs-widget.css');
+        }
+
         echo '<script>
             window.WooCS = ' . wp_json_encode([
             'store_id' => $store_id,
             'api_url' => $api_url,
             'store_name' => $store_name,
+            'css_url' => $css_url,
         ]) . ';
         </script>';
 
         // Load static build if it exists
         if (file_exists(WOOCS_PLUGIN_DIR . 'assets/woocs-widget.js')) {
-            if (file_exists(WOOCS_PLUGIN_DIR . 'assets/woocs-widget.css')) {
-                echo '<link rel="stylesheet" href="' . esc_url(WOOCS_PLUGIN_URL . 'assets/woocs-widget.css') . '">';
-            }
             echo '<script type="module" src="' . esc_url(WOOCS_PLUGIN_URL . 'assets/woocs-widget.js') . '"></script>';
         } else {
             // Fallback to Vite Dev Server for local development
