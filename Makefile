@@ -88,6 +88,7 @@ widget-install:
 	cd plugin/widget && npm install
 
 dev-widget:
+	rm -rf plugin/assets
 	cd plugin/widget && npm run dev
 
 wp-build:
@@ -95,8 +96,9 @@ wp-build:
 	mkdir -p plugin/assets
 	cp plugin/widget/dist/assets/*.js plugin/assets/woocs-widget.js 2>/dev/null || \
 	  cp plugin/widget/dist/woocs-widget.umd.js plugin/assets/woocs-widget.js 2>/dev/null || true
+	cp plugin/widget/dist/assets/*.css plugin/assets/woocs-widget.css 2>/dev/null || true
 	rm -f woocs.zip
-	zip -r woocs.zip plugin/
+	zip -r woocs.zip plugin/ -x "plugin/widget/*" -x "plugin/scripts/*" -x "plugin/dist/*"
 
 wp-dev-setup:
 	@chmod +x plugin/scripts/dev.sh

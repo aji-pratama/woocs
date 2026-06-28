@@ -17,18 +17,8 @@ $widget_js = WOOCS_PLUGIN_URL . 'assets/woocs-widget.js';
         <?php if (!$store_id): ?>
             <div class="notice notice-error inline"><p>Please connect your store in the Settings page first.</p></div>
         <?php else: ?>
-            <div style="width: 100%; max-width: 450px; height: 650px; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);">
-                <div id="woocs-widget-root" style="width: 100%; height: 100%;"></div>
-            </div>
-
-            <script>
-                window.WooCS = {
-                    store_id: <?php echo wp_json_encode($store_id); ?>,
-                    api_url: <?php echo wp_json_encode($api_url); ?>,
-                    store_name: <?php echo wp_json_encode($store_name); ?>
-                };
-            </script>
-            <script src="<?php echo esc_url($widget_js); ?>" type="module"></script>
+            <!-- The widget will mount here and float at the bottom right as designed -->
+            <?php \WooCS\WidgetRenderer::render($store_id ?: 'test-store-id'); ?>
         <?php endif; ?>
     </div>
 </div>

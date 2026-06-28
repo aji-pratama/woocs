@@ -233,99 +233,124 @@ export default function App() {
 
   if (!config) return null;
 
-  // Render as full-screen app by default
+  // Render as a floating widget
   return (
-    <div className="flex h-screen flex-col bg-gradient-to-b from-slate-50 to-white">
-      {/* Header */}
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur-sm sm:px-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm">
-            <BotIcon />
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold text-slate-900 sm:text-base">{config.store_name}</h1>
-            <p className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Online
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={resetChat}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-        >
-          New chat
-        </button>
-      </header>
-
-      {/* Thread */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5">
-        <div className="flex flex-col gap-4">
-          {messages.map((m) => (
-            <MessageRow key={m.id} message={m} onEscalate={handleEscalate} />
-          ))}
-
-          {loading && (
-            <div className="flex items-end gap-2">
-              <Avatar />
-              <div className="rounded-2xl rounded-bl-sm bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200">
-                {slowHint === "timeout" ? (
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm text-slate-600">Taking too long — try again.</span>
-                    <button
-                      onClick={() => sendMessage(lastUserMessage)}
-                      className="self-start rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                ) : slowHint === "slow" ? (
-                  <span className="text-sm text-slate-600">Still looking…</span>
-                ) : (
-                  <TypingDots />
-                )}
+    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end">
+      {isOpen && (
+        <div className="mb-4 flex h-[600px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-slate-50 to-white shadow-2xl ring-1 ring-slate-200">
+          {/* Header */}
+          <header className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur-sm sm:px-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm">
+                <BotIcon />
+              </div>
+              <div>
+                <h1 className="text-sm font-semibold text-slate-900 sm:text-base">{config.store_name}</h1>
+                <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Online
+                </p>
               </div>
             </div>
-          )}
-
-          {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && (
-            <div className="ml-10 flex flex-wrap gap-2">
-              {QUICK_REPLIES.map((q) => (
-                <button
-                  key={q}
-                  onClick={() => sendMessage(q)}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-                >
-                  {q}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={resetChat}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="New chat"
+              >
+                <RefreshIcon />
+              </button>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Close"
+              >
+                <CloseIcon />
+              </button>
             </div>
-          )}
-        </div>
-      </div>
+          </header>
 
-      {/* Input */}
-      <div className="border-t border-slate-200 bg-white p-3">
-        <form onSubmit={handleSubmit} className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={loading}
-            placeholder="Ask anything..."
-            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Send"
-          >
-            <SendIcon />
-          </button>
-        </form>
-        <p className="mt-2 text-center text-[10px] text-slate-400">Powered by WooCS.ai</p>
-      </div>
+          {/* Thread */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5">
+            <div className="flex flex-col gap-4">
+              {messages.map((m) => (
+                <MessageRow key={m.id} message={m} onEscalate={handleEscalate} />
+              ))}
+
+              {loading && (
+                <div className="flex items-end gap-2">
+                  <Avatar />
+                  <div className="rounded-2xl rounded-bl-sm bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200">
+                    {slowHint === "timeout" ? (
+                      <div className="flex flex-col gap-2">
+                        <span className="text-sm text-slate-600">Taking too long — try again.</span>
+                        <button
+                          onClick={() => sendMessage(lastUserMessage)}
+                          className="self-start rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : slowHint === "slow" ? (
+                      <span className="text-sm text-slate-600">Still looking…</span>
+                    ) : (
+                      <TypingDots />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && (
+                <div className="ml-10 flex flex-wrap gap-2">
+                  {QUICK_REPLIES.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => sendMessage(q)}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Input */}
+          <div className="border-t border-slate-200 bg-white p-3">
+            <form onSubmit={handleSubmit} className="flex items-center gap-2">
+              <input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={loading}
+                placeholder="Ask anything..."
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={loading || !input.trim()}
+                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Send"
+              >
+                <SendIcon />
+              </button>
+            </form>
+            <p className="mt-2 text-center text-[10px] text-slate-400">Powered by WooCS.ai</p>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle Button */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition-transform hover:scale-110 active:scale-95"
+          aria-label="Open chat"
+        >
+          <ChatIcon />
+        </button>
+      )}
     </div>
   );
 }
