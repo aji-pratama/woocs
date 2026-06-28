@@ -17,15 +17,15 @@ if (!defined('ABSPATH')) exit;
             <div class="woocs-sync-grid">
                 <div class="woocs-sync-item">
                     <span class="woocs-sync-label">Products</span>
-                    <span class="woocs-sync-value">248 <span class="dashicons dashicons-yes-alt woocs-text-success"></span></span>
+                    <span class="woocs-sync-value" id="count-products">-</span>
                 </div>
                 <div class="woocs-sync-item">
                     <span class="woocs-sync-label">Variations</span>
-                    <span class="woocs-sync-value">1024 <span class="dashicons dashicons-yes-alt woocs-text-success"></span></span>
+                    <span class="woocs-sync-value" id="count-variations">-</span>
                 </div>
                 <div class="woocs-sync-item">
                     <span class="woocs-sync-label">FAQs</span>
-                    <span class="woocs-sync-value">34 <span class="dashicons dashicons-yes-alt woocs-text-success"></span></span>
+                    <span class="woocs-sync-value" id="count-faqs">-</span>
                 </div>
                 <div class="woocs-sync-item">
                     <span class="woocs-sync-label">Orders API</span>
@@ -49,32 +49,106 @@ if (!defined('ABSPATH')) exit;
                         <th class="column-status">Status</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="woocs-sync-log">
                     <tr>
-                        <td>14:02</td>
-                        <td>Products (248)</td>
-                        <td><span class="woocs-text-success">Synced &#10003;</span></td>
-                    </tr>
-                    <tr>
-                        <td>14:02</td>
-                        <td>Variations (1024)</td>
-                        <td><span class="woocs-text-success">Synced &#10003;</span></td>
-                    </tr>
-                    <tr>
-                        <td>14:01</td>
-                        <td>FAQs (34)</td>
-                        <td><span class="woocs-text-success">Synced &#10003;</span></td>
-                    </tr>
-                    <tr>
-                        <td>02:00</td>
-                        <td>Products (1 failed)</td>
-                        <td>
-                            <span class="woocs-text-danger">Failed &#10007;</span>
-                            <br><small class="woocs-text-muted">ID #412: Haiku timeout</small>
-                        </td>
+                        <td colspan="3" class="woocs-text-muted">No recent sync activity.</td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const syncBtn = document.getElementById('woocs-sync-now-btn');
+    const ajaxUrl = document.getElementById('woocs_ajax_url').value;
+    const nonce = document.getElementById('woocs_sync_nonce').value;
+    
+    function updateUI(data) {
+        if (data.products_count !== undefined) {
+            document.getElementById('count-products').innerHTML = data.products_count + ' <span class="dashicons dashicons-yes-alt woocs-text-success"></span>';
+        }
+        if (data.variations_count !== undefined) {
+            document.getElementById('count-variations').innerHTML = data.variations_count + ' <span class="dashicons dashicons-yes-alt woocs-text-success"></span>';
+        }
+        if (data.faqs_count !== undefined) {
+            document.getElementById('count-faqs').innerHTML = data.faqs_count + ' <span class="dashicons dashicons-yes-alt woocs-text-success"></span>';
+        }
+        
+        if (data.status === 'processing') {
+            syncBtn.disabled = true;
+            syncBtn.textContent = 'Syncing...';
+            setTimeout(fetchStatus, 3000);
+        } else {
+            syncBtn.disabled = false;
+            syncBtn.textContent = 'Sync now';
+        }
+    }
+
+    function addLog(entity, status, isError = false) {
+        const tbody = document.getElementById('woocs-sync-log');
+        if (tbody.querySelector('.woocs-text-muted')) {
+            tbody.innerHTML = ''; // clear empty message
+        }
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const statusHtml = isError 
+            ? `<span class="woocs-text-danger">Failed &#10007;</span>`
+            : `<span class="woocs-text-success">Processing &#8987;</span>`;
+            
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${time}</td><td>${entity}</td><td>${statusHtml}</td>`;
+        tbody.prepend(tr);
+    }
+
+    function fetchStatus() {
+        const formData = new FormData();
+        formData.append('action', 'woocs_sync_status');
+        formData.append('nonce', nonce);
+
+        fetch(ajaxUrl, { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success && res.data) {
+                    updateUI(res.data);
+                }
+            })
+            .catch(err => console.error('Status fetch error', err));
+    }
+
+    syncBtn.addEventListener('click', function() {
+        syncBtn.disabled = true;
+        syncBtn.textContent = 'Syncing...';
+        addLog('Catalog Sync', 'Processing', false);
+
+        const formData = new FormData();
+        formData.append('action', 'woocs_sync_now');
+        formData.append('nonce', nonce);
+
+        fetch(ajaxUrl, {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(res => {
+            if (res.success) {
+                // The backend API triggers async task, so it returns "processing"
+                setTimeout(fetchStatus, 2000);
+            } else {
+                addLog('Sync Failed', 'Failed', true);
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sync now';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            addLog('Network Error', 'Failed', true);
+            syncBtn.disabled = false;
+            syncBtn.textContent = 'Sync now';
+        });
+    });
+
+    // Initial fetch
+    fetchStatus();
+});
+</script>

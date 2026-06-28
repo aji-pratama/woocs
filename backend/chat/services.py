@@ -188,30 +188,60 @@ class ChatService:
         store: Store, message: str, session: ChatSession
     ) -> Tuple[str, float, Optional[dict[str, Any]]]:
         """
-        STUB: Simulates the RAG pipeline.
-        In production, this will:
-        1. Embed the query via Claude Haiku
-        2. Search pgvector via LlamaIndex (top-k=5)
-        3. Build prompt with context + conversation history
-        4. Call Claude Haiku for generation
-        5. Return (answer, confidence_score, product_metadata_or_none)
-
-        For PoC validation, returns a canned response with product data if available.
+        PoC RAG pipeline using pgvector CosineDistance.
+        Since we are using a dummy Anthropic API key, we bypass LlamaIndex/LLM calls
+        and directly query pgvector using the deterministic pseudo-embedding, then
+        format a deterministic response based on the top product.
         """
-        # For FE rendering tests, we'll return a hardcoded dummy product
-        product_data = {
-            "name": "Classic Navy Hoodie",
-            "price": "34.99",
-            "stock_status": "instock",
-            "stock_quantity": 5,
-            "wc_url": "https://example.com/product/123",
-            "image_url": "https://placehold.co/400x300/e2e8f0/475569?text=Hoodie",
-        }
-        return (
-            "Yes! Here's what I found:",
-            0.85,
-            product_data,
-        )
+        try:
+            from pgvector.django import CosineDistance
+            from store.tasks import generate_pseudo_embedding
+            
+            # 1. Embed the query
+            query_embedding = generate_pseudo_embedding(message)
+            
+            # 2. Search pgvector (Products)
+            top_products = list(
+                store.products.filter(embedding__isnull=False)
+                .order_by(CosineDistance("embedding", query_embedding))[:3]
+            )
+            
+            if not top_products:
+                return (
+                    "I couldn't find any relevant products in the catalog.",
+                    0.4,
+                    None,
+                )
+            
+            # 3. Simulate LLM generation based on context
+            best_product = top_products[0]
+            
+            # For the PoC, we assume if the user asks for a product, we found it.
+            # We assign a high confidence.
+            confidence = 0.85
+            
+            answer = f"I found the {best_product.name}! It's currently {best_product.stock_status.replace('instock', 'in stock')} at ${best_product.price}."
+            if best_product.description:
+                answer += f" {best_product.description[:100]}..."
+                
+            product_data = {
+                "name": best_product.name,
+                "price": str(best_product.price),
+                "stock_status": best_product.stock_status,
+                "stock_quantity": best_product.stock_quantity,
+                "wc_url": f"{store.wc_url}/?p={best_product.wc_id}",
+                "image_url": "https://placehold.co/400x300/e2e8f0/475569?text=Product",
+            }
+            
+            return (answer, confidence, product_data)
+
+        except Exception as e:
+            logger.error(f"RAG query failed: {e}")
+            return (
+                "Sorry, I'm having trouble searching the catalog right now.",
+                0.1,
+                None,
+            )
 
 
 class OrderService:
