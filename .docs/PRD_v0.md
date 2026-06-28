@@ -57,7 +57,7 @@ Two Django apps, all connected through a single API surface:
 
 **Django backend** — two apps: `stores` (tenant management, catalog ingestion, embedding pipeline) and `chat` (sessions, RAG, escalation). Exposed via Django Ninja API. Hosted on VPS with Nginx + Gunicorn.
 
-**External services** — PostgreSQL + pgvector for data and vector storage, Redis + Celery for async task queue, Anthropic API (Claude Haiku) for embeddings and chat generation, LlamaIndex as the RAG query engine layer.
+**External services** — PostgreSQL + pgvector for data, vector storage, and background tasks (Django 6 tasks), Anthropic API (Claude Haiku) for embeddings and chat generation, LlamaIndex as the RAG query engine layer.
 
 **Widget** — a React bundle injected by the WP plugin into the storefront. It is the only customer-facing surface. All widget communication goes to Django Ninja API — no direct WooCommerce calls.
 
@@ -73,7 +73,7 @@ Two Django apps, all connected through a single API surface:
 - Inject widget JS bundle into storefront footer
 - Admin pages: Settings, Sync status, FAQ manager, Widget preview
 
-**Sync strategy:** Pull (not webhook). Plugin initiates on-demand from settings page, or Celery beat triggers every 6 hours using stored WooCommerce credentials.
+**Sync strategy:** Pull (not webhook). Plugin initiates on-demand from settings page, or cron triggers every 6 hours using stored WooCommerce credentials.
 
 **Catalog payload fields per product:** id, name, description, price, stock_status, stock_quantity, variations (with attributes and per-variation stock), categories, tags. FAQs sent as question + answer pairs.
 
@@ -88,19 +88,19 @@ Two Django apps, all connected through a single API surface:
 **stores** — one record per merchant. Responsible for:
 - Tenant identity: holds WooCommerce credentials, API key hash, merchant email, subscription state
 - Catalog ingestion: receives sync payload, persists Product, ProductVariation, and FAQ records
-- Embedding pipeline: Celery task that builds text documents from catalog records, calls Haiku embedding API, and saves vectors to pgvector
+- Embedding pipeline: Django task that builds text documents from catalog records, calls Haiku embedding API, and saves vectors to pgvector
 - Sync status tracking: last_synced_at, per-entity counts, task status
 
 **chat** — handles all widget-facing interactions:
 - Creates and manages ChatSession and ChatMessage records
 - On each incoming message: runs keyword check → embed query → pgvector similarity search via LlamaIndex → build prompt → call Haiku → evaluate confidence → return answer or escalation signal
-- Dispatches escalation email via async Celery task
+- Dispatches escalation email via async Django task
 
 #### Django Ninja endpoints
 
 `POST /api/stores/register/` — public endpoint. Creates Store record, generates and returns raw api_key. Called once during onboarding (web-first or plugin-first). No auth required.
 
-`POST /api/stores/sync/` — authenticated (X-API-Key). Accepts catalog payload, persists records, queues Celery embedding task, returns task_id.
+`POST /api/stores/sync/` — authenticated (X-API-Key). Accepts catalog payload, persists records, queues Django embedding task, returns task_id.
 
 `GET /api/stores/sync/status/` — authenticated (X-API-Key). Returns products_count, faqs_count, variations_count, last_synced_at, task status.
 
@@ -120,7 +120,7 @@ Confidence score = cosine similarity of the top-1 retrieved node from pgvector. 
 
 Hardcoded keyword triggers (bypass RAG entirely): refund, damage, broken, lawsuit. Any match → immediate escalation, no LLM call made.
 
-Escalation action: save ChatMessage with escalated=True and escalation_reason, dispatch async Celery task to email Store.merchant_email with conversation transcript and Django Admin link.
+Escalation action: save ChatMessage with escalated=True and escalation_reason, dispatch async Django task to email Store.merchant_email with conversation transcript and Django Admin link.
 
 ---
 
@@ -228,7 +228,7 @@ One record per message turn (user and assistant).
 
 ## 7. build_document spec
 
-The quality of RAG retrieval depends entirely on how catalog records are converted to text before embedding. This is the `build_document()` function called by the Celery embedding task.
+The quality of RAG retrieval depends entirely on how catalog records are converted to text before embedding. This is the `build_document()` function called by the Django embedding task.
 
 ### Product document format
 
@@ -298,7 +298,7 @@ ASSISTANT:
 
 ## 9. Error handling
 
-### Embedding pipeline (Celery task)
+### Embedding pipeline (Django task)
 
 | Error | Behaviour |
 |---|---|
@@ -343,7 +343,7 @@ ASSISTANT:
 | WP plugin | PHP 8.1 | WP requirement |
 | Widget | React (bundled) | Component-based, storefront-injectable |
 | Backend | Django 5.x + Django Ninja | Async-ready, type-safe API schema |
-| Task queue | Celery + Redis | Async embedding pipeline |
+| Task queue | Django 6 Tasks (Custom Postgres Backend) | Async embedding pipeline |
 | Database | PostgreSQL 15 + pgvector | Single DB for data + embeddings |
 | RAG framework | LlamaIndex | Query engine, node retrieval, metadata filtering |
 | Embeddings | Claude Haiku (Anthropic SDK) | Single vendor for embed + chat |
@@ -846,7 +846,7 @@ Both paths converge at step 8 of Entry point A. After `POST /api/stores/register
 |---|---|
 | Store registered | `POST /api/stores/register/` succeeds |
 | Plugin connected | store_id saved to wp_options |
-| First sync complete | Celery ingest_catalog task finishes |
+| First sync complete | Django ingest_catalog task finishes |
 | FAQ added | At least 1 FAQ record exists for store |
 | First widget chat | First ChatMessage with role=user created |
 
@@ -1235,8 +1235,7 @@ graph TD
   end
 
   subgraph External["External services"]
-    PG[("PostgreSQL + pgvector")]
-    Redis["Redis + Celery"]
+    PG[("PostgreSQL + pgvector\n+ TaskQueue")]
     Anthropic["Anthropic API\nClaude Haiku"]
     Llama["LlamaIndex"]
   end
@@ -1246,7 +1245,6 @@ graph TD
   Widget -->|"POST /api/widget/chat/"| Ninja
   Widget -->|"GET /api/widget/order-status/"| Ninja
 
-  Stores --> Redis
   Stores --> PG
   Chat --> PG
   Chat --> Llama
@@ -1305,7 +1303,7 @@ sequenceDiagram
   participant WP as WP Plugin
   participant WC as WooCommerce REST API
   participant Django as Django (stores app)
-  participant Celery as Celery Worker
+  participant Worker as DB Worker
   participant Haiku as Claude Haiku
   participant PG as pgvector
 
@@ -1320,16 +1318,16 @@ sequenceDiagram
   WC-->>WP: products + variations
   WP->>Django: POST /api/stores/sync/ {products[], faqs[]}
   Django-->>WP: 202 {task_id, status: queued}
-  Django-)Celery: ingest_catalog.delay(store_id)
+  Django-)Worker: ingest_catalog.enqueue(store_id)
 
   loop for each product and FAQ
-    Celery->>Celery: build_document(record)
-    Celery->>Haiku: embed(document_text)
-    Haiku-->>Celery: vector[1536]
-    Celery->>PG: save with embedding
+    Worker->>Worker: build_document(record)
+    Worker->>Haiku: embed(document_text)
+    Haiku-->>Worker: vector[1536]
+    Worker->>PG: save with embedding
   end
 
-  Celery-)Django: update Store.last_synced_at
+  Worker-)Django: update Store.last_synced_at
   WP->>Django: GET /api/stores/sync/status/ (poll every 10s)
   Django-->>WP: {status: complete, products_count: 248}
   WP->>WP: activate widget injection
@@ -1426,7 +1424,7 @@ flowchart LR
     WC["WooCommerce REST API"]
     Plugin["WP Plugin\nbuild payload"]
     StoresApp["stores app\nparse · persist"]
-    Celery["Celery worker\nbuild_document()"]
+    Worker["DB Worker\nbuild_document()"]
     HaikuEmbed["Claude Haiku\nembed"]
   end
 
@@ -1443,8 +1441,8 @@ flowchart LR
 
   WC -->|pull| Plugin
   Plugin -->|POST /api/stores/sync/| StoresApp
-  StoresApp -->|async| Celery
-  Celery -->|text| HaikuEmbed
+  StoresApp -->|async| Worker
+  Worker -->|text| HaikuEmbed
   HaikuEmbed -->|vector| PG
 
   Customer -->|message| ChatApp
