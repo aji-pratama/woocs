@@ -1,52 +1,34 @@
 <?php
 declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
+
+$store_id = get_option('woocs_store_id');
+$api_url = get_option('woocs_api_url', 'http://localhost:8000');
+$store_name = get_bloginfo('name');
+$widget_js = WOOCS_PLUGIN_URL . 'assets/woocs-widget.js';
 ?>
 <div class="wrap woocs-wrap">
     <h1 class="wp-heading-inline">WooCS &rsaquo; Widget Preview</h1>
-    <a href="#" class="page-title-action">Test Escalation</a>
-    <a href="#" class="page-title-action woocs-text-danger">Clear Session</a>
     <hr class="wp-header-end">
 
-    <div class="woocs-preview-container">
-        <div class="woocs-preview-frame">
-            <!-- Simulated Storefront Iframe -->
-            <div class="woocs-simulated-store">
-                <div class="woocs-sim-header">
-                    <strong><?php echo esc_html(get_bloginfo('name')); ?></strong>
-                    <span>🛒 ☰</span>
-                </div>
-                <div class="woocs-sim-body">
-                    <p>Welcome to our store. We have great products!</p>
-                    <div class="woocs-sim-grid">
-                        <div class="woocs-sim-item"></div>
-                        <div class="woocs-sim-item"></div>
-                        <div class="woocs-sim-item"></div>
-                    </div>
-                </div>
-                
-                <!-- Mock Widget for Preview -->
-                <div class="woocs-sim-widget">
-                    <div class="woocs-sim-widget-header">
-                        <span>🤖 Store Assistant</span>
-                        <span class="woocs-sim-close">&times;</span>
-                    </div>
-                    <div class="woocs-sim-widget-body">
-                        <div class="woocs-sim-bubble woocs-sim-bot">
-                            Hi! I can help you find products, check stock, or track your order.
-                        </div>
-                    </div>
-                    <div class="woocs-sim-widget-input">
-                        <input type="text" placeholder="Ask anything...">
-                    </div>
-                </div>
-                
-                <!-- Debug Overlay -->
-                <div class="woocs-debug-overlay">
-                    <small>Confidence: 0.87</small><br>
-                    <small>Latency: 1.24s</small>
-                </div>
+    <div class="woocs-preview-container" style="margin-top: 20px;">
+        <p>This is the actual widget loaded inside the WP admin. You can chat with it exactly as your customers would.</p>
+        
+        <?php if (!$store_id): ?>
+            <div class="notice notice-error inline"><p>Please connect your store in the Settings page first.</p></div>
+        <?php else: ?>
+            <div style="width: 100%; max-width: 450px; height: 650px; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);">
+                <div id="woocs-widget-root" style="width: 100%; height: 100%;"></div>
             </div>
-        </div>
+
+            <script>
+                window.WooCS = {
+                    store_id: <?php echo wp_json_encode($store_id); ?>,
+                    api_url: <?php echo wp_json_encode($api_url); ?>,
+                    store_name: <?php echo wp_json_encode($store_name); ?>
+                };
+            </script>
+            <script src="<?php echo esc_url($widget_js); ?>" type="module"></script>
+        <?php endif; ?>
     </div>
 </div>
