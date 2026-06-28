@@ -136,9 +136,7 @@ class ChatService:
             }
 
         # 3. RAG pipeline (STUB for PoC)
-        answer, confidence, product_data = cls._rag_query_stub(
-            store, message, session
-        )
+        answer, confidence, product_data = cls._rag_query_stub(store, message, session)
 
         # 4. Evaluate confidence
         if confidence < CONFIDENCE_THRESHOLD:

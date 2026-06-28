@@ -1,10 +1,9 @@
 # Core Django
-Django>=5.0,<6.0
+Django>=6.0,<6.1
 django-ninja>=1.0
 
-# Async task queue
-celery[redis]>=5.3
-redis>=5.0
+# Async task queue (Django 6 Tasks)
+# Using built-in django.tasks
 
 # Database
 psycopg2-binary>=2.9

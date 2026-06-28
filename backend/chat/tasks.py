@@ -1,19 +1,19 @@
 import logging
 
-from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
+from django.tasks import task
 
 from .models import ChatSession
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task
+@task()
 def send_escalation_email(session_id: str) -> dict:
     """
     Sends an escalation email to the merchant with the conversation transcript.
-    Called asynchronously via Celery after an escalation is triggered.
+    Called asynchronously via Django Tasks after an escalation is triggered.
     """
     try:
         session = ChatSession.objects.select_related("store").get(id=session_id)

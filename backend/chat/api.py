@@ -3,7 +3,12 @@ from ninja.errors import HttpError
 
 from store.models import Store
 
-from .schemas import ChatHistoryResponseOut, ChatRequestIn, ChatResponseOut, OrderStatusResponseOut
+from .schemas import (
+    ChatHistoryResponseOut,
+    ChatRequestIn,
+    ChatResponseOut,
+    OrderStatusResponseOut,
+)
 from .services import ChatService, OrderService
 from .tasks import send_escalation_email
 
@@ -30,7 +35,7 @@ def chat(request, payload: ChatRequestIn):
     # If escalated, trigger async email
     if result["escalated"]:
         session = ChatService.get_or_create_session(store, payload.session_id)
-        send_escalation_email.delay(str(session.id))
+        send_escalation_email.enqueue(str(session.id))
 
     return 200, result
 

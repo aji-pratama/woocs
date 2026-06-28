@@ -6,18 +6,18 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('chat', '0001_initial'),
+        ("chat", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='chatmessage',
-            name='metadata',
+            model_name="chatmessage",
+            name="metadata",
             field=models.JSONField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='chatmessage',
-            name='response_type',
-            field=models.CharField(default='text', max_length=20),
+            model_name="chatmessage",
+            name="response_type",
+            field=models.CharField(default="text", max_length=20),
         ),
     ]

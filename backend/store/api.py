@@ -54,8 +54,8 @@ def sync_catalog(request, payload: SyncRequestIn):
         store, payload
     )
 
-    # 2. Trigger Celery embedding task
-    task = ingest_catalog.delay(store.id)
+    # 2. Trigger Django embedding task
+    task = ingest_catalog.enqueue(store.id)
 
     return 202, {"task_id": str(task.id), "status": "processing"}
 

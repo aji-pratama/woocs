@@ -28,9 +28,11 @@ class ChatMessageOut(BaseModel):
     metadata: Optional[dict[str, Any]] = None
     error: bool = False
 
+
 class ChatHistoryResponseOut(BaseModel):
     session_id: UUID
     messages: list[ChatMessageOut]
+
 
 class OrderStatusRequestIn(BaseModel):
     store_id: UUID

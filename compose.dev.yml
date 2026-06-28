@@ -58,23 +58,9 @@ services:
       - wp_data:/var/www/html
       - ./plugin:/var/www/html/wp-content/plugins/woocs:ro
 
-  # Redis 7 — Celery message broker and result backend
-  redis:
-    image: redis:7-alpine
-    container_name: woocs_redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+
 
 volumes:
   backend_db_data:
   wp_db_data:
   wp_data:
-  redis_data:

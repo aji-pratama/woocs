@@ -1,7 +1,7 @@
 import logging
 from uuid import UUID
 
-from celery import shared_task
+from django.tasks import task
 from django.utils import timezone
 
 from .models import Store
@@ -9,10 +9,10 @@ from .models import Store
 logger = logging.getLogger(__name__)
 
 
-@shared_task
+@task()
 def ingest_catalog(store_id: UUID):
     """
-    Celery task to build documents from Products/FAQs, call Claude Haiku to embed,
+    Django task to build documents from Products/FAQs, call Claude Haiku to embed,
     and save the vectors to pgvector.
 
     Stub implementation for PoC testing.

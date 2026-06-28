@@ -43,9 +43,9 @@ class TestStoreAPI:
         assert response.status_code == 401
 
     def test_sync_authorized(self, api_client, store_and_key, mocker):
-        # Mock the celery task delay so we don't actually queue it during tests
-        mock_delay = mocker.patch("store.api.ingest_catalog.delay")
-        mock_delay.return_value.id = "fake-task-id"
+        # Mock the django-tasks enqueue so we don't actually queue it during tests
+        mock_enqueue = mocker.patch("store.api.ingest_catalog.enqueue")
+        mock_enqueue.return_value = type("obj", (object,), {"id": "fake-task-id"})()
 
         store, raw_key = store_and_key
         headers = {"X-API-Key": raw_key}
@@ -59,7 +59,7 @@ class TestStoreAPI:
         assert response.status_code == 202
         assert response.json()["status"] == "processing"
 
-        mock_delay.assert_called_once_with(store.id)
+        mock_enqueue.assert_called_once_with(store.id)
 
     def test_sync_status(self, api_client, store_and_key):
         store, raw_key = store_and_key

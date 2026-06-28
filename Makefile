@@ -6,7 +6,6 @@
 
 PYTHON  = backend/.venv/bin/python
 PIP     = backend/.venv/bin/pip
-CELERY  = backend/.venv/bin/celery
 
 # Use Podman socket if docker.sock does not exist
 PODMAN_SOCK := $(shell podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}' 2>/dev/null)
@@ -32,7 +31,7 @@ help:
 	@echo "  backend-createsuperuser  Create Django admin user"
 	@echo "  backend-format        Format Python code (PEP8)"
 	@echo "  dev-api               Start Django dev server (port 8000)"
-	@echo "  dev-celery            Start Celery worker"
+	@echo "  dev-worker            Start Django DB task worker"
 	@echo ""
 	@echo "  Widget (React/Vite — runs on host)"
 	@echo "  ─────────────────────────────"
@@ -42,7 +41,7 @@ help:
 	@echo ""
 	@echo "  All-in-one"
 	@echo "  ─────────────────────────────"
-	@echo "  dev                   Start everything (infra + api + celery + widget)"
+	@echo "  dev                   Start everything (infra + api + worker + widget)"
 	@echo ""
 	@echo "  Database"
 	@echo "  ─────────────────────────────"
@@ -80,22 +79,22 @@ backend-format:
 dev-api:
 	cd backend && $(abspath $(PYTHON)) manage.py runserver
 
-dev-celery:
-	cd backend && $(abspath $(CELERY)) -A config worker -l info
+dev-worker:
+	cd backend && $(abspath $(PYTHON)) manage.py db_worker
 
 # ─── Widget ──────────────────────────────────────────────────────────────────
 
 widget-install:
-	cd widget && npm install
+	cd plugin/widget && npm install
 
 dev-widget:
-	cd widget && npm run dev
+	cd plugin/widget && npm run dev
 
 wp-build:
-	cd widget && npm run build
+	cd plugin/widget && npm run build
 	mkdir -p plugin/assets
-	cp widget/dist/assets/*.js plugin/assets/woocs-widget.js 2>/dev/null || \
-	  cp widget/dist/woocs-widget.umd.js plugin/assets/woocs-widget.js 2>/dev/null || true
+	cp plugin/widget/dist/assets/*.js plugin/assets/woocs-widget.js 2>/dev/null || \
+	  cp plugin/widget/dist/woocs-widget.umd.js plugin/assets/woocs-widget.js 2>/dev/null || true
 	rm -f woocs.zip
 	zip -r woocs.zip plugin/
 
@@ -109,7 +108,7 @@ dev: infra-up
 	@echo "Infrastructure started. Launching host services..."
 	@trap 'kill 0' EXIT; \
 	$(MAKE) dev-api & \
-	$(MAKE) dev-celery & \
+	$(MAKE) dev-worker & \
 	$(MAKE) dev-widget & \
 	wait
 

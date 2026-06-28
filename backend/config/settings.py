@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "store",
     "chat",
+    "common",
 ]
 
 MIDDLEWARE = [
@@ -62,7 +63,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True  # For dev only, since widget calls API from localhost:5174
+CORS_ALLOW_ALL_ORIGINS = (
+    True  # For dev only, since widget calls API from localhost:5174
+)
 
 ROOT_URLCONF = "config.urls"
 
@@ -141,15 +144,12 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# Celery
-# https://docs.celeryq.dev/en/stable/django/first-steps-with-django.html
-
-CELERY_BROKER_URL = config("REDIS_URL", default="redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = config("REDIS_URL", default="redis://localhost:6379/0")
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = "UTC"
+# Django 6 Tasks
+TASKS = {
+    "default": {
+        "BACKEND": "common.backends.PostgresTaskBackend",
+    }
+}
 
 
 # External services
