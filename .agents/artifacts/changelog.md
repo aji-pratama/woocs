@@ -87,3 +87,51 @@
 - [x] FAQ Manager Page (`A3`) — CRUD for FAQs natively in WordPress
 - [x] Widget Preview Page (`A4`) — Live test the widget inside WP Admin
 - [x] Integration with Django Backend (`ApiClient`, `SyncService`, `AjaxHandlers`)
+
+---
+
+# Plan Integration
+
+## 1. Plugin ↔ Backend Integration (Completed)
+- [x] Settings Registration: Intercept admin-post to call `POST /api/stores/register/` and store API keys.
+- [x] Catalog Sync Engine: Extract WC products & FAQs, format to schema, send to `POST /api/stores/sync/`.
+- [x] Sync Status Polling: AJAX handlers to fetch sync status from `GET /api/stores/sync/status/`.
+
+### Core Components
+- [x] **C-01 Bubble Launcher**: Fixed position (bottom right/left configurable), click to open panel.
+- [x] **C-02 Panel Header**: Bot avatar, name ("Store assistant"), online status dot, close button.
+- [x] **C-03 Message Thread**: Left-aligned (bot) / Right-aligned (user), auto-scrolls to latest message.
+- [x] **C-09 Input Bar**: Text input, send button (disabled during await), dynamic placeholders based on context.
+- [x] **C-10 Panel Footer**: "Powered by WooCS.ai".
+
+### Interaction & Feedback
+- [x] **C-08 Typing Indicator**: 
+  - `0–8s`: Animated dots.
+  - `8s+`: "Still looking…".
+  - `15s+`: "Taking too long — try again" (with retry button).
+- [x] **C-04 Quick Replies Bar**: Contextual pill buttons (e.g., "Check my order", "Return policy", "Browse products").
+
+### Dynamic Rich Cards (Inline Bot Messages)
+- [x] **C-05 Product Card**: Rendered when a product query is matched.
+  - Image, name, variation attributes.
+  - Price (hidden if empty or $0).
+  - Stock status badge (Green: In stock, Amber: Low stock, Red: Out of stock).
+  - "View product" CTA (opens in same tab).
+- [x] **C-06 Order Status Card**: Rendered when an order number (`#\d+`) is detected.
+  - Order number, mapped status, line items (names only), and total.
+- [x] **C-07 Escalation Bubble**: Rendered on low confidence or keyword trigger.
+  - Amber background, warning icon.
+  - Fixed message: "I'm not sure about this. Want me to connect you with the team?"
+  - CTAs: **"Talk to someone"** (triggers email) vs **"No thanks"** (dismisses).
+
+- [x] **Escalation Mechanism**
+  - [x] Implement `send_escalation_email` Celery task.
+  - [x] Flag ChatMessage as escalated on low confidence or keyword trigger.
+
+---
+
+## Feedback
+
+- [x] Move chatwidget to plugin area instead of different apps
+- [x] Make widget apps able to see in a website frontend of WP & in plugin page Preview, so user can preview it
+- [x] Use Django Task and Postgres as background service instead of Celery. Remove all celery stuff, again using django task, default django feature of tasks
