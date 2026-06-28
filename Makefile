@@ -112,6 +112,30 @@ dev: infra-up
 	$(MAKE) dev-widget & \
 	wait
 
+dev-hard-clean:
+	@echo "⚠️  WARNING: This will remove all containers, volumes, networks, and images for this project."
+	@read -p "Are you sure you want to proceed? [y/N] " ans && if [ "$${ans:-N}" = "y" ] || [ "$${ans:-N}" = "Y" ]; then \
+		docker compose -f compose.dev.yml down --rmi all -v --remove-orphans; \
+		echo "Hard clean complete."; \
+	else \
+		echo "Aborted."; \
+	fi
+
+dev-clean:
+	@echo "Cleaning containers and volumes..."
+	docker compose -f compose.dev.yml down -v --remove-orphans
+
+dev-setup:
+	@echo "Setting up development environment..."
+	$(MAKE) widget-install
+	$(MAKE) backend-install
+	$(MAKE) infra-up
+	@echo "Waiting for databases to be ready..."
+	@sleep 5
+	$(MAKE) backend-migrate
+	$(MAKE) wp-dev-setup
+	@echo "✅ Setup complete! You can now run 'make dev' to start all services."
+
 # ─── Database ────────────────────────────────────────────────────────────────
 
 db-dump:
