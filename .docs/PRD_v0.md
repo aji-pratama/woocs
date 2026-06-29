@@ -441,6 +441,7 @@ ASSISTANT:
 | Widget theme conflict | >3 popular WP themes broken | Rebuild widget with Shadow DOM isolation |
 | WC API rate limit | Sync fails consistently | Switch to webhook push model |
 | Embedding pipeline | >20% of products fail after 3 retries | Investigate Haiku API limits, add batching |
+| Widget traffic abuse | >500 req/min per store_id (aggregate) | Manually block store_id via Django Admin |
 
 ---
 
@@ -500,7 +501,7 @@ ASSISTANT:
 - Merchant email field
 - Widget toggle: enable/disable on storefront
 - Widget position: bottom-right / bottom-left
-- Save button → calls `POST /api/stores/register/` on first connect, validates key on subsequent saves
+- Save button → calls POST /api/stores/register/ to link plugin to existing Store (web-first) or verify connection on subsequent saves
 
 **States:** Not connected · Connected · Connection error (with retry)
 
@@ -1398,7 +1399,7 @@ sequenceDiagram
   participant WP as WP Plugin
   participant WC as WooCommerce REST API
   participant Django as Django (stores app)
-  participant Worker as DB Worker
+  participant Worker as django.tasks runner
   participant Haiku as Claude Haiku
   participant PG as pgvector
 
@@ -1519,7 +1520,7 @@ flowchart LR
     WC["WooCommerce REST API"]
     Plugin["WP Plugin\nbuild payload"]
     StoresApp["stores app\nparse · persist"]
-    Worker["DB Worker\nbuild_document()"]
+    Worker["django.tasks\nbuild_document()"]
     HaikuEmbed["Claude Haiku\nembed"]
   end
 
