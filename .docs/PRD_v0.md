@@ -1,6 +1,6 @@
 # WooCS.ai — PoC PRD
 
-**Version:** 0.3 (PoC)
+**Version:** 0.4 (PoC)
 **Status:** Draft
 **Scope:** Technical validation only — not production
 
