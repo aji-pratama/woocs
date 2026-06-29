@@ -136,6 +136,85 @@ Full widget specification in Section 15.
 
 ## 6. Data models
 
+### Entity-Relationship Diagram (ERD)
+
+```mermaid
+erDiagram
+    Store {
+        UUID id PK
+        string api_key_hash
+        URL wc_url
+        string wc_consumer_key
+        string wc_consumer_secret
+        email merchant_email
+        string subscription_status
+        string plan
+        datetime trial_ends_at
+        datetime billing_cycle_end
+        integer conversation_count
+        datetime last_synced_at
+        datetime created_at
+    }
+    
+    Product {
+        UUID id PK
+        UUID store_id FK
+        integer wc_id
+        string name
+        text description
+        decimal price
+        string stock_status
+        integer stock_quantity
+        JSON categories
+        JSON tags
+        vector embedding
+        datetime synced_at
+    }
+    
+    ProductVariation {
+        UUID id PK
+        UUID product_id FK
+        integer wc_variation_id
+        JSON attributes
+        integer stock_quantity
+        decimal price
+    }
+    
+    FAQ {
+        UUID id PK
+        UUID store_id FK
+        text question
+        text answer
+        vector embedding
+        datetime updated_at
+    }
+    
+    ChatSession {
+        UUID id PK
+        UUID store_id FK
+        UUID session_id
+        email customer_email
+        datetime created_at
+    }
+    
+    ChatMessage {
+        UUID id PK
+        UUID session_id FK
+        string role
+        text content
+        float confidence_score
+        boolean escalated
+        string escalation_reason
+        datetime created_at
+    }
+
+    Store ||--o{ Product : "has"
+    Store ||--o{ FAQ : "has"
+    Store ||--o{ ChatSession : "has"
+    Product ||--o{ ProductVariation : "has"
+    ChatSession ||--o{ ChatMessage : "contains"
+```
+
 ### Store
 Central anchor. One record per merchant. All other records scoped here.
 
