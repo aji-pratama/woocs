@@ -17,6 +17,18 @@ class PostgresTaskBackend(BaseTaskBackend):
         # We need the dotted path to the task function
         task_func_name = f"{task.func.__module__}.{task.func.__name__}"
 
+        def serialize_for_json(val):
+            if isinstance(val, uuid.UUID):
+                return str(val)
+            if isinstance(val, (list, tuple)):
+                return [serialize_for_json(v) for v in val]
+            if isinstance(val, dict):
+                return {k: serialize_for_json(v) for k, v in val.items()}
+            return val
+
+        args = serialize_for_json(args)
+        kwargs = serialize_for_json(kwargs)
+
         record = TaskRecord.objects.create(
             task_name=task_func_name, args=args, kwargs=kwargs, status="pending"
         )

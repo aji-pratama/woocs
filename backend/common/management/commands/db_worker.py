@@ -41,9 +41,12 @@ class Command(BaseCommand):
                         func = import_string(task_record.task_name)
 
                         # Note: In a real Django 6 tasks setup, the task function might be wrapped
-                        # by the @task decorator. We need to call the underlying function or the wrapper.
-                        # The wrapper is callable. Let's just call it directly.
-                        result = func(*task_record.args, **task_record.kwargs)
+                        # by the @task decorator. The Task object might not be callable directly.
+                        # We use func.func to access the original unwrapped function.
+                        if hasattr(func, "func"):
+                            result = func.func(*task_record.args, **task_record.kwargs)
+                        else:
+                            result = func(*task_record.args, **task_record.kwargs)
 
                         task_record.status = "completed"
                         task_record.result = result

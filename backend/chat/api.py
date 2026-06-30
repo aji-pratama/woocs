@@ -2,6 +2,7 @@ from ninja import Router
 from ninja.errors import HttpError
 
 from store.models import Store
+from .models import ChatSession
 
 from .schemas import (
     ChatHistoryResponseOut,
