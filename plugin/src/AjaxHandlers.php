@@ -12,6 +12,8 @@ class AjaxHandlers {
         add_action('wp_ajax_woocs_save_faq', [self::class, 'handle_save_faq']);
         add_action('wp_ajax_woocs_delete_faq', [self::class, 'handle_delete_faq']);
         add_action('wp_ajax_woocs_save_sync_log', [self::class, 'handle_save_sync_log']);
+        add_action('wp_ajax_woocs_chat_history', [self::class, 'handle_chat_history']);
+        add_action('wp_ajax_woocs_chat_session_detail', [self::class, 'handle_chat_session_detail']);
     }
 
     public static function handle_sync_now() {
@@ -159,5 +161,43 @@ class AjaxHandlers {
 
         update_option('woocs_sync_logs', $logs);
         wp_send_json_success(['logs' => $logs]);
+    }
+
+    public static function handle_chat_history() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+        check_ajax_referer('woocs_chat_history_nonce', 'nonce');
+
+        $page = max(1, intval($_POST['page'] ?? 1));
+        $client = new ApiClient();
+        $response = $client->get_chat_history($page, 20);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => $response->get_error_message()], 500);
+        }
+
+        wp_send_json_success($response);
+    }
+
+    public static function handle_chat_session_detail() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+        check_ajax_referer('woocs_chat_history_nonce', 'nonce');
+
+        $session_id = sanitize_text_field($_POST['session_id'] ?? '');
+        if (empty($session_id)) {
+            wp_send_json_error(['message' => 'session_id required.']);
+        }
+
+        $client = new ApiClient();
+        $response = $client->get_chat_session($session_id);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => $response->get_error_message()], 500);
+        }
+
+        wp_send_json_success($response);
     }
 }

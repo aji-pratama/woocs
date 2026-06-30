@@ -34,6 +34,23 @@ def chat(request, payload: ChatRequestIn):
         page_context=payload.page_context,
     )
 
+    # Persist customer info from pre-chat form (only writes if fields are non-empty)
+    if payload.customer_info:
+        session = ChatService.get_or_create_session(store, payload.session_id)
+        changed = False
+        info = payload.customer_info
+        if info.name and not session.customer_name:
+            session.customer_name = info.name
+            changed = True
+        if info.email and not session.customer_email:
+            session.customer_email = info.email
+            changed = True
+        if info.phone and not session.customer_phone:
+            session.customer_phone = info.phone
+            changed = True
+        if changed:
+            session.save(update_fields=["customer_name", "customer_email", "customer_phone"])
+
     # If escalated, trigger async email
     if result["escalated"]:
         session = ChatService.get_or_create_session(store, payload.session_id)

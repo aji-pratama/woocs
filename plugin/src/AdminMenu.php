@@ -72,6 +72,15 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-dashboard',
+            'WooCS Chat History',
+            'Chat History',
+            $capability,
+            'woocs-chat-history',
+            [$this, 'render_chat_history_page']
+        );
+
+        add_submenu_page(
+            'woocs-dashboard',
             'WooCS Preview',
             'Preview',
             $capability,
@@ -82,6 +91,10 @@ class AdminMenu {
 
     public function render_dashboard_page() {
         require WOOCS_PLUGIN_DIR . 'src/Views/dashboard.php';
+    }
+
+    public function render_chat_history_page() {
+        require WOOCS_PLUGIN_DIR . 'src/Views/chat-history.php';
     }
 
     public function render_settings_page() {
@@ -107,50 +120,59 @@ class AdminMenu {
 
         check_admin_referer('woocs_save_settings');
 
-        $wc_url = sanitize_url($_POST['woocs_wc_url'] ?? get_site_url());
-        $merchant_email = sanitize_email($_POST['woocs_merchant_email'] ?? get_option('admin_email'));
-        $api_key = sanitize_text_field($_POST['woocs_api_key'] ?? '');
-        
-        $wc_consumer_key = sanitize_text_field($_POST['woocs_wc_consumer_key'] ?? '');
-        $wc_consumer_secret = sanitize_text_field($_POST['woocs_wc_consumer_secret'] ?? '');
+        $tab = sanitize_key($_POST['woocs_settings_tab'] ?? 'connection');
 
-        $client = new ApiClient();
-        $response = $client->register_store($wc_url, $merchant_email, $api_key, $wc_consumer_key, $wc_consumer_secret);
+        if ($tab === 'widget') {
+            // Widget tab
+            update_option('woocs_widget_enabled', isset($_POST['woocs_widget_enabled']) ? '1' : '0');
+            update_option('woocs_widget_position', sanitize_text_field($_POST['woocs_widget_position'] ?? 'bottom-right'));
+            update_option('woocs_widget_primary_color', sanitize_hex_color($_POST['woocs_widget_primary_color'] ?? '#2271b1') ?: '#2271b1');
+            set_transient('woocs_admin_success', 'Widget settings saved.', 45);
 
-        if (is_wp_error($response)) {
-            set_transient('woocs_admin_error', $response->get_error_message(), 45);
+        } elseif ($tab === 'prechat') {
+            // Pre-chat form tab
+            update_option('woocs_prechat_enabled', isset($_POST['woocs_prechat_enabled']) ? '1' : '0');
+            foreach (['name', 'email', 'phone'] as $field) {
+                update_option("woocs_prechat_{$field}_enabled",  isset($_POST["woocs_prechat_{$field}_enabled"])  ? '1' : '0');
+                update_option("woocs_prechat_{$field}_required", isset($_POST["woocs_prechat_{$field}_required"]) ? '1' : '0');
+            }
+            set_transient('woocs_admin_success', 'Pre-chat form settings saved.', 45);
+
+        } elseif ($tab === 'advanced') {
+            // Advanced tab
+            update_option('woocs_wc_url', sanitize_url($_POST['woocs_wc_url'] ?? get_site_url()));
+            update_option('woocs_merchant_email', sanitize_email($_POST['woocs_merchant_email'] ?? ''));
+            update_option('woocs_wc_consumer_key', sanitize_text_field($_POST['woocs_wc_consumer_key'] ?? ''));
+            update_option('woocs_wc_consumer_secret', sanitize_text_field($_POST['woocs_wc_consumer_secret'] ?? ''));
+            update_option('woocs_product_context_enabled', isset($_POST['woocs_product_context_enabled']) ? '1' : '0');
+            set_transient('woocs_admin_success', 'Advanced settings saved.', 45);
+
         } else {
-            update_option('woocs_store_id', sanitize_text_field($response['store_id']));
-            update_option('woocs_wc_url', $wc_url);
-            update_option('woocs_merchant_email', $merchant_email);
-            
-            if (isset($_POST['woocs_wc_consumer_key'])) {
-                update_option('woocs_wc_consumer_key', sanitize_text_field($_POST['woocs_wc_consumer_key']));
-            }
-            if (isset($_POST['woocs_wc_consumer_secret'])) {
-                update_option('woocs_wc_consumer_secret', sanitize_text_field($_POST['woocs_wc_consumer_secret']));
-            }
-            if (isset($_POST['woocs_widget_enabled'])) {
-                update_option('woocs_widget_enabled', '1');
-            } else {
-                update_option('woocs_widget_enabled', '0');
-            }
-            if (isset($_POST['woocs_product_context_enabled'])) {
-                update_option('woocs_product_context_enabled', '1');
-            } else {
-                update_option('woocs_product_context_enabled', '0');
-            }
-            if (isset($_POST['woocs_widget_position'])) {
-                update_option('woocs_widget_position', sanitize_text_field($_POST['woocs_widget_position']));
-            }
-            if (!empty($response['api_key'])) {
-                update_option('woocs_api_key', sanitize_text_field($response['api_key']));
-            }
+            // Connection tab — register/connect store
+            $wc_url             = sanitize_url($_POST['woocs_wc_url'] ?? get_site_url());
+            $merchant_email     = sanitize_email($_POST['woocs_merchant_email'] ?? get_option('admin_email'));
+            $api_key            = sanitize_text_field($_POST['woocs_api_key'] ?? '');
+            $wc_consumer_key    = sanitize_text_field($_POST['woocs_wc_consumer_key'] ?? '');
+            $wc_consumer_secret = sanitize_text_field($_POST['woocs_wc_consumer_secret'] ?? '');
 
-            set_transient('woocs_admin_success', 'Settings saved and store connected successfully!', 45);
+            $client   = new ApiClient();
+            $response = $client->register_store($wc_url, $merchant_email, $api_key, $wc_consumer_key, $wc_consumer_secret);
+
+            if (is_wp_error($response)) {
+                set_transient('woocs_admin_error', $response->get_error_message(), 45);
+            } else {
+                update_option('woocs_store_id', sanitize_text_field($response['store_id']));
+                update_option('woocs_wc_url', $wc_url);
+                update_option('woocs_merchant_email', $merchant_email);
+                if (!empty($response['api_key'])) {
+                    update_option('woocs_api_key', sanitize_text_field($response['api_key']));
+                }
+                set_transient('woocs_admin_success', 'Store connected successfully!', 45);
+            }
         }
 
-        wp_safe_redirect(admin_url('admin.php?page=woocs-settings'));
+        $redirect_tab = in_array($tab, ['widget', 'prechat', 'advanced']) ? $tab : 'connection';
+        wp_safe_redirect(admin_url('admin.php?page=woocs-settings&tab=' . $redirect_tab));
         exit;
     }
 

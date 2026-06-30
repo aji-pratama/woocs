@@ -10,11 +10,19 @@ class PageContextIn(BaseModel):
     product_name: Optional[str] = None
 
 
+class CustomerInfoIn(BaseModel):
+    """Optional customer identification from the pre-chat form."""
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
 class ChatRequestIn(BaseModel):
     store_id: UUID
     session_id: UUID
     message: str
     page_context: Optional[PageContextIn] = None
+    customer_info: Optional[CustomerInfoIn] = None
 
 
 class ChatResponseOut(BaseModel):
@@ -54,3 +62,32 @@ class OrderStatusResponseOut(BaseModel):
     total: Optional[str] = None
     found: bool = True
     error: Optional[str] = None
+
+
+class ChatSessionSummaryOut(BaseModel):
+    """One row in the Chat History list."""
+    session_id: UUID
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_phone: Optional[str] = None
+    first_message: Optional[str] = None
+    message_count: int = 0
+    escalated: bool = False
+    created_at: str
+
+
+class ChatHistoryListOut(BaseModel):
+    sessions: list[ChatSessionSummaryOut]
+    total: int
+    page: int
+    page_size: int
+
+
+class ChatSessionDetailOut(BaseModel):
+    """Full session detail for the Chat History drawer."""
+    session_id: UUID
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_phone: Optional[str] = None
+    created_at: str
+    messages: list[ChatMessageOut]

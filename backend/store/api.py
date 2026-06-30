@@ -2,6 +2,8 @@ from ninja import Router
 from ninja.errors import HttpError
 
 from config.auth import ApiKeyAuth
+from chat.models import ChatSession, ChatMessage
+from chat.schemas import ChatHistoryListOut, ChatSessionDetailOut, ChatMessageOut
 
 from .schemas import (
     StoreRegisterIn,
@@ -106,4 +108,82 @@ def sync_status(request):
             store.last_synced_at.isoformat() if store.last_synced_at else None
         ),
         "status": "idle" if store.last_synced_at else "pending",  # Simplified for PoC
+    }
+
+
+@router.get("/chat-history/", response={200: ChatHistoryListOut}, auth=ApiKeyAuth())
+def chat_history_list(request, page: int = 1, page_size: int = 20):
+    """
+    Returns a paginated list of chat sessions for this store,
+    suitable for the WP Admin Chat History page.
+    """
+    store = request.auth
+    page_size = min(page_size, 100)
+    offset = (page - 1) * page_size
+
+    qs = ChatSession.objects.filter(store=store).order_by("-created_at")
+    total = qs.count()
+    sessions = qs[offset: offset + page_size]
+
+    result = []
+    for session in sessions:
+        # First user message as preview
+        first_msg = (
+            ChatMessage.objects.filter(session=session, role="user")
+            .order_by("created_at")
+            .values_list("content", flat=True)
+            .first()
+        )
+        msg_count = ChatMessage.objects.filter(session=session).count()
+        escalated = ChatMessage.objects.filter(session=session, escalated=True).exists()
+
+        result.append({
+            "session_id": session.session_id,
+            "customer_name": session.customer_name,
+            "customer_email": session.customer_email,
+            "customer_phone": session.customer_phone,
+            "first_message": (first_msg[:120] if first_msg else None),
+            "message_count": msg_count,
+            "escalated": escalated,
+            "created_at": session.created_at.isoformat(),
+        })
+
+    return 200, {
+        "sessions": result,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.get("/chat-history/{session_id}/", response={200: ChatSessionDetailOut}, auth=ApiKeyAuth())
+def chat_history_detail(request, session_id: str):
+    """
+    Returns full conversation for a single session.
+    """
+    store = request.auth
+    try:
+        session = ChatSession.objects.get(store=store, session_id=session_id)
+    except ChatSession.DoesNotExist:
+        raise HttpError(404, "Session not found.")
+
+    messages = ChatMessage.objects.filter(session=session).order_by("created_at")
+
+    return 200, {
+        "session_id": session.session_id,
+        "customer_name": session.customer_name,
+        "customer_email": session.customer_email,
+        "customer_phone": session.customer_phone,
+        "created_at": session.created_at.isoformat(),
+        "messages": [
+            ChatMessageOut(
+                id=m.id,
+                role=m.role,
+                content=m.content,
+                response_type=m.response_type,
+                metadata=m.metadata,
+                error=False,
+            )
+            for m in messages
+        ],
     }

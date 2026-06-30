@@ -85,6 +85,32 @@ class ApiClient {
         return $this->handle_response($response);
     }
 
+    public function get_chat_history(int $page = 1, int $page_size = 20): array|\WP_Error {
+        $url = add_query_arg(['page' => $page, 'page_size' => $page_size], $this->base_url . '/api/stores/chat-history/');
+
+        $response = wp_remote_get($url, [
+            'headers' => [
+                'X-API-Key' => $this->api_key,
+            ],
+            'timeout' => 15,
+        ]);
+
+        return $this->handle_response($response);
+    }
+
+    public function get_chat_session(string $session_id): array|\WP_Error {
+        $url = $this->base_url . '/api/stores/chat-history/' . rawurlencode($session_id) . '/';
+
+        $response = wp_remote_get($url, [
+            'headers' => [
+                'X-API-Key' => $this->api_key,
+            ],
+            'timeout' => 10,
+        ]);
+
+        return $this->handle_response($response);
+    }
+
     private function handle_response($response): array|\WP_Error {
         if (is_wp_error($response)) {
             return $response;

@@ -72,13 +72,32 @@ class WidgetRenderer {
             $css_url = esc_url(WOOCS_PLUGIN_URL . 'assets/woocs-widget.css');
         }
 
+        // Build pre-chat field config from wp_options
+        $prechat_enabled = get_option('woocs_prechat_enabled', '0') === '1';
+        $prechat_fields  = [];
+        foreach (['name', 'email', 'phone'] as $field) {
+            if (get_option("woocs_prechat_{$field}_enabled", '0') === '1') {
+                $prechat_fields[] = [
+                    'key'      => $field,
+                    'label'    => ucfirst($field),
+                    'type'     => $field === 'email' ? 'email' : ($field === 'phone' ? 'tel' : 'text'),
+                    'required' => get_option("woocs_prechat_{$field}_required", '0') === '1',
+                ];
+            }
+        }
+
+        $primary_color = get_option('woocs_widget_primary_color', '#2271b1');
+
         echo '<script>
             window.WooCS = ' . wp_json_encode([
-            'store_id' => $store_id,
-            'api_url' => $api_url,
-            'store_name' => $store_name,
-            'css_url' => $css_url,
-            'page_context' => self::get_page_context(),
+            'store_id'        => $store_id,
+            'api_url'         => $api_url,
+            'store_name'      => $store_name,
+            'css_url'         => $css_url,
+            'page_context'    => self::get_page_context(),
+            'prechat_enabled' => $prechat_enabled,
+            'prechat_fields'  => $prechat_fields,
+            'primary_color'   => $primary_color,
         ]) . ';
         </script>';
 
