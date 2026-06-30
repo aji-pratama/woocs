@@ -38,6 +38,7 @@ interface Message {
   error?: boolean;
   confidence?: number;
   context_used?: string;
+  latency?: number;
 }
 
 const STORAGE_KEY = "woocs_chat_state_v1";
@@ -61,6 +62,22 @@ function uuid() {
     return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
   });
 }
+
+declare global {
+  interface Window {
+    WooCS?: {
+      store_id: string;
+      api_url: string;
+      store_name?: string;
+      page_context?: { type: string; product_id?: number; product_name?: string };
+    };
+    WooCS_Test?: {
+      resetWidget?: () => void;
+      triggerMessage?: (msg: string) => void;
+    };
+  }
+}
+
 
 export default function App() {
   const [config, setConfig] = useState<{ store_id: string; api_url: string; store_name: string; page_context: any } | null>(null);
@@ -147,7 +164,38 @@ export default function App() {
     }
     
     fetchHistory();
+
+    // Test helpers for A4 Preview Page
+    if (typeof window !== "undefined") {
+      window.WooCS_Test = {
+        resetWidget: () => {
+          window.localStorage.removeItem(STORAGE_KEY);
+          // Simple reload to pick up new window.WooCS.page_context
+          window.location.reload();
+        },
+        triggerMessage: (msg: string) => {
+          setIsOpen(true);
+          // Wait for state update to finish
+          setTimeout(() => {
+             // We can't directly call sendMessage from outside unless we bind it,
+             // let's create a custom event that the component listens to.
+             window.dispatchEvent(new CustomEvent('woocs_test_message', { detail: msg }));
+          }, 100);
+        }
+      };
+    }
   }, []);
+
+  // Listen for test messages
+  useEffect(() => {
+    const handleTestMessage = (e: any) => {
+      if (e.detail) {
+        sendMessage(e.detail);
+      }
+    };
+    window.addEventListener('woocs_test_message', handleTestMessage);
+    return () => window.removeEventListener('woocs_test_message', handleTestMessage);
+  }, [config, sessionId]);
 
   // Persist
   useEffect(() => {
@@ -184,6 +232,7 @@ export default function App() {
     const abortTimer = setTimeout(() => controller.abort(), 16000);
 
     try {
+      const startTime = performance.now();
       const res = await fetch(`${config.api_url.replace(/\/$/, "")}/api/widget/chat/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -199,6 +248,9 @@ export default function App() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as ApiResponse;
+      const endTime = performance.now();
+      const latencyMs = Math.round(endTime - startTime);
+
       if (data.session_id && data.session_id !== sessionId) setSessionId(data.session_id);
       setMessages((m) => [
         ...m,
@@ -210,7 +262,8 @@ export default function App() {
           metadata: data.metadata,
           confidence: data.confidence,
           context_used: data.context_used,
-        },
+          latency: latencyMs,
+        } as Message,
       ]);
     } catch {
       setMessages((m) => [
@@ -408,9 +461,10 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
         >
           {message.text}
           {/* Debug overlay (only shown if we have context info via metadata or a custom property in the future, for PoC we can just read it if passed) */}
-          {(message as any).context_used && (
-            <div className="absolute -top-5 right-0 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-white opacity-80">
-              conf: {((message as any).confidence ?? 0).toFixed(2)} | context: {(message as any).context_used}
+          {((message as any).context_used || (message as any).latency) && (
+            <div className="absolute -top-5 right-0 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-white opacity-80 whitespace-nowrap">
+              {((message as any).latency) && `${(message as any).latency}ms | `}
+              conf: {((message as any).confidence ?? 0).toFixed(2)} | context: {(message as any).context_used || 'general'}
             </div>
           )}
         </div>

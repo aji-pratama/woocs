@@ -149,3 +149,37 @@
 - [x] Confirm `page_context` stays accurate if customer navigates to a different product page mid-session (full page reload re-injects `window.WooCS`, so this should work automatically given WooCommerce's default non-SPA behavior — verify this assumption holds)
 - [x] Add `context_used` to the existing debug overlay in A4
 - [x] Confirm this overlay is PoC-only and stripped from any future production build
+## Order Service (`chat/services.py`)
+- [x] Implement live WooCommerce REST API call to fetch order status using stored credentials.
+- [x] Map WC status to customer-facing labels (e.g., `completed` → `Delivered`).
+
+## Widget Page Context Awareness
+
+### Update Pydantic schemas
+- [x] Add `PageContextIn` model
+- [x] Add `page_context` field to `ChatRequestIn`
+- [x] Add `context_used` field to `ChatResponseOut`
+- [x] Confirm backward compatibility — requests without `page_context` must still work (defaults to `None`, treated as general)
+
+### Update ChatMessage persistence
+- [x] Store `page_context` and `context_used` in `ChatMessage.metadata`
+- [x] Verify Django Admin C3 (chat session detail) can display this metadata for debugging
+
+### Add settings toggle (WP Plugin)
+- [x] Add checkbox field to Settings page template
+- [x] Save to `wp_options['woocs_product_context_enabled']` on form submit
+- [x] Default value: enabled (`true`) — this is a quality improvement, not a risky feature, so opt-out makes more sense than opt-in
+- [x] Add one-line help text under the checkbox: "When enabled, the assistant gives more specific answers about the product the customer is currently viewing."
+
+### Detect product page and build context payload (WP Plugin)
+- [x] Implement `woocs_get_page_context()` function
+- [x] Respect the settings toggle — return `general` immediately if disabled
+- [x] Hook into existing `wp_localize_script()` call, add `page_context` key
+
+### Frontend preview page (A4)
+- [x] Embed an iframe pointing to a real product page on the merchant's storefront (or a dropdown to pick which product to preview)
+- [x] Render the actual widget inside that iframe (uses real `window.WooCS` injection, so page context detection is naturally tested)
+- [x] Add debug overlay showing `confidence` and `context_used` per response
+- [x] Add a dropdown: "Preview as page type" with options General / Product — lets merchant manually test without navigating to an actual product page
+- [x] Add "Test escalation" button (sends hardcoded refund-keyword message)
+- [x] Add response latency display in ms
