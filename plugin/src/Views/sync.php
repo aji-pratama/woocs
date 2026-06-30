@@ -91,6 +91,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentStatus = 'idle'; 
 
     function updateUI(data) {
+        if (data.logs_updated) {
+            location.reload();
+            return;
+        }
+
         if (data.products_count !== undefined) {
             document.getElementById('count-products').innerHTML = data.products_count + ' <span class="dashicons dashicons-yes-alt woocs-text-success"></span>';
         }
@@ -124,11 +129,11 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('status', status);
         formData.append('message', message);
 
+        // We use fetch without reloading immediately to avoid interrupting other API calls
         fetch(ajaxUrl, { method: 'POST', body: formData })
             .then(res => res.json())
             .then(res => {
                 if (res.success) {
-                    // Quick way to refresh logs table: reload the page!
                     location.reload();
                 }
             })
@@ -154,9 +159,6 @@ document.addEventListener('DOMContentLoaded', function() {
         syncBtn.disabled = true;
         syncBtn.textContent = 'Syncing...';
         
-        // Push the processing log first
-        pushLog('processing', 'Catalog Sync Initiated');
-
         const formData = new FormData();
         formData.append('action', 'woocs_sync_now');
         formData.append('nonce', nonce);
@@ -168,8 +170,8 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(res => res.json())
         .then(res => {
             if (res.success) {
-                currentStatus = 'processing';
-                setTimeout(fetchStatus, 2000);
+                // Now push the processing log so it doesn't interrupt woocs_sync_now
+                pushLog('processing', 'Catalog Sync Initiated');
             } else {
                 pushLog('failed', 'Sync Failed');
                 syncBtn.disabled = false;

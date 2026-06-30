@@ -42,6 +42,25 @@ class AjaxHandlers {
             wp_send_json_error(['message' => $response->get_error_message()], 500);
         }
 
+        // Auto-close dangling 'processing' logs
+        $logs = get_option('woocs_sync_logs', []);
+        if (!empty($logs) && is_array($logs)) {
+            if ($logs[0]['status'] === 'processing' && isset($response['status']) && $response['status'] !== 'processing') {
+                // If the backend has finished, but our top log is still 'processing', update it.
+                // We'll insert a new success log rather than overwrite, so it acts as an append-only log.
+                array_unshift($logs, [
+                    'status' => 'success',
+                    'message' => 'Catalog synced successfully',
+                    'time' => current_time('mysql')
+                ]);
+                $logs = array_slice($logs, 0, 10);
+                update_option('woocs_sync_logs', $logs);
+                
+                // Tell the frontend that logs were updated so it can refresh
+                $response['logs_updated'] = true;
+            }
+        }
+
         wp_send_json_success($response);
     }
 
