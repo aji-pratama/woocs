@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
+
+$logs = get_option('woocs_sync_logs', []);
+if (!is_array($logs)) $logs = [];
 ?>
 <div class="wrap woocs-wrap">
     <h1>WooCS &rsaquo; Sync Status</h1>
@@ -32,7 +35,7 @@ if (!defined('ABSPATH')) exit;
                     <span class="woocs-sync-value">Live <span class="dashicons dashicons-yes-alt woocs-text-success"></span></span>
                 </div>
             </div>
-            <p class="woocs-sync-time">Last sync: 2 minutes ago</p>
+            <p class="woocs-sync-time">Last sync: <span id="last-sync-time"><?php echo !empty($logs) ? esc_html(date('M j, Y H:i', strtotime($logs[0]['time']))) : 'Never'; ?></span></p>
         </div>
     </div>
 
@@ -45,14 +48,32 @@ if (!defined('ABSPATH')) exit;
                 <thead>
                     <tr>
                         <th class="column-time">Time</th>
-                        <th class="column-entity">Entity</th>
+                        <th class="column-entity">Message</th>
                         <th class="column-status">Status</th>
                     </tr>
                 </thead>
                 <tbody id="woocs-sync-log">
-                    <tr>
-                        <td colspan="3" class="woocs-text-muted">No recent sync activity.</td>
-                    </tr>
+                    <?php if (empty($logs)): ?>
+                        <tr>
+                            <td colspan="3" class="woocs-text-muted">No recent sync activity.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($logs as $log): ?>
+                            <tr>
+                                <td><?php echo esc_html(date('M j, Y H:i', strtotime($log['time']))); ?></td>
+                                <td><?php echo esc_html($log['message']); ?></td>
+                                <td>
+                                    <?php if ($log['status'] === 'success'): ?>
+                                        <span class="woocs-text-success">Success &#10003;</span>
+                                    <?php elseif ($log['status'] === 'processing'): ?>
+                                        <span class="woocs-text-success">Processing &#8987;</span>
+                                    <?php else: ?>
+                                        <span class="woocs-text-danger">Failed &#10007;</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -65,6 +86,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const ajaxUrl = document.getElementById('woocs_ajax_url').value;
     const nonce = document.getElementById('woocs_sync_nonce').value;
     
+    // We only need to check status to know when it transitions from processing to success.
+    // The previous state helps us trigger a log push when it finishes.
+    let currentStatus = 'idle'; 
+
     function updateUI(data) {
         if (data.products_count !== undefined) {
             document.getElementById('count-products').innerHTML = data.products_count + ' <span class="dashicons dashicons-yes-alt woocs-text-success"></span>';
@@ -79,26 +104,35 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.status === 'processing') {
             syncBtn.disabled = true;
             syncBtn.textContent = 'Syncing...';
+            currentStatus = 'processing';
             setTimeout(fetchStatus, 3000);
         } else {
             syncBtn.disabled = false;
             syncBtn.textContent = 'Sync now';
+            if (currentStatus === 'processing') {
+                // It just finished
+                currentStatus = 'success';
+                pushLog('success', 'Catalog synced successfully');
+            }
         }
     }
 
-    function addLog(entity, status, isError = false) {
-        const tbody = document.getElementById('woocs-sync-log');
-        if (tbody.querySelector('.woocs-text-muted')) {
-            tbody.innerHTML = ''; // clear empty message
-        }
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const statusHtml = isError 
-            ? `<span class="woocs-text-danger">Failed &#10007;</span>`
-            : `<span class="woocs-text-success">Processing &#8987;</span>`;
-            
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${time}</td><td>${entity}</td><td>${statusHtml}</td>`;
-        tbody.prepend(tr);
+    function pushLog(status, message) {
+        const formData = new FormData();
+        formData.append('action', 'woocs_save_sync_log');
+        formData.append('nonce', nonce);
+        formData.append('status', status);
+        formData.append('message', message);
+
+        fetch(ajaxUrl, { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    // Quick way to refresh logs table: reload the page!
+                    location.reload();
+                }
+            })
+            .catch(err => console.error(err));
     }
 
     function fetchStatus() {
@@ -119,7 +153,9 @@ document.addEventListener('DOMContentLoaded', function() {
     syncBtn.addEventListener('click', function() {
         syncBtn.disabled = true;
         syncBtn.textContent = 'Syncing...';
-        addLog('Catalog Sync', 'Processing', false);
+        
+        // Push the processing log first
+        pushLog('processing', 'Catalog Sync Initiated');
 
         const formData = new FormData();
         formData.append('action', 'woocs_sync_now');
@@ -132,17 +168,17 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(res => res.json())
         .then(res => {
             if (res.success) {
-                // The backend API triggers async task, so it returns "processing"
+                currentStatus = 'processing';
                 setTimeout(fetchStatus, 2000);
             } else {
-                addLog('Sync Failed', 'Failed', true);
+                pushLog('failed', 'Sync Failed');
                 syncBtn.disabled = false;
                 syncBtn.textContent = 'Sync now';
             }
         })
         .catch(err => {
             console.error(err);
-            addLog('Network Error', 'Failed', true);
+            pushLog('failed', 'Network Error');
             syncBtn.disabled = false;
             syncBtn.textContent = 'Sync now';
         });

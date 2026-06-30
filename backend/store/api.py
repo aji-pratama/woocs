@@ -63,6 +63,34 @@ def sync_catalog(request, payload: SyncRequestIn):
     return 202, {"task_id": task_id, "status": "processing"}
 
 
+@router.get("/dashboard/stats/", response={200: dict}, auth=ApiKeyAuth())
+def dashboard_stats(request):
+    """
+    Returns high-level statistics for the plugin dashboard.
+    """
+    store = request.auth
+    
+    # Use ChatSession and ChatMessage if available
+    chat_sessions_count = store.sessions.count()
+    messages_count = 0
+    escalations_count = 0
+    
+    from chat.models import ChatMessage
+    # Optimization: count all messages across all sessions of this store
+    messages_qs = ChatMessage.objects.filter(session__store=store)
+    messages_count = messages_qs.count()
+    escalations_count = messages_qs.filter(escalated=True).count()
+    
+    products_count = store.products.count()
+
+    return 200, {
+        "chat_sessions": chat_sessions_count,
+        "total_messages": messages_count,
+        "products_synced": products_count,
+        "escalations": escalations_count,
+    }
+
+
 @router.get("/sync/status/", response={200: SyncStatusOut}, auth=ApiKeyAuth())
 def sync_status(request):
     """

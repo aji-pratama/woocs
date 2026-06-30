@@ -25,17 +25,26 @@ class AdminMenu {
         $capability = 'manage_woocommerce';
 
         add_menu_page(
-            'WooCS Settings',
+            'WooCS Dashboard',
             'WooCS',
             $capability,
-            'woocs-settings',
-            [$this, 'render_settings_page'],
+            'woocs-dashboard',
+            [$this, 'render_dashboard_page'],
             'dashicons-format-chat',
             56
         );
 
         add_submenu_page(
-            'woocs-settings',
+            'woocs-dashboard',
+            'WooCS Dashboard',
+            'Dashboard',
+            $capability,
+            'woocs-dashboard',
+            [$this, 'render_dashboard_page']
+        );
+
+        add_submenu_page(
+            'woocs-dashboard',
             'WooCS Settings',
             'Settings',
             $capability,
@@ -44,7 +53,7 @@ class AdminMenu {
         );
 
         add_submenu_page(
-            'woocs-settings',
+            'woocs-dashboard',
             'WooCS Sync Status',
             'Sync',
             $capability,
@@ -53,7 +62,7 @@ class AdminMenu {
         );
 
         add_submenu_page(
-            'woocs-settings',
+            'woocs-dashboard',
             'WooCS FAQs',
             'FAQs',
             $capability,
@@ -62,13 +71,17 @@ class AdminMenu {
         );
 
         add_submenu_page(
-            'woocs-settings',
+            'woocs-dashboard',
             'WooCS Preview',
             'Preview',
             $capability,
             'woocs-preview',
             [$this, 'render_preview_page']
         );
+    }
+
+    public function render_dashboard_page() {
+        require WOOCS_PLUGIN_DIR . 'src/Views/dashboard.php';
     }
 
     public function render_settings_page() {

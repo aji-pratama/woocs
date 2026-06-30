@@ -67,6 +67,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const applyBtn = document.getElementById('woocs-test-simulate-btn');
     const escalateBtn = document.getElementById('woocs-test-escalate-btn');
 
+    // Restore from localStorage
+    const savedType = localStorage.getItem('woocs_preview_context_type');
+    if (savedType) {
+        typeSelect.value = savedType;
+        if (savedType === 'product') {
+            productWrap.style.display = 'block';
+            const savedProduct = localStorage.getItem('woocs_preview_product_id');
+            if (savedProduct) {
+                productSelect.value = savedProduct;
+            }
+        }
+    }
+
     typeSelect.addEventListener('change', function() {
         if (this.value === 'product') {
             productWrap.style.display = 'block';
@@ -79,14 +92,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!window.WooCS) return;
         
         const type = typeSelect.value;
+        localStorage.setItem('woocs_preview_context_type', type);
+
         if (type === 'product') {
             const selectedOption = productSelect.options[productSelect.selectedIndex];
+            localStorage.setItem('woocs_preview_product_id', selectedOption.value);
             window.WooCS.page_context = {
                 type: 'product',
                 product_id: parseInt(selectedOption.value, 10),
                 product_name: selectedOption.getAttribute('data-name')
             };
         } else {
+            localStorage.removeItem('woocs_preview_product_id');
             window.WooCS.page_context = { type: 'general' };
         }
 
@@ -104,5 +121,19 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Widget message helper not available yet.');
         }
     });
+    
+    // Automatically apply saved context if it exists
+    if (savedType && window.WooCS) {
+        if (savedType === 'product') {
+            const selectedOption = productSelect.options[productSelect.selectedIndex];
+            window.WooCS.page_context = {
+                type: 'product',
+                product_id: parseInt(selectedOption.value, 10),
+                product_name: selectedOption.getAttribute('data-name')
+            };
+        } else {
+            window.WooCS.page_context = { type: 'general' };
+        }
+    }
 });
 </script>

@@ -72,6 +72,19 @@ class ApiClient {
         return $this->handle_response($response);
     }
 
+    public function get_dashboard_stats(): array|\WP_Error {
+        $url = $this->base_url . '/api/stores/dashboard/stats/';
+
+        $response = wp_remote_get($url, [
+            'headers' => [
+                'X-API-Key' => $this->api_key,
+            ],
+            'timeout' => 10,
+        ]);
+
+        return $this->handle_response($response);
+    }
+
     private function handle_response($response): array|\WP_Error {
         if (is_wp_error($response)) {
             return $response;

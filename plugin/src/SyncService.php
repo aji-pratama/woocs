@@ -67,18 +67,20 @@ class SyncService {
     }
 
     private static function get_faqs(): array {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'woocs_faqs';
+        $faqs = get_option('woocs_faqs', []);
         
-        // For PoC: Check if table exists, if not return dummy
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+        if (!is_array($faqs) || empty($faqs)) {
             return [
                 ['question' => 'What is your return policy?', 'answer' => 'We accept returns within 30 days.'],
                 ['question' => 'How long is shipping?', 'answer' => 'Standard shipping takes 3-5 business days.']
             ];
         }
 
-        $results = $wpdb->get_results("SELECT question, answer FROM $table_name", ARRAY_A);
-        return $results ?: [];
+        return array_map(function($faq) {
+            return [
+                'question' => $faq['question'] ?? '',
+                'answer' => $faq['answer'] ?? ''
+            ];
+        }, $faqs);
     }
 }

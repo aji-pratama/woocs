@@ -183,3 +183,17 @@
 - [x] Add a dropdown: "Preview as page type" with options General / Product — lets merchant manually test without navigating to an actual product page
 - [x] Add "Test escalation" button (sends hardcoded refund-keyword message)
 - [x] Add response latency display in ms
+
+---
+
+### Feedback, Plugin Page and API Integrations
+
+- [x] `page=woocs-settings`: make it better style:
+    - [x] Connection Connected need better icon
+- [x] `page=woocs-preview`: when it save test control, and then I reloaded, the setings is not same, do we need to sync api?
+- [x] `page=woocs-faqs`: FAQs, I cannot edit, is it just dummy?
+- [x] `page=woocs-sync`: Sync Logs is not recorded in the plugin, do we need to fecth api (again)?
+
+
+### Feedback, Plugin Page:
+- [x] Create Dashboard page that shows all information when plugin is activated and connected, like chat count, order count, etc, and it need to refresh every 1 minute. No need complete, just like teaser, and for more detailed need to go somewhere else like other page or even the SaaS
