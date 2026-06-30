@@ -65,6 +65,7 @@ class ChatService:
         store: Store,
         session_id: UUID,
         message: str,
+        page_context: Optional[Any] = None,
     ) -> dict:
         """
         Full chat flow:
@@ -97,6 +98,10 @@ class ChatService:
                 escalated=True,
                 escalation_reason="keyword_trigger",
                 response_type="escalation",
+                metadata={
+                    "page_context": page_context.dict() if page_context else None,
+                    "context_used": "keyword_trigger",
+                },
             )
             return {
                 "answer": escalation_msg,
@@ -106,6 +111,7 @@ class ChatService:
                 "session_id": session_id,
                 "response_type": "escalation",
                 "metadata": None,
+                "context_used": "keyword_trigger",
             }
 
         # 2. Order intent check (bypass RAG, proxy to WC)
@@ -117,13 +123,19 @@ class ChatService:
             else:
                 answer = order_result["error"]
 
+            metadata_dict = order_result if order_result["found"] else {}
+            metadata_dict.update({
+                "page_context": page_context.dict() if page_context else None,
+                "context_used": "order_lookup",
+            })
+            
             ChatMessage.objects.create(
                 session=session,
                 role="assistant",
                 content=answer,
                 confidence_score=1.0 if order_result["found"] else None,
                 response_type="order_card" if order_result["found"] else "text",
-                metadata=order_result if order_result["found"] else None,
+                metadata=metadata_dict,
             )
             return {
                 "answer": answer,
@@ -133,10 +145,13 @@ class ChatService:
                 "session_id": session_id,
                 "response_type": "order_card" if order_result["found"] else "text",
                 "metadata": order_result if order_result["found"] else None,
+                "context_used": "order_lookup",
             }
 
         # 3. RAG pipeline (STUB for PoC)
-        answer, confidence, product_data = cls._rag_query_stub(store, message, session)
+        answer, confidence, product_data, context_used = cls._rag_query_stub(
+            store, message, session, page_context
+        )
 
         # 4. Evaluate confidence
         if confidence < CONFIDENCE_THRESHOLD:
@@ -151,6 +166,10 @@ class ChatService:
                 escalated=True,
                 escalation_reason="low_confidence",
                 response_type="escalation",
+                metadata={
+                    "page_context": page_context.dict() if page_context else None,
+                    "context_used": context_used,
+                },
             )
             return {
                 "answer": escalation_msg,
@@ -160,18 +179,25 @@ class ChatService:
                 "session_id": session_id,
                 "response_type": "escalation",
                 "metadata": None,
+                "context_used": context_used,
             }
 
         # 5. Normal response — determine if product card should render
         response_type = "product_card" if product_data else "text"
 
+        metadata_dict = product_data.copy() if product_data else {}
+        metadata_dict.update({
+            "page_context": page_context.dict() if page_context else None,
+            "context_used": context_used,
+        })
+        
         ChatMessage.objects.create(
             session=session,
             role="assistant",
             content=answer,
             confidence_score=confidence,
             response_type=response_type,
-            metadata=product_data,
+            metadata=metadata_dict,
         )
         return {
             "answer": answer,
@@ -181,12 +207,13 @@ class ChatService:
             "session_id": session_id,
             "response_type": response_type,
             "metadata": product_data,
+            "context_used": context_used,
         }
 
     @staticmethod
     def _rag_query_stub(
-        store: Store, message: str, session: ChatSession
-    ) -> Tuple[str, float, Optional[dict[str, Any]]]:
+        store: Store, message: str, session: ChatSession, page_context: Optional[Any] = None
+    ) -> Tuple[str, float, Optional[dict[str, Any]], str]:
         """
         PoC RAG pipeline using pgvector CosineDistance.
         Since we are using a dummy Anthropic API key, we bypass LlamaIndex/LLM calls
@@ -196,6 +223,17 @@ class ChatService:
         try:
             from pgvector.django import CosineDistance
             from store.tasks import generate_pseudo_embedding
+            from store.models import Product
+            
+            context_used = "retrieval"
+            primary_product = None
+            
+            # Check for page_context product
+            if page_context and page_context.product_id:
+                primary_product = Product.objects.filter(
+                    store=store,
+                    wc_id=page_context.product_id
+                ).first()
             
             # 1. Embed the query
             query_embedding = generate_pseudo_embedding(message)
@@ -206,23 +244,39 @@ class ChatService:
                 .order_by(CosineDistance("embedding", query_embedding))[:3]
             )
             
-            if not top_products:
+            # Determine if the user's message is context-aware or off-topic
+            # For the PoC, we will check if the message has generic words or the product name
+            is_on_topic = False
+            if primary_product:
+                msg_lower = message.lower()
+                generic_keywords = ["this", "it", "size", "stock", "color", "price", "how much"]
+                if any(kw in msg_lower for kw in generic_keywords) or primary_product.name.lower() in msg_lower:
+                    is_on_topic = True
+            
+            # If we have a primary_product AND the message is on-topic, prioritize it
+            if primary_product and is_on_topic:
+                best_product = primary_product
+                confidence = 0.95  # High confidence since they are looking at it
+                context_used = "page_context"
+                
+                answer = f"Since you are viewing the {best_product.name}, I can tell you it's currently {best_product.stock_status.replace('instock', 'in stock')} at ${best_product.price}."
+                if best_product.description:
+                    answer += f" {best_product.description[:100]}..."
+            elif top_products:
+                best_product = top_products[0]
+                confidence = 0.85
+                context_used = "retrieval"
+                
+                answer = f"I found the {best_product.name} in our catalog! It's currently {best_product.stock_status.replace('instock', 'in stock')} at ${best_product.price}."
+                if best_product.description:
+                    answer += f" {best_product.description[:100]}..."
+            else:
                 return (
                     "I couldn't find any relevant products in the catalog.",
                     0.4,
                     None,
+                    "retrieval"
                 )
-            
-            # 3. Simulate LLM generation based on context
-            best_product = top_products[0]
-            
-            # For the PoC, we assume if the user asks for a product, we found it.
-            # We assign a high confidence.
-            confidence = 0.85
-            
-            answer = f"I found the {best_product.name}! It's currently {best_product.stock_status.replace('instock', 'in stock')} at ${best_product.price}."
-            if best_product.description:
-                answer += f" {best_product.description[:100]}..."
                 
             product_data = {
                 "name": best_product.name,
@@ -232,8 +286,7 @@ class ChatService:
                 "wc_url": f"{store.wc_url}/?p={best_product.wc_id}",
                 "image_url": "https://placehold.co/400x300/e2e8f0/475569?text=Product",
             }
-            
-            return (answer, confidence, product_data)
+            return (answer, confidence, product_data, context_used)
 
         except Exception as e:
             logger.error(f"RAG query failed: {e}")
@@ -241,6 +294,7 @@ class ChatService:
                 "Sorry, I'm having trouble searching the catalog right now.",
                 0.1,
                 None,
+                "error",
             )
 
 

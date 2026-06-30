@@ -31,6 +31,7 @@ def chat(request, payload: ChatRequestIn):
         store=store,
         session_id=payload.session_id,
         message=payload.message,
+        page_context=payload.page_context,
     )
 
     # If escalated, trigger async email

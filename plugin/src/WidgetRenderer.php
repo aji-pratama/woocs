@@ -33,6 +33,28 @@ class WidgetRenderer {
     }
 
     /**
+     * Get the WooCommerce product page context.
+     */
+    private static function get_page_context() {
+        if (get_option('woocs_product_context_enabled', '1') !== '1') {
+            return ['type' => 'general'];
+        }
+
+        if (function_exists('is_product') && is_product()) {
+            global $product;
+            if ($product instanceof \WC_Product) {
+                return [
+                    'type'         => 'product',
+                    'product_id'   => $product->get_id(),
+                    'product_name' => $product->get_name(),
+                ];
+            }
+        }
+
+        return ['type' => 'general'];
+    }
+
+    /**
      * Core method to render the widget DOM and load React/Vite assets.
      * Can be called directly (e.g. from the Preview page).
      *
@@ -56,6 +78,7 @@ class WidgetRenderer {
             'api_url' => $api_url,
             'store_name' => $store_name,
             'css_url' => $css_url,
+            'page_context' => self::get_page_context(),
         ]) . ';
         </script>';
 

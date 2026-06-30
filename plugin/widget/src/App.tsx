@@ -26,6 +26,7 @@ interface ApiResponse {
   session_id: string;
   response_type: ResponseType;
   metadata: ProductMeta | OrderMeta | null;
+  context_used?: string;
 }
 
 interface Message {
@@ -35,6 +36,8 @@ interface Message {
   response_type?: ResponseType;
   metadata?: ProductMeta | OrderMeta | null;
   error?: boolean;
+  confidence?: number;
+  context_used?: string;
 }
 
 const STORAGE_KEY = "woocs_chat_state_v1";
@@ -42,7 +45,12 @@ const QUICK_REPLIES = ["Check my order", "Returns & refunds", "Browse products"]
 
 declare global {
   interface Window {
-    WooCS?: { store_id: string; api_url: string; store_name?: string };
+    WooCS?: {
+      store_id: string;
+      api_url: string;
+      store_name?: string;
+      page_context?: { type: string; product_id?: number; product_name?: string };
+    };
   }
 }
 
@@ -55,7 +63,7 @@ function uuid() {
 }
 
 export default function App() {
-  const [config, setConfig] = useState<{ store_id: string; api_url: string; store_name: string } | null>(null);
+  const [config, setConfig] = useState<{ store_id: string; api_url: string; store_name: string; page_context: any } | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -72,10 +80,12 @@ export default function App() {
     if (!wc?.store_id) {
       console.warn("WooCS widget requires window.WooCS.store_id to be set.");
     }
+    const pageContext = wc?.page_context ?? { type: "general" };
     const cfg = {
       store_id: wc?.store_id ?? "",
       api_url: wc?.api_url ?? "http://localhost:8000",
       store_name: wc?.store_name ?? "Store assistant",
+      page_context: pageContext,
     };
     setConfig(cfg);
 
@@ -109,7 +119,9 @@ export default function App() {
               text: m.content,
               response_type: m.response_type,
               metadata: m.metadata,
-              error: m.error
+              error: m.error,
+              confidence: m.metadata?.confidence ?? null,
+              context_used: m.metadata?.context_used ?? null,
             }));
             setMessages(mapped);
             return;
@@ -120,11 +132,15 @@ export default function App() {
       }
       
       // Fallback: new chat if no history
+      const greeting = cfg.page_context.type === "product"
+        ? (cfg.page_context.product_name ? `Hi! Looking at the ${cfg.page_context.product_name}? Ask me about sizes, stock, or anything else!` : `Hi! Ask me anything about this product.`)
+        : `Hi! I'm your ${cfg.store_name}. I can help you find products, check stock, or track your order.`;
+      
       setMessages([
         {
           id: uuid(),
           role: "bot",
-          text: `Hi! I'm your ${cfg.store_name}. I can help you find products, check stock, or track your order.`,
+          text: greeting,
           response_type: "text",
         },
       ]);
@@ -171,7 +187,14 @@ export default function App() {
       const res = await fetch(`${config.api_url.replace(/\/$/, "")}/api/widget/chat/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ store_id: config.store_id, session_id: sessionId, message: text.trim() }),
+        body: JSON.stringify({
+          store_id: config.store_id,
+          session_id: sessionId,
+          message: text.trim(),
+          page_context: config.page_context.type === "product"
+            ? { type: "product", product_id: config.page_context.product_id, product_name: config.page_context.product_name }
+            : { type: "general" },
+        }),
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -185,6 +208,8 @@ export default function App() {
           text: data.answer,
           response_type: data.response_type,
           metadata: data.metadata,
+          confidence: data.confidence,
+          context_used: data.context_used,
         },
       ]);
     } catch {
@@ -221,11 +246,15 @@ export default function App() {
   function resetChat() {
     const newId = uuid();
     setSessionId(newId);
+    const greeting = config?.page_context?.type === "product"
+      ? (config.page_context.product_name ? `Hi! Looking at the ${config.page_context.product_name}? Ask me about sizes, stock, or anything else!` : `Hi! Ask me anything about this product.`)
+      : `Hi! I'm your ${config?.store_name ?? "Store assistant"}. How can I help today?`;
+
     setMessages([
       {
         id: uuid(),
         role: "bot",
-        text: `Hi! I'm your ${config?.store_name ?? "Store assistant"}. How can I help today?`,
+        text: greeting,
         response_type: "text",
       },
     ]);
@@ -302,7 +331,7 @@ export default function App() {
 
               {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && (
                 <div className="ml-10 flex flex-wrap gap-2">
-                  {QUICK_REPLIES.map((q) => (
+                  {(config?.page_context?.type === "product" ? ["Is this in stock?", "What sizes are available?", "Check my order"] : QUICK_REPLIES).map((q) => (
                     <button
                       key={q}
                       onClick={() => sendMessage(q)}
@@ -371,13 +400,19 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
       <Avatar />
       <div className="flex max-w-[85%] flex-col gap-2">
         <div
-          className={`rounded-2xl rounded-bl-sm px-3.5 py-2 text-[13px] leading-relaxed shadow-sm ring-1 ${
+          className={`relative rounded-2xl rounded-bl-sm px-3.5 py-2 text-[13px] leading-relaxed shadow-sm ring-1 ${
             message.error
               ? "bg-red-50 text-red-700 ring-red-200"
               : "bg-white text-slate-800 ring-slate-200"
           }`}
         >
           {message.text}
+          {/* Debug overlay (only shown if we have context info via metadata or a custom property in the future, for PoC we can just read it if passed) */}
+          {(message as any).context_used && (
+            <div className="absolute -top-5 right-0 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-white opacity-80">
+              conf: {((message as any).confidence ?? 0).toFixed(2)} | context: {(message as any).context_used}
+            </div>
+          )}
         </div>
         {message.response_type === "product_card" && message.metadata && (
           <ProductCard meta={message.metadata as ProductMeta} />

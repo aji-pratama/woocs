@@ -127,6 +127,16 @@ if ($success_msg) delete_transient('woocs_admin_success');
                                 </fieldset>
                             </td>
                         </tr>
+                        <tr>
+                            <th scope="row">Product Context</th>
+                            <td>
+                                <label>
+                                    <input type="checkbox" name="woocs_product_context_enabled" value="1" <?php checked(get_option('woocs_product_context_enabled', '1'), '1'); ?>>
+                                    Aware of product pages (recommended)<br>
+                                    <span class="description" style="font-weight:normal; font-size:13px; color:#666;">When enabled, the assistant gives more specific answers about the product the customer is currently viewing.</span>
+                                </label>
+                            </td>
+                        </tr>
                     </table>
                 </div>
             </div>

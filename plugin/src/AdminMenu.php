@@ -119,6 +119,11 @@ class AdminMenu {
             } else {
                 update_option('woocs_widget_enabled', '0');
             }
+            if (isset($_POST['woocs_product_context_enabled'])) {
+                update_option('woocs_product_context_enabled', '1');
+            } else {
+                update_option('woocs_product_context_enabled', '0');
+            }
             if (isset($_POST['woocs_widget_position'])) {
                 update_option('woocs_widget_position', sanitize_text_field($_POST['woocs_widget_position']));
             }

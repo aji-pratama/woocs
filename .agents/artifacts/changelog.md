@@ -135,3 +135,17 @@
 - [x] Move chatwidget to plugin area instead of different apps
 - [x] Make widget apps able to see in a website frontend of WP & in plugin page Preview, so user can preview it
 - [x] Use Django Task and Postgres as background service instead of Celery. Remove all celery stuff, again using django task, default django feature of tasks
+
+## Part 3 — Widget: read context and adjust behavior
+> Completed: 2026-06-30
+
+- [x] Read `page_context` from `window.WooCS` on widget mount
+- [x] Store in widget state (whatever state management is used — context, store, etc.)
+- [x] Implement conditional greeting logic
+- [x] Fallback: if `product_name` is missing but `type` is `product`, use generic product greeting: "Hi! Ask me anything about this product."
+- [x] Implement conditional quick replies for idle state on product pages
+- [x] Verify existing quick reply logic for post-answer states (C-04 table in Section 15) is unaffected — this only changes the *idle* state pills
+- [x] Include `page_context` in every chat request payload, not just the first one
+- [x] Confirm `page_context` stays accurate if customer navigates to a different product page mid-session (full page reload re-injects `window.WooCS`, so this should work automatically given WooCommerce's default non-SPA behavior — verify this assumption holds)
+- [x] Add `context_used` to the existing debug overlay in A4
+- [x] Confirm this overlay is PoC-only and stripped from any future production build

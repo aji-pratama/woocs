@@ -4,10 +4,17 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
+class PageContextIn(BaseModel):
+    type: str = "general"  # general | product
+    product_id: Optional[int] = None
+    product_name: Optional[str] = None
+
+
 class ChatRequestIn(BaseModel):
     store_id: UUID
     session_id: UUID
     message: str
+    page_context: Optional[PageContextIn] = None
 
 
 class ChatResponseOut(BaseModel):
@@ -18,6 +25,7 @@ class ChatResponseOut(BaseModel):
     session_id: UUID
     response_type: str = "text"  # text | product_card | order_card | escalation
     metadata: Optional[dict[str, Any]] = None  # structured data for card rendering
+    context_used: Optional[str] = None  # "page_context" | "retrieval" | "order_lookup" | "keyword_trigger"
 
 
 class ChatMessageOut(BaseModel):

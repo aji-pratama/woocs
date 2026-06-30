@@ -71,10 +71,10 @@ class ChatResponseOut(BaseModel):
 
 No changes needed to `ChatMessageOut`, `ChatHistoryResponseOut`, `OrderStatusRequestIn`, `OrderStatusResponseOut`.
 
-- [ ] Add `PageContextIn` model
-- [ ] Add `page_context` field to `ChatRequestIn`
-- [ ] Add `context_used` field to `ChatResponseOut`
-- [ ] Confirm backward compatibility — requests without `page_context` must still work (defaults to `None`, treated as general)
+- [x] Add `PageContextIn` model
+- [x] Add `page_context` field to `ChatRequestIn`
+- [x] Add `context_used` field to `ChatResponseOut`
+- [x] Confirm backward compatibility — requests without `page_context` must still work (defaults to `None`, treated as general)
 
 ---
 
@@ -106,10 +106,10 @@ Logic flow:
 7. Call Haiku, evaluate confidence as normal.
 8. Set `context_used` accordingly before returning response: `"page_context"`, `"retrieval"`, `"order_lookup"`, or `"keyword_trigger"`.
 
-- [ ] Add direct product lookup branch before similarity search
-- [ ] Handle lookup failure gracefully (fallback to `product_name` hint, then to normal retrieval)
-- [ ] Keep similarity search running regardless, for off-topic drift handling
-- [ ] Set `context_used` on every response path (all 4 values)
+- [x] Add direct product lookup branch before similarity search
+- [x] Handle lookup failure gracefully (fallback to `product_name` hint, then to normal retrieval)
+- [x] Keep similarity search running regardless, for off-topic drift handling
+- [x] Set `context_used` on every response path (all 4 values)
 - [ ] Unit test: product page + on-topic question → primary_product used, confidence high
 - [ ] Unit test: product page + off-topic question → retrieval used, primary_product ignored in answer
 - [ ] Unit test: product_id present but not found in DB → falls back to product_name hint, does not crash
@@ -171,8 +171,8 @@ ChatMessage.objects.create(
 )
 ```
 
-- [ ] Store `page_context` and `context_used` in `ChatMessage.metadata`
-- [ ] Verify Django Admin C3 (chat session detail) can display this metadata for debugging
+- [x] Store `page_context` and `context_used` in `ChatMessage.metadata`
+- [x] Verify Django Admin C3 (chat session detail) can display this metadata for debugging
 
 ---
 
@@ -196,10 +196,10 @@ Add a new toggle under the existing Widget section:
 
 Stored as a new `wp_options` key: `woocs_product_context_enabled` (default: `true`).
 
-- [ ] Add checkbox field to Settings page template
-- [ ] Save to `wp_options['woocs_product_context_enabled']` on form submit
-- [ ] Default value: enabled (`true`) — this is a quality improvement, not a risky feature, so opt-out makes more sense than opt-in
-- [ ] Add one-line help text under the checkbox: "When enabled, the assistant gives more specific answers about the product the customer is currently viewing."
+- [x] Add checkbox field to Settings page template
+- [x] Save to `wp_options['woocs_product_context_enabled']` on form submit
+- [x] Default value: enabled (`true`) — this is a quality improvement, not a risky feature, so opt-out makes more sense than opt-in
+- [x] Add one-line help text under the checkbox: "When enabled, the assistant gives more specific answers about the product the customer is currently viewing."
 
 ---
 
@@ -241,93 +241,15 @@ wp_localize_script( 'woocs-widget', 'WooCS', array(
 ) );
 ```
 
-- [ ] Implement `woocs_get_page_context()` function
-- [ ] Respect the settings toggle — return `general` immediately if disabled
-- [ ] Hook into existing `wp_localize_script()` call, add `page_context` key
+- [x] Implement `woocs_get_page_context()` function
+- [x] Respect the settings toggle — return `general` immediately if disabled
+- [x] Hook into existing `wp_localize_script()` call, add `page_context` key
 - [ ] Test on a real WooCommerce product page — verify `is_product()` returns true and `$product->get_id()` matches the actual product
 - [ ] Test on non-product pages (homepage, cart, category) — verify `type: general` is returned
 
 ---
 
-## Part 3 — Widget: read context and adjust behavior
 
-### 3.1 Read `window.WooCS.page_context` on widget init
-
-File: widget entry point (wherever `window.WooCS` is currently read).
-
-```javascript
-const pageContext = window.WooCS?.page_context || { type: "general" };
-```
-
-- [ ] Read `page_context` from `window.WooCS` on widget mount
-- [ ] Store in widget state (whatever state management is used — context, store, etc.)
-
----
-
-### 3.2 Change greeting message based on context
-
-File: wherever the greeting message (C-03 initial bot bubble) is rendered.
-
-```javascript
-const greeting = pageContext.type === "product"
-  ? `Hi! Looking at the ${pageContext.product_name}? Ask me about sizes, stock, or anything else!`
-  : `Hi! I can help you find products, check stock, or track your order.`;
-```
-
-- [ ] Implement conditional greeting logic
-- [ ] Fallback: if `product_name` is missing but `type` is `product`, use generic product greeting: "Hi! Ask me anything about this product."
-
----
-
-### 3.3 Adjust quick replies (C-04) for product pages
-
-Current quick replies for idle state: "Check my order · Return policy · Browse products". On product pages, swap to product-relevant prompts:
-
-```javascript
-const quickReplies = pageContext.type === "product"
-  ? ["Is this in stock?", "What sizes are available?", "Check my order"]
-  : ["Check my order", "Return policy", "Browse products"];
-```
-
-- [ ] Implement conditional quick replies for idle state on product pages
-- [ ] Verify existing quick reply logic for post-answer states (C-04 table in Section 15) is unaffected — this only changes the *idle* state pills
-
----
-
-### 3.4 Include `page_context` in every chat request
-
-File: wherever the widget calls `POST /api/widget/chat/`.
-
-```javascript
-const payload = {
-  store_id: WooCS.store_id,
-  session_id: sessionId,
-  message: userMessage,
-  page_context: pageContext.type === "product"
-    ? { type: "product", product_id: pageContext.product_id, product_name: pageContext.product_name }
-    : { type: "general" },
-};
-```
-
-- [ ] Include `page_context` in every chat request payload, not just the first one
-- [ ] Confirm `page_context` stays accurate if customer navigates to a different product page mid-session (full page reload re-injects `window.WooCS`, so this should work automatically given WooCommerce's default non-SPA behavior — verify this assumption holds)
-
----
-
-### 3.5 (Optional, PoC nice-to-have) Debug indicator in widget preview
-
-This only applies to A4 Widget preview page, not the live customer-facing widget. Customers should never see `context_used`.
-
-In the debug overlay (already shown in A4 mock — confidence score display), add a line showing `context_used` from the response:
-
-```
-conf: 0.87 | context: page_context
-```
-
-- [ ] Add `context_used` to the existing debug overlay in A4
-- [ ] Confirm this overlay is PoC-only and stripped from any future production build
-
----
 
 ## Part 4 — Frontend preview page (A4) — currently missing, add to plugin
 
