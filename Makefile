@@ -7,9 +7,9 @@
 PYTHON  = backend/.venv/bin/python
 PIP     = backend/.venv/bin/pip
 
-# Use Podman socket if docker.sock does not exist
+# Use Podman socket if podman.sock does not exist
 PODMAN_SOCK := $(shell podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}' 2>/dev/null)
-export DOCKER_HOST := $(if $(PODMAN_SOCK),unix://$(PODMAN_SOCK),unix:///var/run/docker.sock)
+export podman_HOST := $(if $(PODMAN_SOCK),unix://$(PODMAN_SOCK),unix:///var/run/podman.sock)
 
 # ─── Help ────────────────────────────────────────────────────────────────────
 
@@ -18,7 +18,7 @@ help:
 	@echo "WooCS.ai — Development Commands"
 	@echo "================================"
 	@echo ""
-	@echo "  Infrastructure (Docker)"
+	@echo "  Infrastructure (podman)"
 	@echo "  ─────────────────────────────"
 	@echo "  infra-up              Start all containers (postgres, mysql, wp, redis)"
 	@echo "  infra-down            Stop and remove containers"
@@ -51,13 +51,13 @@ help:
 # ─── Infrastructure ──────────────────────────────────────────────────────────
 
 infra-up:
-	docker compose -f compose.dev.yml up -d
+	podman compose -f compose.dev.yml up -d
 
 infra-down:
-	docker compose -f compose.dev.yml down
+	podman compose -f compose.dev.yml down
 
 infra-logs:
-	docker compose -f compose.dev.yml logs -f
+	podman compose -f compose.dev.yml logs -f
 
 # ─── Backend ─────────────────────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ dev: infra-up
 dev-hard-clean:
 	@echo "⚠️  WARNING: This will remove all containers, volumes, networks, and images for this project."
 	@read -p "Are you sure you want to proceed? [y/N] " ans && if [ "$${ans:-N}" = "y" ] || [ "$${ans:-N}" = "Y" ]; then \
-		docker compose -f compose.dev.yml down --rmi all -v --remove-orphans; \
+		podman compose -f compose.dev.yml down --rmi all -v --remove-orphans; \
 		echo "Hard clean complete."; \
 	else \
 		echo "Aborted."; \
@@ -125,7 +125,7 @@ dev-hard-clean:
 
 dev-clean:
 	@echo "Cleaning containers and volumes..."
-	docker compose -f compose.dev.yml down -v --remove-orphans
+	podman compose -f compose.dev.yml down -v --remove-orphans
 
 dev-setup:
 	@echo "Setting up development environment..."
@@ -142,5 +142,5 @@ dev-setup:
 
 db-dump:
 	@mkdir -p fixtures
-	docker exec woocs_backend_db pg_dump -U woocs woocs > fixtures/init.sql
+	podman exec woocs_backend_db pg_dump -U woocs woocs > fixtures/init.sql
 	@echo "Dumped backend DB to fixtures/init.sql"

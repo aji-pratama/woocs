@@ -8,7 +8,7 @@ class ApiClient {
     private string $api_key;
 
     public function __construct() {
-        $this->base_url = rtrim(get_option('woocs_api_url', 'http://host.docker.internal:8000'), '/');
+        $this->base_url = rtrim(get_option('woocs_api_url', 'http://host.podman.internal:8000'), '/');
         $this->api_key = get_option('woocs_api_key', '');
     }
 
