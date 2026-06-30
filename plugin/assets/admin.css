@@ -1,0 +1,289 @@
+/* =============================================================================
+   WooCS Admin Styles
+   Built on top of WP's native admin styles. No fancy framework, just solid.
+   ============================================================================= */
+
+/* --------------------------------------------------------------------------
+   Layout
+   -------------------------------------------------------------------------- */
+
+.woocs-wrap {
+    max-width: 900px;
+}
+
+.woocs-wrap h1 {
+    margin-bottom: 16px;
+}
+
+/* --------------------------------------------------------------------------
+   Card component — replaces WP's postbox / metabox
+   -------------------------------------------------------------------------- */
+
+.woocs-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
+    margin-top: 20px;
+}
+
+.woocs-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f1;
+    background: #f6f7f7;
+    border-radius: 3px 3px 0 0;
+}
+
+.woocs-card-header h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.woocs-card-body {
+    padding: 16px;
+}
+
+.woocs-card-body.p-0 {
+    padding: 0;
+}
+
+/* Remove top margin on form-table inside a card */
+.woocs-card-body .form-table {
+    margin-top: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Stat cards (Dashboard)
+   -------------------------------------------------------------------------- */
+
+.woocs-stat-grid {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+.woocs-stat-card {
+    flex: 1;
+    min-width: 160px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
+    padding: 16px 20px;
+    text-align: center;
+}
+
+.woocs-stat-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: #646970;
+    margin-bottom: 8px;
+}
+
+.woocs-stat-value {
+    display: block;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+    color: #1d2327;
+}
+
+.woocs-stat-value.is-blue   { color: #2271b1; }
+.woocs-stat-value.is-green  { color: #00a32a; }
+.woocs-stat-value.is-red    { color: #d63638; }
+
+/* --------------------------------------------------------------------------
+   Sync summary grid
+   -------------------------------------------------------------------------- */
+
+.woocs-sync-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    background: #f0f0f1;
+    border: 1px solid #f0f0f1;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.woocs-sync-item {
+    background: #fff;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.woocs-sync-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: #646970;
+}
+
+.woocs-sync-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1d2327;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.woocs-sync-time {
+    margin: 0;
+    font-size: 12px;
+    color: #646970;
+}
+
+/* --------------------------------------------------------------------------
+   Badge / status pill
+   -------------------------------------------------------------------------- */
+
+.woocs-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+
+.woocs-badge-success {
+    background: #edfaef;
+    color: #00a32a;
+    border: 1px solid #b8e6bf;
+}
+
+.woocs-badge-neutral {
+    background: #f6f7f7;
+    color: #646970;
+    border: 1px solid #dcdcde;
+}
+
+.woocs-badge-warning {
+    background: #fcf9e8;
+    color: #996800;
+    border: 1px solid #f5e6ab;
+}
+
+/* Old dot kept for backwards compat but no longer needed */
+.woocs-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Input groups
+   -------------------------------------------------------------------------- */
+
+.woocs-input-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   Text helpers
+   -------------------------------------------------------------------------- */
+
+.woocs-text-success { color: #00a32a; }
+.woocs-text-danger  { color: #d63638; }
+.woocs-text-muted   { color: #8c8f94; }
+
+/* --------------------------------------------------------------------------
+   Divider
+   -------------------------------------------------------------------------- */
+
+.woocs-divider {
+    border: none;
+    border-top: 1px solid #f0f0f1;
+    margin: 20px 0;
+}
+
+/* --------------------------------------------------------------------------
+   Icon actions (FAQ table)
+   -------------------------------------------------------------------------- */
+
+.woocs-icon-action {
+    color: #2271b1;
+    text-decoration: none;
+    margin-right: 4px;
+}
+
+.woocs-icon-action:hover {
+    color: #135e96;
+}
+
+/* --------------------------------------------------------------------------
+   Preview page
+   -------------------------------------------------------------------------- */
+
+.woocs-preview-container {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.woocs-preview-controls {
+    flex: 0 0 300px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
+    padding: 16px;
+}
+
+.woocs-preview-controls h2 {
+    margin-top: 0;
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 1px solid #f0f0f1;
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+}
+
+.woocs-preview-controls label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.woocs-preview-controls select,
+.woocs-preview-controls input[type="text"] {
+    width: 100%;
+    margin-bottom: 12px;
+}
+
+.woocs-preview-widget-area {
+    flex: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Table: wp-list-table overrides
+   -------------------------------------------------------------------------- */
+
+/* Match card border radius */
+.woocs-card-body.p-0 > .wp-list-table {
+    border: none;
+    margin: 0;
+}
+

@@ -9,82 +9,115 @@ $is_connected = !empty(get_option('woocs_store_id'));
     <hr class="wp-header-end">
 
     <?php if (!$is_connected): ?>
-        <div class="woocs-card" style="margin-top: 20px;">
+        <div class="woocs-card">
+            <div class="woocs-card-header">
+                <h2>Connection Status</h2>
+                <span class="woocs-badge woocs-badge-neutral">
+                    <span class="dashicons dashicons-warning" style="font-size:14px;width:14px;height:14px;"></span>
+                    Not connected
+                </span>
+            </div>
             <div class="woocs-card-body">
-                <h2>Welcome to WooCS.ai!</h2>
-                <p>Your AI assistant is not connected yet.</p>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings')); ?>" class="button button-primary">Connect Store</a>
+                <p>Your store is not connected to WooCS yet. Set up your credentials in Settings to get started.</p>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings')); ?>" class="button button-primary">
+                    Go to Settings
+                </a>
             </div>
         </div>
     <?php else: ?>
         <input type="hidden" id="woocs_dashboard_nonce" value="<?php echo esc_attr(wp_create_nonce('woocs_dashboard_nonce')); ?>">
         <input type="hidden" id="woocs_ajax_url" value="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">
 
-        <div style="margin-top: 20px;">
-            <p>Here's a quick overview of your WooCS AI assistant activity.</p>
-            
-            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
-                <div class="woocs-card" style="flex: 1; min-width: 200px;">
-                    <div class="woocs-card-body" style="text-align: center;">
-                        <h3 style="margin-top: 0; color: #646970;">Chat Sessions</h3>
-                        <div id="stat-sessions" style="font-size: 36px; font-weight: 600; color: #2271b1; line-height: 1;">-</div>
+        <div class="woocs-card">
+            <div class="woocs-card-header">
+                <h2>Activity Overview</h2>
+                <span id="woocs-dash-refresh-status" style="font-size:12px;color:#646970;">Auto-refreshes every 60s</span>
+            </div>
+            <div class="woocs-card-body">
+                <div class="woocs-stat-grid">
+                    <div class="woocs-stat-card">
+                        <span class="woocs-stat-label">Chat Sessions</span>
+                        <span class="woocs-stat-value is-blue" id="stat-sessions">—</span>
                     </div>
-                </div>
-
-                <div class="woocs-card" style="flex: 1; min-width: 200px;">
-                    <div class="woocs-card-body" style="text-align: center;">
-                        <h3 style="margin-top: 0; color: #646970;">Total Messages</h3>
-                        <div id="stat-messages" style="font-size: 36px; font-weight: 600; color: #2271b1; line-height: 1;">-</div>
+                    <div class="woocs-stat-card">
+                        <span class="woocs-stat-label">Total Messages</span>
+                        <span class="woocs-stat-value is-blue" id="stat-messages">—</span>
                     </div>
-                </div>
-
-                <div class="woocs-card" style="flex: 1; min-width: 200px;">
-                    <div class="woocs-card-body" style="text-align: center;">
-                        <h3 style="margin-top: 0; color: #646970;">Products Synced</h3>
-                        <div id="stat-products" style="font-size: 36px; font-weight: 600; color: #00a32a; line-height: 1;">-</div>
+                    <div class="woocs-stat-card">
+                        <span class="woocs-stat-label">Products Synced</span>
+                        <span class="woocs-stat-value is-green" id="stat-products">—</span>
                     </div>
-                </div>
-
-                <div class="woocs-card" style="flex: 1; min-width: 200px;">
-                    <div class="woocs-card-body" style="text-align: center;">
-                        <h3 style="margin-top: 0; color: #646970;">Escalations</h3>
-                        <div id="stat-escalations" style="font-size: 36px; font-weight: 600; color: #d63638; line-height: 1;">-</div>
+                    <div class="woocs-stat-card">
+                        <span class="woocs-stat-label">Escalations</span>
+                        <span class="woocs-stat-value is-red" id="stat-escalations">—</span>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <p style="color: #646970; font-style: italic; margin-top: 20px;">
-                Stats auto-refresh every 60 seconds. For detailed analytics, visit the WooCS SaaS platform.
-            </p>
+        <div class="woocs-card">
+            <div class="woocs-card-header">
+                <h2>Quick Links</h2>
+            </div>
+            <div class="woocs-card-body">
+                <p style="margin-top:0;">
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-sync')); ?>" class="button">
+                        <span class="dashicons dashicons-update" style="margin-top:3px;"></span>
+                        Sync Catalog
+                    </a>
+                    &nbsp;
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-faqs')); ?>" class="button">
+                        <span class="dashicons dashicons-editor-help" style="margin-top:3px;"></span>
+                        Manage FAQs
+                    </a>
+                    &nbsp;
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-preview')); ?>" class="button">
+                        <span class="dashicons dashicons-visibility" style="margin-top:3px;"></span>
+                        Preview Widget
+                    </a>
+                    &nbsp;
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings')); ?>" class="button">
+                        <span class="dashicons dashicons-admin-settings" style="margin-top:3px;"></span>
+                        Settings
+                    </a>
+                </p>
+            </div>
         </div>
 
         <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const ajaxUrl = document.getElementById('woocs_ajax_url').value;
-            const nonce = document.getElementById('woocs_dashboard_nonce').value;
+            var ajaxUrl = document.getElementById('woocs_ajax_url').value;
+            var nonce   = document.getElementById('woocs_dashboard_nonce').value;
+            var status  = document.getElementById('woocs-dash-refresh-status');
 
-            function fetchStats() {
-                const formData = new FormData();
-                formData.append('action', 'woocs_dashboard_stats');
-                formData.append('nonce', nonce);
-
-                fetch(ajaxUrl, { method: 'POST', body: formData })
-                    .then(res => res.json())
-                    .then(res => {
-                        if (res.success && res.data) {
-                            document.getElementById('stat-sessions').innerText = res.data.chat_sessions ?? 0;
-                            document.getElementById('stat-messages').innerText = res.data.total_messages ?? 0;
-                            document.getElementById('stat-products').innerText = res.data.products_synced ?? 0;
-                            document.getElementById('stat-escalations').innerText = res.data.escalations ?? 0;
-                        }
-                    })
-                    .catch(err => console.error('Dashboard fetch error', err));
+            function setVal(id, val) {
+                var el = document.getElementById(id);
+                if (el) el.textContent = (val !== undefined && val !== null) ? val : '—';
             }
 
-            // Initial fetch
-            fetchStats();
+            function fetchStats() {
+                var fd = new FormData();
+                fd.append('action', 'woocs_dashboard_stats');
+                fd.append('nonce', nonce);
 
-            // Refresh every 60 seconds
+                fetch(ajaxUrl, { method: 'POST', body: fd })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (res.success && res.data) {
+                            setVal('stat-sessions',    res.data.chat_sessions);
+                            setVal('stat-messages',    res.data.total_messages);
+                            setVal('stat-products',    res.data.products_synced);
+                            setVal('stat-escalations', res.data.escalations);
+                            if (status) {
+                                var d = new Date();
+                                status.textContent = 'Last updated: ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                            }
+                        }
+                    })
+                    .catch(function(err) { console.error('Dashboard fetch error', err); });
+            }
+
+            fetchStats();
             setInterval(fetchStats, 60000);
         });
         </script>

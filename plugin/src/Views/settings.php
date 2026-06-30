@@ -56,8 +56,9 @@ if ($success_msg) delete_transient('woocs_admin_success');
             <div class="woocs-card">
                 <div class="woocs-card-header">
                     <h2>Connection</h2>
-                    <span class="woocs-badge woocs-badge-success" style="display: inline-flex; align-items: center; gap: 4px;">
-                        <span class="dashicons dashicons-yes-alt" style="font-size: 16px; width: 16px; height: 16px;"></span> Connected
+                    <span class="woocs-badge woocs-badge-success">
+                        <span class="dashicons dashicons-yes-alt" style="font-size:14px;width:14px;height:14px;"></span>
+                        Connected
                     </span>
                 </div>
                 <div class="woocs-card-body">
