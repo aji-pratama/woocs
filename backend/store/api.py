@@ -26,6 +26,8 @@ def register_store(request, payload: StoreRegisterIn):
         wc_url=payload.wc_url,
         api_key=payload.api_key,
         merchant_email=payload.merchant_email,
+        wc_consumer_key=payload.wc_consumer_key,
+        wc_consumer_secret=payload.wc_consumer_secret,
     )
 
     if not is_valid or not store:
@@ -57,7 +59,8 @@ def sync_catalog(request, payload: SyncRequestIn):
     # 2. Trigger Django embedding task
     task = ingest_catalog.enqueue(store.id)
 
-    return 202, {"task_id": str(task.id), "status": "processing"}
+    task_id = str(task.id) if hasattr(task, 'id') else str(task)
+    return 202, {"task_id": task_id, "status": "processing"}
 
 
 @router.get("/sync/status/", response={200: SyncStatusOut}, auth=ApiKeyAuth())

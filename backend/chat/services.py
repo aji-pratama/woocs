@@ -305,39 +305,69 @@ class OrderService:
     def get_order_status(store: Store, order_id: str) -> dict:
         """
         Fetches order status from WooCommerce REST API.
-
-        STUB for PoC: Returns a simulated order response.
-        In production, this will use store.wc_consumer_key and
-        store.wc_consumer_secret to call WC REST API.
         """
-        # TODO: Replace with real WooCommerce REST API call
-        logger.info(
-            f"[STUB] Order status lookup for store {store.id}, order #{order_id}"
-        )
+        import requests
+        from requests.auth import HTTPBasicAuth
 
-        # Simulate: if order_id is numeric and < 10000, pretend it exists
+        if not store.wc_url or not store.wc_consumer_key or not store.wc_consumer_secret:
+            logger.warning(f"Store {store.id} missing WooCommerce credentials for order lookup")
+            return {
+                "order_id": order_id,
+                "found": False,
+                "status": None,
+                "items": [],
+                "total": None,
+                "error": "Store configuration is incomplete. I cannot check order status right now.",
+            }
+
         try:
-            oid = int(order_id)
-            if oid < 10000:
+            url = f"{store.wc_url.rstrip('/')}/wp-json/wc/v3/orders/{order_id}"
+            response = requests.get(
+                url,
+                auth=HTTPBasicAuth(store.wc_consumer_key, store.wc_consumer_secret),
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                items = [f"{item.get('name', 'Product')} ×{item.get('quantity', 1)}" for item in data.get('line_items', [])]
+                status_raw = data.get('status', 'unknown')
+                
                 return {
                     "order_id": order_id,
-                    "status": WC_STATUS_MAP.get("processing", "Unknown"),
-                    "items": ["Sample Product ×1"],
-                    "total": "49.99",
+                    "status": WC_STATUS_MAP.get(status_raw, status_raw.capitalize()),
+                    "items": items,
+                    "total": str(data.get('total', '0.00')),
                     "found": True,
                     "error": None,
                 }
-        except ValueError:
-            pass
+            elif response.status_code == 404:
+                return {
+                    "order_id": order_id,
+                    "found": False,
+                    "status": None,
+                    "items": [],
+                    "total": None,
+                    "error": f"I couldn't find order #{order_id}. Please check your order number.",
+                }
+            else:
+                logger.error(f"WC REST API returned {response.status_code} for order {order_id}")
+                return {
+                    "order_id": order_id,
+                    "found": False,
+                    "status": None,
+                    "items": [],
+                    "total": None,
+                    "error": "I couldn't fetch your order status at the moment. Please try again later.",
+                }
 
-        return {
-            "order_id": order_id,
-            "found": False,
-            "status": None,
-            "items": [],
-            "total": None,
-            "error": (
-                f"I couldn't find order #{order_id}. "
-                f"Please check your order number."
-            ),
-        }
+        except Exception as e:
+            logger.error(f"Error fetching order {order_id} for store {store.id}: {e}")
+            return {
+                "order_id": order_id,
+                "found": False,
+                "status": None,
+                "items": [],
+                "total": None,
+                "error": "An error occurred while checking your order. Please try again later.",
+            }

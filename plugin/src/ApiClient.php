@@ -12,7 +12,7 @@ class ApiClient {
         $this->api_key = get_option('woocs_api_key', '');
     }
 
-    public function register_store(string $wc_url, string $merchant_email, string $api_key = ''): array|\WP_Error {
+    public function register_store(string $wc_url, string $merchant_email, string $api_key = '', string $wc_consumer_key = '', string $wc_consumer_secret = ''): array|\WP_Error {
         $url = $this->base_url . '/api/stores/register/';
         
         $body = [
@@ -22,6 +22,12 @@ class ApiClient {
         
         if (!empty($api_key)) {
             $body['api_key'] = $api_key;
+        }
+        if (!empty($wc_consumer_key)) {
+            $body['wc_consumer_key'] = $wc_consumer_key;
+        }
+        if (!empty($wc_consumer_secret)) {
+            $body['wc_consumer_secret'] = $wc_consumer_secret;
         }
 
         $response = wp_remote_post($url, [

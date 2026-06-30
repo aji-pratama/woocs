@@ -8,6 +8,8 @@ class StoreRegisterIn(BaseModel):
     api_key: Optional[str] = None
     wc_url: HttpUrl
     merchant_email: Optional[str] = None
+    wc_consumer_key: Optional[str] = None
+    wc_consumer_secret: Optional[str] = None
 
 
 class StoreRegisterOut(BaseModel):

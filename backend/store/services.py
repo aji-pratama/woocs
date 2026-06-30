@@ -30,6 +30,8 @@ class StoreService:
         wc_url: str,
         api_key: Optional[str] = None,
         merchant_email: Optional[str] = None,
+        wc_consumer_key: Optional[str] = None,
+        wc_consumer_secret: Optional[str] = None,
     ) -> Tuple[Optional[Store], Optional[str], bool]:
         """
         Registers a new store or updates an existing one if the api_key is provided.
@@ -48,6 +50,10 @@ class StoreService:
                 store.wc_url = url_str
                 if merchant_email:
                     store.merchant_email = merchant_email
+                if wc_consumer_key is not None:
+                    store.wc_consumer_key = wc_consumer_key
+                if wc_consumer_secret is not None:
+                    store.wc_consumer_secret = wc_consumer_secret
                 store.save()
                 return store, None, True
             except Store.DoesNotExist:
@@ -63,6 +69,8 @@ class StoreService:
                 wc_url=url_str,
                 merchant_email=merchant_email,
                 subscription_status="trial",
+                wc_consumer_key=wc_consumer_key,
+                wc_consumer_secret=wc_consumer_secret,
             )
             return store, raw_key, True
 

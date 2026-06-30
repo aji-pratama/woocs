@@ -98,8 +98,11 @@ class AdminMenu {
         $merchant_email = sanitize_email($_POST['woocs_merchant_email'] ?? get_option('admin_email'));
         $api_key = sanitize_text_field($_POST['woocs_api_key'] ?? '');
         
+        $wc_consumer_key = sanitize_text_field($_POST['woocs_wc_consumer_key'] ?? '');
+        $wc_consumer_secret = sanitize_text_field($_POST['woocs_wc_consumer_secret'] ?? '');
+
         $client = new ApiClient();
-        $response = $client->register_store($wc_url, $merchant_email, $api_key);
+        $response = $client->register_store($wc_url, $merchant_email, $api_key, $wc_consumer_key, $wc_consumer_secret);
 
         if (is_wp_error($response)) {
             set_transient('woocs_admin_error', $response->get_error_message(), 45);
