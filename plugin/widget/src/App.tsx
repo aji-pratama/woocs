@@ -70,6 +70,9 @@ declare global {
       api_url: string;
       store_name?: string;
       page_context?: { type: string; product_id?: number; product_name?: string };
+      prechat_enabled?: boolean;
+      prechat_fields?: Array<{ key: string; label: string; type: string; required: boolean }>;
+      primary_color?: string;
     };
     WooCS_Test?: {
       resetWidget?: () => void;
@@ -80,7 +83,10 @@ declare global {
 
 
 export default function App() {
-  const [config, setConfig] = useState<{ store_id: string; api_url: string; store_name: string; page_context: any } | null>(null);
+  type PrechatField = { key: string; label: string; type: string; required: boolean };
+  type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string };
+
+  const [config, setConfig] = useState<Config | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -88,6 +94,10 @@ export default function App() {
   const [slowHint, setSlowHint] = useState<"none" | "slow" | "timeout">("none");
   const [lastUserMessage, setLastUserMessage] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Pre-chat state
+  const [prechatDone, setPrechatDone] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState<{ name?: string; email?: string; phone?: string }>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -98,13 +108,26 @@ export default function App() {
       console.warn("WooCS widget requires window.WooCS.store_id to be set.");
     }
     const pageContext = wc?.page_context ?? { type: "general" };
-    const cfg = {
+    const primaryColor = wc?.primary_color || "#4f46e5"; // Default to indigo-600
+    const cfg: Config = {
       store_id: wc?.store_id ?? "",
       api_url: wc?.api_url ?? "http://localhost:8000",
       store_name: wc?.store_name ?? "Store assistant",
       page_context: pageContext,
+      prechat_enabled: wc?.prechat_enabled ?? false,
+      prechat_fields: wc?.prechat_fields ?? [],
+      primary_color: primaryColor,
     };
     setConfig(cfg);
+
+    // Restore prechat info
+    try {
+      const pc = typeof window !== "undefined" ? window.localStorage.getItem("woocs_prechat_v1") : null;
+      if (pc) {
+        setCustomerInfo(JSON.parse(pc));
+        setPrechatDone(true);
+      }
+    } catch { /* ignore */ }
 
     let savedSessionId = "";
     let savedIsOpen = false;
@@ -243,6 +266,7 @@ export default function App() {
           page_context: config.page_context.type === "product"
             ? { type: "product", product_id: config.page_context.product_id, product_name: config.page_context.product_name }
             : { type: "general" },
+          customer_info: Object.keys(customerInfo).length > 0 ? customerInfo : undefined,
         }),
         signal: controller.signal,
       });
@@ -323,7 +347,10 @@ export default function App() {
           {/* Header */}
           <header className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur-sm sm:px-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm">
+              <div 
+                style={{ backgroundColor: config.primary_color }}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-white shadow-sm"
+              >
                 <BotIcon />
               </div>
               <div>
@@ -352,74 +379,126 @@ export default function App() {
             </div>
           </header>
 
-          {/* Thread */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5">
-            <div className="flex flex-col gap-4">
-              {messages.map((m) => (
-                <MessageRow key={m.id} message={m} onEscalate={handleEscalate} />
-              ))}
-
-              {loading && (
-                <div className="flex items-end gap-2">
-                  <Avatar />
-                  <div className="rounded-2xl rounded-bl-sm bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200">
-                    {slowHint === "timeout" ? (
-                      <div className="flex flex-col gap-2">
-                        <span className="text-sm text-slate-600">Taking too long — try again.</span>
-                        <button
-                          onClick={() => sendMessage(lastUserMessage)}
-                          className="self-start rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
-                        >
-                          Retry
-                        </button>
-                      </div>
-                    ) : slowHint === "slow" ? (
-                      <span className="text-sm text-slate-600">Still looking…</span>
-                    ) : (
-                      <TypingDots />
-                    )}
-                  </div>
+          {config.prechat_enabled && !prechatDone ? (
+            <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8 text-center">
+              <div className="mb-6">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50" style={{ color: config.primary_color }}>
+                  <ChatIcon />
                 </div>
-              )}
-
-              {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && (
-                <div className="ml-10 flex flex-wrap gap-2">
-                  {(config?.page_context?.type === "product" ? ["Is this in stock?", "What sizes are available?", "Check my order"] : QUICK_REPLIES).map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => sendMessage(q)}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Input */}
-          <div className="border-t border-slate-200 bg-white p-3">
-            <form onSubmit={handleSubmit} className="flex items-center gap-2">
-              <input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={loading}
-                placeholder="Ask anything..."
-                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={loading || !input.trim()}
-                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Send"
+                <h2 className="text-lg font-semibold text-slate-900">Welcome to {config.store_name}</h2>
+                <p className="mt-2 text-sm text-slate-500">Please introduce yourself before we start.</p>
+              </div>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const fd = new FormData(e.currentTarget);
+                  const info = {
+                    name: (fd.get('name') as string) || undefined,
+                    email: (fd.get('email') as string) || undefined,
+                    phone: (fd.get('phone') as string) || undefined,
+                  };
+                  setCustomerInfo(info);
+                  setPrechatDone(true);
+                  try { window.localStorage.setItem("woocs_prechat_v1", JSON.stringify(info)); } catch { /* ignore */ }
+                }}
+                className="w-full max-w-sm space-y-4 text-left"
               >
-                <SendIcon />
-              </button>
-            </form>
-            <p className="mt-2 text-center text-[10px] text-slate-400">Powered by WooCS.ai</p>
-          </div>
+                {config.prechat_fields.map(f => (
+                  <div key={f.key}>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700">
+                      {f.label} {f.required && <span className="text-red-500">*</span>}
+                    </label>
+                    <input
+                      type={f.type}
+                      name={f.key}
+                      required={f.required}
+                      className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    />
+                  </div>
+                ))}
+                <button
+                  type="submit"
+                  style={{ backgroundColor: config.primary_color }}
+                  className="mt-4 w-full rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
+                >
+                  Start Chatting
+                </button>
+              </form>
+            </div>
+          ) : (
+            <>
+              {/* Thread */}
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5">
+                <div className="flex flex-col gap-4">
+                  {messages.map((m) => (
+                    <MessageRow key={m.id} message={m} onEscalate={handleEscalate} />
+                  ))}
+
+                  {loading && (
+                    <div className="flex items-end gap-2">
+                      <Avatar />
+                      <div className="rounded-2xl rounded-bl-sm bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200">
+                        {slowHint === "timeout" ? (
+                          <div className="flex flex-col gap-2">
+                            <span className="text-sm text-slate-600">Taking too long — try again.</span>
+                            <button
+                              onClick={() => sendMessage(lastUserMessage)}
+                              style={{ backgroundColor: config.primary_color }}
+                              className="self-start rounded-md px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:opacity-90"
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        ) : slowHint === "slow" ? (
+                          <span className="text-sm text-slate-600">Still looking…</span>
+                        ) : (
+                          <TypingDots />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && (
+                    <div className="ml-10 flex flex-wrap gap-2">
+                      {(config?.page_context?.type === "product" ? ["Is this in stock?", "What sizes are available?", "Check my order"] : QUICK_REPLIES).map((q) => (
+                        <button
+                          key={q}
+                          onClick={() => sendMessage(q)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Input */}
+              <div className="border-t border-slate-200 bg-white p-3">
+                <form onSubmit={handleSubmit} className="flex items-center gap-2">
+                  <input
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    disabled={loading}
+                    placeholder="Ask anything..."
+                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading || !input.trim()}
+                    style={{ backgroundColor: config.primary_color }}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Send"
+                  >
+                    <SendIcon />
+                  </button>
+                </form>
+                <p className="mt-2 text-center text-[10px] text-slate-400">Powered by WooCS.ai</p>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -427,7 +506,8 @@ export default function App() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition-transform hover:scale-110 active:scale-95"
+          style={{ backgroundColor: config.primary_color }}
+          className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg transition-transform hover:scale-110 active:scale-95"
           aria-label="Open chat"
         >
           <ChatIcon />
@@ -441,7 +521,10 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-indigo-600 px-3.5 py-2 text-[13px] leading-relaxed text-white shadow-sm animate-in fade-in slide-in-from-bottom-2">
+        <div 
+          style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#4f46e5" : "#4f46e5" }}
+          className="max-w-[85%] rounded-2xl rounded-br-sm px-3.5 py-2 text-[13px] leading-relaxed text-white shadow-sm animate-in fade-in slide-in-from-bottom-2"
+        >
           {message.text}
         </div>
       </div>
@@ -504,7 +587,8 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
           href={meta.wc_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-3 block w-full rounded-lg bg-indigo-600 px-3 py-1.5 text-center text-[11px] font-medium text-white transition hover:bg-indigo-700"
+          style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#4f46e5" : "#4f46e5" }}
+          className="mt-3 block w-full rounded-lg px-3 py-1.5 text-center text-[11px] font-medium text-white transition hover:opacity-90"
         >
           View product
         </a>
@@ -574,9 +658,16 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
   );
 }
 
-function Avatar() {
+function Avatar({ color }: { color?: string }) {
+  // Try to use window config if available, fallback to provided or transparent
+  const wc = typeof window !== "undefined" ? window.WooCS : undefined;
+  const bgColor = color || wc?.primary_color || "#2271b1";
+
   return (
-    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm">
+    <div 
+      style={{ backgroundColor: bgColor }}
+      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-white shadow-sm"
+    >
       <BotIcon small />
     </div>
   );
