@@ -88,7 +88,7 @@ widget-install:
 	cd plugin/widget && npm install
 
 dev-widget:
-	rm -rf plugin/assets
+	rm -f plugin/assets/woocs-widget.*
 	cd plugin/widget && npm run dev
 
 wp-build:
