@@ -107,7 +107,7 @@ Rules:
 
 - `billing` references `Store` as the current subscription boundary.
 - `store` owns WooCommerce integration and catalog state.
-- `chat` may read store and entitlement state but must not mutate subscriptions.
+- `chat` may read Store access state but must not mutate subscriptions.
 - API routers validate transport input and call services; they do not contain billing or authentication policy.
 - Cross-domain orchestration belongs in a small service, not in Django signals.
 
@@ -125,7 +125,7 @@ Rules:
 - plan and subscription state;
 - usage count.
 
-The billing implementation moves subscription state into a dedicated projection while retaining legacy Store fields temporarily for compatibility.
+Subscription state lives only in the dedicated billing projection; legacy Store billing fields are removed after their data migration.
 
 ### Target ownership model
 
@@ -314,7 +314,7 @@ Initial policy:
 | `trialing` / `active` | Access enabled |
 | Active with `cancel_at_period_end` | Enabled until `current_period_end` |
 | `past_due` | Short configurable grace period; show billing warning |
-| `unpaid` / `revoked` / ended `canceled` | Paid entitlements disabled |
+| `unpaid` / `revoked` / ended `canceled` | Access disabled |
 
 Polar creates a subscription automatically after checkout for a recurring product, renews it, and provides a hosted Customer Portal for cancellation, invoices, and payment-method recovery. WooCS should link to that portal instead of rebuilding billing management UI.
 
@@ -361,7 +361,7 @@ The plugin is an integration client, not a second backend.
 
 - subscription truth;
 - merchant identity across sites;
-- entitlement decisions;
+- subscription access decisions;
 - conversation or analytics truth;
 - AI provider credentials;
 - customer authentication.
@@ -388,7 +388,7 @@ The current plugin registers a Store through `/api/stores/register/`, stores the
 - Reads non-secret configuration from `window.WooCS`.
 - Calls only `/api/widget/`.
 - Keeps UI/session continuity locally but treats Django as conversation truth.
-- Must not infer plan access from injected config; the backend enforces entitlements.
+- Must not infer access from injected config; the backend enforces subscription state.
 - Must not call WooCommerce directly.
 
 ### Merchant app (future)
@@ -430,7 +430,7 @@ sequenceDiagram
     participant AI as LlamaIndex adapter
 
     Widget->>API: Message + session ID + widget token
-    API->>API: Validate store scope, entitlement, and rate limit
+    API->>API: Validate store scope, subscription, and rate limit
     API->>DB: Persist customer message
     API->>DB: Tenant-scoped retrieval
     API->>AI: Prompt through configured provider
@@ -451,7 +451,7 @@ sequenceDiagram
     API->>Billing: Create checkout for Store
     Billing-->>Plugin: Hosted checkout
     Billing->>API: Signed subscription webhook
-    API->>API: Update subscription and entitlements
+    API->>API: Update subscription state
 ```
 
 ---
@@ -479,7 +479,7 @@ All requests and tasks should carry:
 - principal type, never the raw credential;
 - task or billing-event ID when relevant.
 
-Measure at minimum API latency/error rate, task failures, catalog sync duration, AI latency/provider errors, conversations, entitlement denials, and billing webhook failures.
+Measure at minimum API latency/error rate, task failures, catalog sync duration, AI latency/provider errors, conversations, subscription denials, and billing webhook failures.
 
 Audit events are required for subscription changes, webhook failures, and API-key rotation if it is introduced.
 
@@ -489,8 +489,8 @@ Audit events are required for subscription changes, webhook failures, and API-ke
 
 1. Add the Store-owned Polar subscription projection and idempotent webhook ingestion.
 2. Add plugin-authenticated checkout, subscription status, and Customer Portal endpoints.
-3. Add centralized code-based plan entitlements.
-4. Enforce entitlements in catalog sync and chat entry points.
+3. Add the WordPress Plan & Billing journey using Polar-hosted checkout and portal pages.
+4. Enforce one active-subscription gate in catalog sync and chat entry points.
 5. Configure Polar sandbox products and verify the end-to-end webhook flow.
 6. Remove legacy Store plan/status fields after migration compatibility is no longer needed.
 7. Add short-lived widget tokens, rate limiting, and verified order lookup separately.
@@ -508,7 +508,7 @@ These choices should be recorded when implementation begins:
 - widget-token issuer and lifetime;
 - customer verification method for order lookup;
 - retention policy by plan;
-- whether entitlements are evaluated from normalized tables or a cached snapshot.
+- whether future plan differences require usage or capability policy.
 
 They are intentionally not hardcoded in the architecture before product and deployment requirements are confirmed.
 

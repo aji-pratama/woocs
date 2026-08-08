@@ -213,7 +213,6 @@ AI_EMBEDDING_MODEL = config("AI_EMBEDDING_MODEL", default="deterministic-embeddi
 POLAR_ACCESS_TOKEN = config("POLAR_ACCESS_TOKEN", default="")
 POLAR_WEBHOOK_SECRET = config("POLAR_WEBHOOK_SECRET", default="")
 POLAR_API_URL = config("POLAR_API_URL", default="https://api.polar.sh/v1")
-POLAR_SUCCESS_URL = config("POLAR_SUCCESS_URL", default="")
 POLAR_PRODUCTS = config("POLAR_PRODUCTS", default="{}", cast=json.loads)
 
 # Email (PoC: console backend — prints emails to terminal)

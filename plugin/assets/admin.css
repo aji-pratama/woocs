@@ -100,6 +100,38 @@
     color: #d68700;
 }
 
+.woocs-badge-success {
+    background: #edfaef;
+    color: #116329;
+}
+
+.woocs-plan-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    max-width: 960px;
+}
+
+.woocs-plan-card {
+    margin-bottom: 12px;
+}
+
+.woocs-plan-card h3,
+.woocs-plan-name {
+    margin: 0 0 12px;
+    font-size: 20px;
+}
+
+.woocs-plan-price {
+    font-size: 24px;
+}
+
+@media (max-width: 782px) {
+    .woocs-plan-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Preview Layout */
 .woocs-preview-container {
     display: grid;

@@ -44,8 +44,16 @@ class Subscription(models.Model):
 
     @property
     def is_active(self) -> bool:
-        if self.status not in {self.Status.TRIALING, self.Status.ACTIVE}:
+        if self.status not in {
+            self.Status.TRIALING,
+            self.Status.ACTIVE,
+            self.Status.CANCELED,
+        }:
             return False
+        if self.status == self.Status.CANCELED:
+            return bool(
+                self.current_period_end and self.current_period_end > timezone.now()
+            )
         return not self.current_period_end or self.current_period_end > timezone.now()
 
     def __str__(self) -> str:

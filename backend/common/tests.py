@@ -76,3 +76,27 @@ def test_component_factory_injects_provider_specific_api_key(
         model="text-embedding-3-small",
         api_key="openai-test-key",
     )
+from django.contrib import admin
+from django.test import SimpleTestCase
+
+from billing.models import PolarWebhookEvent, Subscription
+from chat.models import ChatMessage, ChatSession
+from common.models import TaskRecord
+from store.models import FAQ, Product, ProductVariation, Store
+
+
+class AdminRegistryTest(SimpleTestCase):
+    def test_all_domain_models_are_registered(self):
+        models = {
+            Store,
+            Product,
+            ProductVariation,
+            FAQ,
+            ChatSession,
+            ChatMessage,
+            Subscription,
+            PolarWebhookEvent,
+            TaskRecord,
+        }
+
+        assert models <= set(admin.site._registry)

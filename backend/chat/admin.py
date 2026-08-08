@@ -24,7 +24,7 @@ class ChatSessionAdmin(admin.ModelAdmin):
     list_display = ("id", "store", "session_id", "customer_email", "created_at")
     search_fields = ("session_id", "customer_email", "store__wc_url")
     list_filter = ("store", "created_at")
-    readonly_fields = ("id", "created_at")
+    readonly_fields = ("id", "session_id", "created_at")
     inlines = [ChatMessageInline]
 
 

@@ -5,9 +5,20 @@ from .models import FAQ, Product, ProductVariation, Store
 
 @admin.register(Store)
 class StoreAdmin(admin.ModelAdmin):
-    list_display = ("id", "wc_url", "last_synced_at")
+    list_display = (
+        "id",
+        "wc_url",
+        "merchant_email",
+        "subscription_status",
+        "last_synced_at",
+    )
     search_fields = ("id", "wc_url", "merchant_email")
-    readonly_fields = ("id", "created_at")
+    readonly_fields = ("id", "api_key_hash", "created_at")
+
+    @admin.display(description="Subscription", ordering="subscription__status")
+    def subscription_status(self, obj: Store) -> str:
+        subscription = getattr(obj, "subscription", None)
+        return subscription.status if subscription else "—"
 
 
 @admin.register(Product)

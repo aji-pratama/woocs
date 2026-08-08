@@ -111,6 +111,41 @@ class ApiClient {
         return $this->handle_response($response);
     }
 
+    public function get_subscription(): array|\WP_Error {
+        return $this->billing_request('GET', '/api/stores/subscription/');
+    }
+
+    public function create_checkout(string $plan_key): array|\WP_Error {
+        return $this->billing_request(
+            'POST',
+            '/api/stores/subscription/checkout/',
+            ['plan_key' => $plan_key]
+        );
+    }
+
+    public function create_billing_portal(): array|\WP_Error {
+        return $this->billing_request('POST', '/api/stores/subscription/portal/');
+    }
+
+    private function billing_request(string $method, string $path, array $body = []): array|\WP_Error {
+        $args = [
+            'method' => $method,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-API-Key' => $this->api_key,
+            ],
+            'timeout' => 15,
+        ];
+
+        if (!empty($body)) {
+            $args['body'] = wp_json_encode($body);
+        }
+
+        return $this->handle_response(
+            wp_remote_request($this->base_url . $path, $args)
+        );
+    }
+
     private function handle_response($response): array|\WP_Error {
         if (is_wp_error($response)) {
             return $response;

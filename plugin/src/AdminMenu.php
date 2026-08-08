@@ -10,6 +10,8 @@ class AdminMenu {
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('admin_post_woocs_save_settings', [$this, 'handle_save_settings']);
         add_action('admin_post_woocs_disconnect_store', [$this, 'handle_disconnect_store']);
+        add_action('admin_post_woocs_start_checkout', [$this, 'handle_start_checkout']);
+        add_action('admin_post_woocs_open_billing_portal', [$this, 'handle_open_billing_portal']);
     }
 
     public function enqueue_assets($hook) {
@@ -41,6 +43,15 @@ class AdminMenu {
             $capability,
             'woocs-dashboard',
             [$this, 'render_dashboard_page']
+        );
+
+        add_submenu_page(
+            'woocs-dashboard',
+            'WooCS Billing',
+            'Plan & Billing',
+            $capability,
+            'woocs-billing',
+            [$this, 'render_billing_page']
         );
 
         add_submenu_page(
@@ -99,6 +110,10 @@ class AdminMenu {
 
     public function render_settings_page() {
         require WOOCS_PLUGIN_DIR . 'src/Views/settings.php';
+    }
+
+    public function render_billing_page() {
+        require WOOCS_PLUGIN_DIR . 'src/Views/billing.php';
     }
 
     public function render_sync_page() {
@@ -188,6 +203,55 @@ class AdminMenu {
 
         set_transient('woocs_admin_success', 'Store disconnected successfully.', 45);
         wp_safe_redirect(admin_url('admin.php?page=woocs-settings'));
+        exit;
+    }
+
+    public function handle_start_checkout() {
+        $this->guard_billing_action('woocs_start_checkout');
+
+        $plan_key = sanitize_key($_POST['plan_key'] ?? '');
+        if (!in_array($plan_key, ['starter', 'growth', 'pro'], true)) {
+            $this->redirect_billing_error('Please choose a valid plan.');
+        }
+
+        $response = (new ApiClient())->create_checkout($plan_key);
+        $this->redirect_to_billing_url($response);
+    }
+
+    public function handle_open_billing_portal() {
+        $this->guard_billing_action('woocs_open_billing_portal');
+        $response = (new ApiClient())->create_billing_portal();
+        $this->redirect_to_billing_url($response);
+    }
+
+    private function guard_billing_action(string $nonce_action): void {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die('Unauthorized');
+        }
+        check_admin_referer($nonce_action);
+
+        if (empty(get_option('woocs_api_key'))) {
+            $this->redirect_billing_error('Connect your store before managing billing.');
+        }
+    }
+
+    private function redirect_to_billing_url(array|\WP_Error $response): never {
+        if (is_wp_error($response)) {
+            $this->redirect_billing_error($response->get_error_message());
+        }
+
+        $url = wp_http_validate_url($response['url'] ?? '');
+        if (!$url || wp_parse_url($url, PHP_URL_SCHEME) !== 'https') {
+            $this->redirect_billing_error('The billing provider returned an invalid URL.');
+        }
+
+        wp_redirect($url);
+        exit;
+    }
+
+    private function redirect_billing_error(string $message): never {
+        set_transient('woocs_billing_error', sanitize_text_field($message), 45);
+        wp_safe_redirect(admin_url('admin.php?page=woocs-billing'));
         exit;
     }
 }

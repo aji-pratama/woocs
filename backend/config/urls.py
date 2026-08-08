@@ -28,6 +28,10 @@ api = NinjaAPI(
     title="WooCS.ai API", version="1.0.0", description="API for WooCS.ai Django Backend"
 )
 
+admin.site.site_header = "WooCS administration"
+admin.site.site_title = "WooCS admin"
+admin.site.index_title = "Operations"
+
 api.add_router("/stores/", store_router)
 api.add_router("/widget/", chat_router)
 api.add_router("/stores/", billing_router)

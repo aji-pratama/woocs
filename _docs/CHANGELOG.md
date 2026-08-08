@@ -204,3 +204,12 @@
 
 ### Feedback, Plugin Page:
 - [x] Create Dashboard page that shows all information when plugin is activated and connected, like chat count, order count, etc, and it need to refresh every 1 minute. No need complete, just like teaser, and for more detailed need to go somewhere else like other page or even the SaaS
+## WordPress subscription journey
+
+> Completed: 2026-08-08
+
+- [x] Added a WordPress-native Plan & Billing page with trial state and simple plan selection.
+- [x] Connected plugin checkout and subscription management to Polar-hosted pages.
+- [x] Returned successful checkout and Customer Portal navigation to the authenticated Store's WordPress Admin.
+- [x] Centralized access in the Store-owned Subscription projection, including end-of-period cancellation behavior.
+- [x] Registered every backend domain model in Django Admin and made webhook audit records read-only.

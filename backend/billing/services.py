@@ -45,18 +45,29 @@ class PolarClient:
             ) from exc
 
     @classmethod
-    def create_checkout(cls, *, product_id: str, external_customer_id: str) -> dict:
+    def create_checkout(
+        cls,
+        *,
+        product_id: str,
+        external_customer_id: str,
+        customer_email: str | None,
+        success_url: str,
+    ) -> dict:
         payload = {
             "products": [product_id],
             "external_customer_id": external_customer_id,
+            "success_url": success_url,
         }
-        if settings.POLAR_SUCCESS_URL:
-            payload["success_url"] = settings.POLAR_SUCCESS_URL
+        if customer_email:
+            payload["customer_email"] = customer_email
         return cls._post("checkouts/", payload)
 
     @classmethod
-    def create_customer_portal(cls, *, customer_id: str) -> dict:
-        return cls._post("customer-sessions/", {"customer_id": customer_id})
+    def create_customer_portal(cls, *, customer_id: str, return_url: str) -> dict:
+        return cls._post(
+            "customer-sessions/",
+            {"customer_id": customer_id, "return_url": return_url},
+        )
 
 
 class PolarWebhookVerifier:
@@ -127,7 +138,7 @@ class PolarWebhookService:
         try:
             with transaction.atomic():
                 if event_type in cls.SUBSCRIPTION_EVENTS:
-                    cls._apply_subscription(payload.get("data") or {})
+                    cls._apply_subscription(payload.get("data") or {}, event_type)
                 event.status = PolarWebhookEvent.ProcessingStatus.PROCESSED
                 event.processed_at = timezone.now()
                 event.save(update_fields=["status", "processed_at"])
@@ -139,7 +150,7 @@ class PolarWebhookService:
         return True
 
     @staticmethod
-    def _apply_subscription(data: dict) -> Subscription:
+    def _apply_subscription(data: dict, event_type: str) -> Subscription:
         external_id = (data.get("customer") or {}).get("external_id")
         if not external_id:
             raise ValueError("Polar customer external_id is required.")
@@ -157,6 +168,11 @@ class PolarWebhookService:
             raise ValueError("Polar product is not mapped to a WooCS plan.")
         period_end = data.get("current_period_end")
         parsed_period_end = parse_datetime(period_end) if period_end else None
+        status = (
+            Subscription.Status.REVOKED
+            if event_type == "subscription.revoked"
+            else data.get("status", Subscription.Status.ACTIVE)
+        )
         subscription, _ = Subscription.objects.update_or_create(
             store=store,
             defaults={
@@ -165,7 +181,7 @@ class PolarWebhookService:
                 "polar_subscription_id": data.get("id"),
                 "polar_product_id": product_id,
                 "plan_key": plan_key,
-                "status": data.get("status", Subscription.Status.ACTIVE),
+                "status": status,
                 "cancel_at_period_end": data.get("cancel_at_period_end", False),
                 "current_period_end": parsed_period_end,
             },

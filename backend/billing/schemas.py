@@ -16,3 +16,4 @@ class SubscriptionOut(BaseModel):
     status: str
     cancel_at_period_end: bool
     current_period_end: datetime | None = None
+    active: bool

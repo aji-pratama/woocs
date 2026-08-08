@@ -3,9 +3,11 @@ import hashlib
 import hmac
 import json
 import time
+from datetime import timedelta
 
 import pytest
 from django.test import Client, override_settings
+from django.utils import timezone
 
 from billing.models import PolarWebhookEvent, Subscription
 from billing.services import PolarWebhookService, store_has_access
@@ -39,6 +41,14 @@ class TestSubscription:
         assert subscription.is_active is False
         assert store_has_access(store) is False
 
+    def test_canceled_subscription_works_until_period_end(self, store_and_key):
+        store, _ = store_and_key
+        subscription = store.subscription
+        subscription.status = Subscription.Status.CANCELED
+        subscription.current_period_end = timezone.now() + timedelta(days=1)
+
+        assert subscription.is_active is True
+
     def test_subscription_endpoint_returns_only_billing_state(self, store_and_key):
         _, raw_key = store_and_key
 
@@ -50,6 +60,7 @@ class TestSubscription:
             "status",
             "cancel_at_period_end",
             "current_period_end",
+            "active",
         }
 
     @override_settings(POLAR_PRODUCTS={"growth": "product_growth"})
@@ -73,7 +84,13 @@ class TestSubscription:
         assert response.status_code == 200
         assert response.json()["url"] == "https://polar.sh/checkout/test"
         create_checkout.assert_called_once_with(
-            product_id="product_growth", external_customer_id=str(store.id)
+            product_id="product_growth",
+            external_customer_id=str(store.id),
+            customer_email=None,
+            success_url=(
+                "https://shop.example.com/wp-admin/admin.php"
+                "?page=woocs-billing&checkout=success"
+            ),
         )
 
     def test_portal_uses_projected_polar_customer(self, store_and_key, mocker):
@@ -95,7 +112,10 @@ class TestSubscription:
 
         assert response.status_code == 200
         assert response.json()["url"] == "https://polar.sh/portal/test"
-        create_portal.assert_called_once_with(customer_id="customer_123")
+        create_portal.assert_called_once_with(
+            customer_id="customer_123",
+            return_url="https://shop.example.com/wp-admin/admin.php?page=woocs-billing",
+        )
 
 
 @pytest.mark.django_db
@@ -141,6 +161,26 @@ class TestPolarWebhook:
         assert subscription.plan_key == "growth"
         assert subscription.status == Subscription.Status.ACTIVE
         assert PolarWebhookEvent.objects.filter(event_id="event_123").count() == 1
+
+    @override_settings(POLAR_PRODUCTS={"growth": "product_growth"})
+    def test_revoked_event_blocks_access_even_if_period_end_is_future(
+        self, store_and_key
+    ):
+        store, _ = store_and_key
+
+        subscription = PolarWebhookService._apply_subscription(
+            {
+                "id": "sub_123",
+                "status": "canceled",
+                "customer": {"external_id": str(store.id)},
+                "product_id": "product_growth",
+                "current_period_end": "2026-09-08T00:00:00Z",
+            },
+            "subscription.revoked",
+        )
+
+        assert subscription.status == Subscription.Status.REVOKED
+        assert subscription.is_active is False
 
     @override_settings(POLAR_WEBHOOK_SECRET="whsec_dGVzdA==")
     def test_invalid_signature_is_rejected(self):
