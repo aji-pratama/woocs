@@ -14,8 +14,6 @@ llama-index-core>=0.14,<0.15
 llama-index-llms-anthropic>=0.11,<0.12
 llama-index-llms-openai>=0.7,<0.8
 llama-index-llms-google-genai>=0.9,<0.10
-llama-index-embeddings-voyageai>=0.6,<0.7
-voyageai>=0.5,<0.6
 llama-index-embeddings-openai>=0.6,<0.7
 llama-index-embeddings-google-genai>=0.5,<0.6
 

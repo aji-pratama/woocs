@@ -73,7 +73,7 @@ _docs/
 ### External Services
 - **LlamaIndex**: the single LLM and embedding interface
 - **Anthropic, OpenAI, or Gemini**: configurable chat generation
-- **Voyage, OpenAI, or Gemini**: configurable embeddings
+- **OpenAI or Gemini**: configurable embeddings
 - **Django ORM + pgvector**: tenant-scoped retrieval and confidence scoring
 - **SMTP (Gmail)**: escalation email delivery
 

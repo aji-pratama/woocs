@@ -52,14 +52,13 @@ def test_factories_return_llamaindex_interfaces() -> None:
 
 
 @override_settings(
-    VOYAGE_API_KEY="voyage-test-key",
+    OPENAI_API_KEY="openai-test-key",
     AI_MODELS={
         "embeddings": {
             "catalog": {
                 "class": "provider.Embedding",
-                "model_name": "voyage-4-lite",
-                "api_key_setting": "VOYAGE_API_KEY",
-                "api_key_parameter": "voyage_api_key",
+                "model": "text-embedding-3-small",
+                "api_key_setting": "OPENAI_API_KEY",
             }
         }
     },
@@ -74,6 +73,6 @@ def test_component_factory_injects_provider_specific_api_key(
 
     import_string.assert_called_once_with("provider.Embedding")
     component_class.assert_called_once_with(
-        model_name="voyage-4-lite",
-        voyage_api_key="voyage-test-key",
+        model="text-embedding-3-small",
+        api_key="openai-test-key",
     )

@@ -155,7 +155,6 @@ TASKS = {
 # AI providers and models
 
 ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
-VOYAGE_API_KEY = config("VOYAGE_API_KEY", default="")
 OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
 GOOGLE_API_KEY = config("GOOGLE_API_KEY", default="")
 
@@ -186,13 +185,6 @@ AI_MODELS = {
         },
     },
     "embeddings": {
-        "voyage-catalog": {
-            "class": "llama_index.embeddings.voyageai.VoyageEmbedding",
-            "model_name": "voyage-4-lite",
-            "output_dimension": 1024,
-            "api_key_setting": "VOYAGE_API_KEY",
-            "api_key_parameter": "voyage_api_key",
-        },
         "openai-catalog": {
             "class": "llama_index.embeddings.openai.OpenAIEmbedding",
             "model": "text-embedding-3-small",

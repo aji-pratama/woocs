@@ -17,12 +17,11 @@ def build_ai_component(kind: str, alias: str) -> LLM | BaseEmbedding:
     config = get_ai_model_config(kind, alias)
     component_class = import_string(config.pop("class"))
     api_key_setting = config.pop("api_key_setting", None)
-    api_key_parameter = config.pop("api_key_parameter", "api_key")
     if api_key_setting:
         api_key = getattr(settings, api_key_setting, "")
         if not api_key:
             raise ImproperlyConfigured(f"{api_key_setting} is required for {alias}")
-        config[api_key_parameter] = api_key
+        config["api_key"] = api_key
     return component_class(**config)
 
 

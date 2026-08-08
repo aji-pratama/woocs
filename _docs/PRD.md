@@ -57,7 +57,7 @@ Two Django apps, all connected through a single API surface:
 
 **Django backend** — two apps: `stores` (tenant management, catalog ingestion, embedding pipeline) and `chat` (sessions, RAG, escalation). Exposed via Django Ninja API. Hosted on VPS with Nginx + Gunicorn.
 
-**External services** — PostgreSQL + pgvector for data, vector storage, and background tasks (`django.tasks` framework). LlamaIndex provides one lean interface over configurable chat providers (Anthropic, OpenAI, or Gemini) and embedding providers (Voyage, OpenAI, or Gemini). Django retains tenant-scoped retrieval and business policies.
+**External services** — PostgreSQL + pgvector for data, vector storage, and background tasks (`django.tasks` framework). LlamaIndex provides one lean interface over configurable chat providers (Anthropic, OpenAI, or Gemini) and embedding providers (OpenAI or Gemini). Django retains tenant-scoped retrieval and business policies.
 
 **Widget** — a React bundle injected by the WP plugin into the storefront. It is the only customer-facing surface. All widget communication goes to Django Ninja API — no direct WooCommerce calls.
 
@@ -424,9 +424,9 @@ ASSISTANT:
 | Backend | Django 5.x + Django Ninja | Async-ready, type-safe API schema |
 | Task queue | `django.tasks` framework (Custom Postgres Backend) | Async embedding pipeline |
 | Database | PostgreSQL 15 + pgvector | Single DB for data + embeddings |
-| AI framework | LlamaIndex | One interface for Anthropic, OpenAI, Gemini, Voyage, and future providers |
+| AI framework | LlamaIndex | One interface for Claude, OpenAI, Gemini, and future providers |
 | RAG orchestration | Lean Django services + ORM | Explicit tenant filtering, prompt construction, confidence, and escalation policies |
-| Default embeddings | Voyage AI `voyage-4-lite` via LlamaIndex | Cost-efficient multilingual retrieval; configurable through settings |
+| Default embeddings | OpenAI `text-embedding-3-small` via LlamaIndex | Configurable 1024-dimensional retrieval; Gemini is also supported |
 | Default LLM | Claude Haiku via LlamaIndex | Fast support answers; configurable through settings |
 | Hosting | VPS — Ubuntu + Nginx + Gunicorn | Full control, no platform lock-in |
 | Email | Django SMTP (Gmail) | Zero cost for PoC |
@@ -1327,7 +1327,7 @@ graph TD
   subgraph External["External services"]
     PG[("PostgreSQL + pgvector\n+ TaskQueue")]
     Anthropic["Anthropic API\nClaude Haiku"]
-    Voyage["Voyage AI\nEmbeddings"]
+    Embeddings["OpenAI or Gemini\nEmbeddings"]
   end
 
   Plugin -->|"POST /api/stores/sync/"| Ninja
@@ -1339,8 +1339,8 @@ graph TD
   Chat --> PG
   Chat --> PG
   Chat --> Anthropic
-  Chat --> Voyage
-  Stores --> Voyage
+  Chat --> Embeddings
+  Stores --> Embeddings
 ```
 
 ---
@@ -1352,7 +1352,7 @@ sequenceDiagram
   actor Customer
   participant Widget
   participant Django as Django (chat app)
-  participant Voyage as Voyage AI
+  participant Embeddings as OpenAI / Gemini Embeddings
   participant PG as pgvector
   participant Haiku as Claude Haiku
 
@@ -1370,8 +1370,8 @@ sequenceDiagram
       Django-->>Widget: {escalated: true, reason: keyword_trigger}
       Django-)Django: send_escalation_email.enqueue()
     else no match
-      Django->>Voyage: embed(query)
-      Voyage-->>Django: query vector
+      Django->>Embeddings: embed(query)
+      Embeddings-->>Django: query vector
       Django->>PG: similarity search (store_id, top_k=5)
       PG-->>Django: top-k records + cosine distances
       Django->>Haiku: prompt + context + history
@@ -1400,7 +1400,7 @@ sequenceDiagram
   participant WC as WooCommerce REST API
   participant Django as Django (stores app)
   participant Worker as django.tasks runner
-  participant Voyage as Voyage AI
+  participant Embeddings as OpenAI / Gemini Embeddings
   participant PG as pgvector
 
   Note over Merchant,Django: Web-first or plugin-first — converge here
@@ -1418,8 +1418,8 @@ sequenceDiagram
 
   loop for each product and FAQ
     Worker->>Worker: build_document(record)
-    Worker->>Voyage: embed(document_text)
-    Voyage-->>Worker: vector[1024]
+    Worker->>Embeddings: embed(document_text)
+    Embeddings-->>Worker: vector[1024]
     Worker->>PG: save with embedding
   end
 
@@ -1521,13 +1521,13 @@ flowchart LR
     Plugin["WP Plugin\nbuild payload"]
     StoresApp["stores app\nparse · persist"]
     Worker["django.tasks\nbuild_document()"]
-    VoyageEmbed["Voyage AI\nembed"]
+    EmbedModel["OpenAI or Gemini\nembed"]
   end
 
   subgraph ChatPath["Widget chat (real-time)"]
     Customer["Customer"]
     ChatApp["chat app\nembed query"]
-    VoyageQ["Voyage AI\nembed query"]
+    QueryEmbed["OpenAI or Gemini\nembed query"]
     HaikuGen["Claude Haiku\ngenerate"]
     WidgetOut["Widget\nrender"]
   end
@@ -1537,12 +1537,12 @@ flowchart LR
   WC -->|pull| Plugin
   Plugin -->|POST /api/stores/sync/| StoresApp
   StoresApp -->|async| Worker
-  Worker -->|text| VoyageEmbed
-  VoyageEmbed -->|vector| PG
+  Worker -->|text| EmbedModel
+  EmbedModel -->|vector| PG
 
   Customer -->|message| ChatApp
-  ChatApp -->|query text| VoyageQ
-  VoyageQ -->|query vector| PG
+  ChatApp -->|query text| QueryEmbed
+  QueryEmbed -->|query vector| PG
   PG -->|top-k records + scores| ChatApp
   ChatApp -->|prompt + context| HaikuGen
   HaikuGen -->|answer| WidgetOut
