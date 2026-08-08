@@ -161,7 +161,7 @@ make db-dump               # Dump Postgres data to fixtures/init.sql
 
 ## PoC Scope
 
-See [PRD v0](.docs/PRD_v0.md) for full specification.
+See [PRD](./_docs/PRD.md) for the full specification.
 
 **Hypotheses to validate:**
 - H1: 100+ products synced and embedded in < 3 min

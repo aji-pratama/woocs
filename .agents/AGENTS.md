@@ -1,4 +1,15 @@
-# WooCS.ai — AGENTS.md
+# WooCS.ai — Agent Guide
+
+This directory is the static brain for AI-assisted development. Keep only durable
+instructions, technical invariants, and path-scoped rules in `.agents`. Product
+documentation, plans, decisions, and project history belong in `_docs`.
+
+Before making changes, read these sources in order:
+
+1. `.agents/rules/main.md`
+2. `_docs/PRD.md`
+3. The relevant plan under `_docs/plans/`
+4. The relevant path-scoped rule under `.agents/rules/`
 
 ## Technical Invariants
 
@@ -13,8 +24,8 @@ These facts MUST NOT be changed without a new architecture decision:
 ### Directory Layout
 ```
 woocs/
-├── .agents/          # Agent workspace (plans, rules, artifacts)
-├── .docs/            # Product docs (PRD, specs)
+├── .agents/          # Static AI instructions and rules
+├── _docs/            # Product docs, plans, history, and reference material
 ├── backend/          # Django project (host process)
 │   ├── config/       # Django settings, URLs
 │   ├── common/       # Shared logic, TaskRecord, custom Postgres task backend
@@ -25,6 +36,16 @@ woocs/
 ├── compose.dev.yml   # Docker Compose for infra only
 ├── Makefile          # Dev orchestration
 └── README.md
+```
+
+### Documentation Layout
+
+```text
+_docs/
+├── PRD.md            # Product requirements; product source of truth
+├── CHANGELOG.md      # Completed work and project history
+├── plans/            # Active roadmap and feature implementation plans
+└── archive/          # Superseded or historical planning documents
 ```
 
 ### Port Map

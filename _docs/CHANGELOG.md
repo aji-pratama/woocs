@@ -25,7 +25,7 @@
 ### Docs & Agent Workspace
 - [x] `AGENTS.md` — updated to 2-app architecture (store, chat)
 - [x] `.agents/rules/backend.md` — updated app responsibilities
-- [x] `.agents/plan.md` — this file
+- [x] `_docs/plans/roadmap.md` — project roadmap
 
 ---
 

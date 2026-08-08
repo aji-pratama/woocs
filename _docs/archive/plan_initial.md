@@ -3,7 +3,7 @@
 ## Objective
 Initialize the directory structure and base files for the WooCS.ai monorepo. Execute sequentially.
 
-Everything is zero, so you most be start working based on `.docs/PRD_v0.md`
+Everything is zero, so you most be start working based on `_docs/PRD.md`
 
 ## Phase 1: Root Files & Container Infrastructure
 1. Create a `Makefile` in the root directory to orchestrate local development.
@@ -16,7 +16,7 @@ Everything is zero, so you most be start working based on `.docs/PRD_v0.md`
 3. Create the main `README.md` in the root directory.
 
 ## Phase 2: Agent Workspace & Docs
-1. Update `.agents/AGENTS.md` based on `.docs/PRD_v0.md`
+1. Update `.agents/AGENTS.md` based on `_docs/PRD.md`
 2. Work on `.agents/rules/*` it's copied from old project, you have to update and should be following PRD
 
 ## Phase 3: Backend (Django - Running on Host)

@@ -1,6 +1,6 @@
 # WooCS.ai — Development Plan
 
-> **Note:** Scaffolding and Phases 1 through 5 have been completed and moved to `.agents/artifacts/changelog.md`.
+> **Note:** Scaffolding and Phases 1 through 5 have been completed and moved to `_docs/CHANGELOG.md`.
 
 ## Next: Feature Development
 
@@ -8,4 +8,3 @@
 - [ ] `chat/services.py` — integrate LlamaIndex + Anthropic Haiku for actual RAG pipeline in `_rag_query_stub`
 - [ ] `chat/services.py` — integrate WooCommerce REST API in `OrderService`
 - [ ] `store/tasks.py` — implement actual catalog embedding logic for `ingest_catalog` (currently stub)
-
