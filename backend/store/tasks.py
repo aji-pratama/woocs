@@ -4,32 +4,37 @@ from uuid import UUID
 from django.tasks import task
 from django.utils import timezone
 
-from .models import Store
+from common.services import get_embed_model
+
+from .models import FAQ, Product, Store
 
 logger = logging.getLogger(__name__)
 
 
-def generate_pseudo_embedding(text: str) -> list[float]:
-    """
-    Generates a deterministic pseudo-random vector of length 1536 for PoC.
-    In production, replace with LlamaIndex embedding model (e.g. Voyage/OpenAI).
-    """
-    import hashlib
-    # Create a 1536-dimensional vector based on the hash of the text
-    h = hashlib.sha256(text.encode('utf-8')).digest()
-    vector = []
-    for i in range(1536):
-        # Generate a float between -1 and 1
-        val = (h[i % 32] / 128.0) - 1.0
-        # Add slight variation based on position
-        val = val * (1.0 - (i % 10) / 100.0)
-        vector.append(val)
-    
-    # Normalize the vector
-    magnitude = sum(x*x for x in vector) ** 0.5
-    if magnitude > 0:
-        vector = [x / magnitude for x in vector]
-    return vector
+def build_product_document(product: Product) -> str:
+    variations = []
+    for variation in product.variations.all():
+        attributes = ", ".join(
+            f"{name}={value}" for name, value in variation.attributes.items()
+        )
+        variations.append(
+            f"[{attributes}; price={variation.price}; stock={variation.stock_quantity}]"
+        )
+    return "\n".join(
+        [
+            f"Product: {product.name}",
+            f"Description: {product.description or ''}",
+            f"Price: {product.price}",
+            f"Stock status: {product.stock_status}",
+            f"Categories: {', '.join(product.categories)}",
+            f"Tags: {', '.join(product.tags)}",
+            f"Variations: {' '.join(variations)}",
+        ]
+    )
+
+
+def build_faq_document(faq: FAQ) -> str:
+    return f"Question: {faq.question}\nAnswer: {faq.answer}"
 
 
 @task()
@@ -43,21 +48,28 @@ def ingest_catalog(store_id: UUID):
     try:
         store = Store.objects.get(id=store_id)
 
-        # 1. Embed Products
-        products = store.products.filter(embedding__isnull=True)
-        logger.info(f"Found {products.count()} products to embed.")
-        for product in products:
-            text = f"Product: {product.name}. Description: {product.description}. Price: {product.price}. Status: {product.stock_status}. Categories: {', '.join(product.categories)}."
-            product.embedding = generate_pseudo_embedding(text)
-            product.save(update_fields=['embedding', 'synced_at'])
+        embed_model = get_embed_model()
+        products = list(
+            store.products.filter(embedding__isnull=True).prefetch_related("variations")
+        )
+        faqs = list(store.faqs.filter(embedding__isnull=True))
+        logger.info("Found %s products and %s FAQs to embed", len(products), len(faqs))
 
-        # 2. Embed FAQs
-        faqs = store.faqs.filter(embedding__isnull=True)
-        logger.info(f"Found {faqs.count()} FAQs to embed.")
-        for faq in faqs:
-            text = f"Q: {faq.question}\nA: {faq.answer}"
-            faq.embedding = generate_pseudo_embedding(text)
-            faq.save(update_fields=['embedding', 'updated_at'])
+        if products:
+            product_embeddings = embed_model.get_text_embedding_batch(
+                [build_product_document(product) for product in products]
+            )
+            for product, embedding in zip(products, product_embeddings, strict=True):
+                product.embedding = embedding
+                product.save(update_fields=["embedding", "synced_at"])
+
+        if faqs:
+            faq_embeddings = embed_model.get_text_embedding_batch(
+                [build_faq_document(faq) for faq in faqs]
+            )
+            for faq, embedding in zip(faqs, faq_embeddings, strict=True):
+                faq.embedding = embedding
+                faq.save(update_fields=["embedding", "updated_at"])
 
         # Update synced_at timestamp
         store.last_synced_at = timezone.now()
@@ -68,8 +80,8 @@ def ingest_catalog(store_id: UUID):
         )
         return {
             "status": "completed",
-            "products": products.count(),
-            "faqs": faqs.count(),
+            "products": len(products),
+            "faqs": len(faqs),
         }
 
     except Store.DoesNotExist:

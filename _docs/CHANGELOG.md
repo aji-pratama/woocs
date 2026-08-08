@@ -1,5 +1,12 @@
 # WooCS.ai — Changelog
 
+## AI Provider and RAG Service Architecture
+> Completed: 2026-08-08
+
+- [x] `chat/services/` — implement lean LlamaIndex-based RAG with pgvector retrieval and configurable chat generation.
+- [x] `chat/services/order_service.py` — isolate and test the WooCommerce REST API integration.
+- [x] `store/tasks.py` — implement configurable catalog embeddings for products, variations, and FAQs.
+
 ## Scaffolding Status
 > Completed: 2026-06-26
 

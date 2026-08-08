@@ -71,9 +71,18 @@ _docs/
 - Widget JS bundle is built via `make wp-build` and served from `plugin/assets/woocs-widget.js`
 
 ### External Services
-- **Anthropic API (Claude Haiku)**: used for both embeddings and chat generation
-- **LlamaIndex**: query engine layer + pgvector store integration
+- **LlamaIndex**: the single LLM and embedding interface
+- **Anthropic, OpenAI, or Gemini**: configurable chat generation
+- **Voyage, OpenAI, or Gemini**: configurable embeddings
+- **Django ORM + pgvector**: tenant-scoped retrieval and confidence scoring
 - **SMTP (Gmail)**: escalation email delivery
+
+### AI Architecture
+- Keep AI code lean: business services call only LlamaIndex interfaces.
+- Select models through `AI_MODELS`; never branch on providers in business logic.
+- Provider SDK details must not leak into `chat` or `store`.
+- Keep retrieval, tenant isolation, confidence, and escalation explicit in Django.
+- Do not add agent workflows, tools, or extra RAG abstractions until a product requirement needs them.
 
 ---
 

@@ -29,7 +29,7 @@ class TestEscalationEmailTask:
 
         mock_send = mocker.patch("chat.tasks.send_mail")
 
-        result = send_escalation_email(str(session.id))
+        result = send_escalation_email.func(str(session.id))
 
         assert result["status"] == "sent"
         assert result["recipient"] == "merchant@test.com"
@@ -43,10 +43,10 @@ class TestEscalationEmailTask:
         )
         session = ChatSession.objects.create(store=store, session_id=uuid.uuid4())
 
-        result = send_escalation_email(str(session.id))
+        result = send_escalation_email.func(str(session.id))
         assert result["status"] == "skipped"
 
     def test_send_escalation_email_session_not_found(self):
-        result = send_escalation_email(str(uuid.uuid4()))
+        result = send_escalation_email.func(str(uuid.uuid4()))
         assert result["status"] == "error"
         assert result["message"] == "Session not found"

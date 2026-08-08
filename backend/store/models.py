@@ -64,7 +64,7 @@ class Product(models.Model):
     tags = models.JSONField(default=list, help_text="list of tag names")
 
     embedding = VectorField(
-        dimensions=1536,
+        dimensions=1024,
         null=True,
         blank=True,
         help_text="pgvector field — null until embedding pipeline runs",
@@ -100,7 +100,7 @@ class FAQ(models.Model):
     answer = models.TextField()
 
     embedding = VectorField(
-        dimensions=1536,
+        dimensions=1024,
         null=True,
         blank=True,
         help_text="pgvector field — null until embedding pipeline runs",

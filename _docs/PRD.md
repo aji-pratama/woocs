@@ -57,7 +57,7 @@ Two Django apps, all connected through a single API surface:
 
 **Django backend** — two apps: `stores` (tenant management, catalog ingestion, embedding pipeline) and `chat` (sessions, RAG, escalation). Exposed via Django Ninja API. Hosted on VPS with Nginx + Gunicorn.
 
-**External services** — PostgreSQL + pgvector for data, vector storage, and background tasks (`django.tasks` framework), Anthropic API (Claude Haiku) for embeddings and chat generation, LlamaIndex as the RAG query engine layer.
+**External services** — PostgreSQL + pgvector for data, vector storage, and background tasks (`django.tasks` framework). LlamaIndex provides one lean interface over configurable chat providers (Anthropic, OpenAI, or Gemini) and embedding providers (Voyage, OpenAI, or Gemini). Django retains tenant-scoped retrieval and business policies.
 
 **Widget** — a React bundle injected by the WP plugin into the storefront. It is the only customer-facing surface. All widget communication goes to Django Ninja API — no direct WooCommerce calls.
 
@@ -88,12 +88,12 @@ Two Django apps, all connected through a single API surface:
 **stores** — one record per merchant. Responsible for:
 - Tenant identity: holds WooCommerce credentials, API key hash, merchant email, subscription state
 - Catalog ingestion: receives sync payload, persists Product, ProductVariation, and FAQ records
-- Embedding pipeline: Django task that builds text documents from catalog records, calls Haiku embedding API, and saves vectors to pgvector
+- Embedding pipeline: Django task that builds text documents, calls the selected LlamaIndex embedding model, and saves vectors to pgvector
 - Sync status tracking: last_synced_at, per-entity counts, task status
 
 **chat** — handles all widget-facing interactions:
 - Creates and manages ChatSession and ChatMessage records
-- On each incoming message: runs keyword check → embed query → pgvector similarity search via LlamaIndex → build prompt → call Haiku → evaluate confidence → return answer or escalation signal
+- On each incoming message: runs keyword check → embed query through LlamaIndex → tenant-scoped pgvector similarity search → build prompt → call the selected LlamaIndex LLM → evaluate confidence → return answer or escalation signal
 - Dispatches escalation email via async Django task
 
 #### Django Ninja endpoints
@@ -251,7 +251,7 @@ One record per WooCommerce product.
 | stock_quantity | integer | nullable |
 | categories | JSON | list of category names |
 | tags | JSON | list of tag names |
-| embedding | vector(1536) | pgvector field — null until embedding pipeline runs |
+| embedding | vector(1024) | pgvector field — null until embedding pipeline runs |
 | synced_at | datetime | |
 
 ### ProductVariation
@@ -275,7 +275,7 @@ Merchant-authored Q&A pairs. Embedded and indexed alongside products.
 | store | FK → Store | |
 | question | text | |
 | answer | text | |
-| embedding | vector(1536) | pgvector field — null until embedding pipeline runs |
+| embedding | vector(1024) | pgvector field — null until embedding pipeline runs |
 | updated_at | datetime | |
 
 ### ChatSession
@@ -381,8 +381,8 @@ ASSISTANT:
 
 | Error | Behaviour |
 |---|---|
-| Haiku API timeout | Retry up to 3 times with exponential backoff (2s, 4s, 8s). After 3 failures: mark product embedding as null, log error, continue to next record |
-| Haiku API rate limit (429) | Retry after 60s. Max 5 retries. If still failing: pause task, alert via Django Admin log |
+| Embedding provider timeout | Retry up to 3 times with exponential backoff. After final failure: keep embedding null, log error, and retry on the next sync |
+| Embedding provider rate limit (429) | Respect provider retry guidance; after final failure keep records pending and log the failure |
 | pgvector write failure | Retry once. If still failing: mark record as pending_embed, continue. Re-attempted on next sync |
 | WC REST API unreachable during sync | Abort sync task. Store sync status = error. Plugin Sync page shows last error and timestamp |
 
@@ -424,9 +424,10 @@ ASSISTANT:
 | Backend | Django 5.x + Django Ninja | Async-ready, type-safe API schema |
 | Task queue | `django.tasks` framework (Custom Postgres Backend) | Async embedding pipeline |
 | Database | PostgreSQL 15 + pgvector | Single DB for data + embeddings |
-| RAG framework | LlamaIndex | Query engine, node retrieval, metadata filtering |
-| Embeddings | Claude Haiku (Anthropic SDK) | Single vendor for embed + chat |
-| LLM | Claude Haiku (via LlamaIndex Anthropic) | Cost-efficient, sufficient for support RAG |
+| AI framework | LlamaIndex | One interface for Anthropic, OpenAI, Gemini, Voyage, and future providers |
+| RAG orchestration | Lean Django services + ORM | Explicit tenant filtering, prompt construction, confidence, and escalation policies |
+| Default embeddings | Voyage AI `voyage-4-lite` via LlamaIndex | Cost-efficient multilingual retrieval; configurable through settings |
+| Default LLM | Claude Haiku via LlamaIndex | Fast support answers; configurable through settings |
 | Hosting | VPS — Ubuntu + Nginx + Gunicorn | Full control, no platform lock-in |
 | Email | Django SMTP (Gmail) | Zero cost for PoC |
 
@@ -1326,7 +1327,7 @@ graph TD
   subgraph External["External services"]
     PG[("PostgreSQL + pgvector\n+ TaskQueue")]
     Anthropic["Anthropic API\nClaude Haiku"]
-    Llama["LlamaIndex"]
+    Voyage["Voyage AI\nEmbeddings"]
   end
 
   Plugin -->|"POST /api/stores/sync/"| Ninja
@@ -1336,9 +1337,10 @@ graph TD
 
   Stores --> PG
   Chat --> PG
-  Chat --> Llama
-  Llama --> Anthropic
-  Stores --> Anthropic
+  Chat --> PG
+  Chat --> Anthropic
+  Chat --> Voyage
+  Stores --> Voyage
 ```
 
 ---
@@ -1350,7 +1352,7 @@ sequenceDiagram
   actor Customer
   participant Widget
   participant Django as Django (chat app)
-  participant Llama as LlamaIndex
+  participant Voyage as Voyage AI
   participant PG as pgvector
   participant Haiku as Claude Haiku
 
@@ -1366,22 +1368,20 @@ sequenceDiagram
     Django->>Django: keyword check
     alt keyword match
       Django-->>Widget: {escalated: true, reason: keyword_trigger}
-      Django-)Django: send_escalation_email.delay()
+      Django-)Django: send_escalation_email.enqueue()
     else no match
-      Django->>Haiku: embed(query)
-      Haiku-->>Django: query vector
-      Django->>Llama: query(vector, store_id, top_k=5)
-      Llama->>PG: similarity search
-      PG-->>Llama: top-k nodes + scores
-      Llama->>Haiku: prompt + context + history
-      Haiku-->>Llama: generated answer
-      Llama-->>Django: answer + confidence score
+      Django->>Voyage: embed(query)
+      Voyage-->>Django: query vector
+      Django->>PG: similarity search (store_id, top_k=5)
+      PG-->>Django: top-k records + cosine distances
+      Django->>Haiku: prompt + context + history
+      Haiku-->>Django: generated answer
 
       alt confidence >= 0.65
         Django-->>Widget: {answer, confidence, escalated: false}
       else confidence < 0.65
         Django-->>Widget: {escalated: true, reason: low_confidence}
-        Django-)Django: send_escalation_email.delay()
+        Django-)Django: send_escalation_email.enqueue()
       end
     end
   end
@@ -1400,7 +1400,7 @@ sequenceDiagram
   participant WC as WooCommerce REST API
   participant Django as Django (stores app)
   participant Worker as django.tasks runner
-  participant Haiku as Claude Haiku
+  participant Voyage as Voyage AI
   participant PG as pgvector
 
   Note over Merchant,Django: Web-first or plugin-first — converge here
@@ -1418,8 +1418,8 @@ sequenceDiagram
 
   loop for each product and FAQ
     Worker->>Worker: build_document(record)
-    Worker->>Haiku: embed(document_text)
-    Haiku-->>Worker: vector[1536]
+    Worker->>Voyage: embed(document_text)
+    Voyage-->>Worker: vector[1024]
     Worker->>PG: save with embedding
   end
 
@@ -1521,14 +1521,13 @@ flowchart LR
     Plugin["WP Plugin\nbuild payload"]
     StoresApp["stores app\nparse · persist"]
     Worker["django.tasks\nbuild_document()"]
-    HaikuEmbed["Claude Haiku\nembed"]
+    VoyageEmbed["Voyage AI\nembed"]
   end
 
   subgraph ChatPath["Widget chat (real-time)"]
     Customer["Customer"]
     ChatApp["chat app\nembed query"]
-    HaikuQ["Claude Haiku\nembed query"]
-    Llama["LlamaIndex\nquery engine"]
+    VoyageQ["Voyage AI\nembed query"]
     HaikuGen["Claude Haiku\ngenerate"]
     WidgetOut["Widget\nrender"]
   end
@@ -1538,14 +1537,13 @@ flowchart LR
   WC -->|pull| Plugin
   Plugin -->|POST /api/stores/sync/| StoresApp
   StoresApp -->|async| Worker
-  Worker -->|text| HaikuEmbed
-  HaikuEmbed -->|vector| PG
+  Worker -->|text| VoyageEmbed
+  VoyageEmbed -->|vector| PG
 
   Customer -->|message| ChatApp
-  ChatApp -->|query text| HaikuQ
-  HaikuQ -->|query vector| Llama
-  Llama -->|search| PG
-  PG -->|top-k nodes| Llama
-  Llama -->|prompt + context| HaikuGen
+  ChatApp -->|query text| VoyageQ
+  VoyageQ -->|query vector| PG
+  PG -->|top-k records + scores| ChatApp
+  ChatApp -->|prompt + context| HaikuGen
   HaikuGen -->|answer| WidgetOut
 ```

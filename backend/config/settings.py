@@ -152,9 +152,68 @@ TASKS = {
 }
 
 
-# External services
+# AI providers and models
 
 ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
+VOYAGE_API_KEY = config("VOYAGE_API_KEY", default="")
+OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
+GOOGLE_API_KEY = config("GOOGLE_API_KEY", default="")
+
+# Aliases keep business code independent from provider-specific model IDs. Add a
+# model here, then select it with AI_CHAT_MODEL or AI_EMBEDDING_MODEL.
+AI_MODELS = {
+    "chats": {
+        "claude-haiku": {
+            "class": "llama_index.llms.anthropic.Anthropic",
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 512,
+            "api_key_setting": "ANTHROPIC_API_KEY",
+        },
+        "openai-mini": {
+            "class": "llama_index.llms.openai.OpenAI",
+            "model": "gpt-5-mini",
+            "max_tokens": 512,
+            "api_key_setting": "OPENAI_API_KEY",
+        },
+        "gemini-flash": {
+            "class": "llama_index.llms.google_genai.GoogleGenAI",
+            "model": "gemini-2.5-flash",
+            "api_key_setting": "GOOGLE_API_KEY",
+        },
+        "deterministic-chat": {
+            "class": "llama_index.core.llms.MockLLM",
+            "max_tokens": 512,
+        },
+    },
+    "embeddings": {
+        "voyage-catalog": {
+            "class": "llama_index.embeddings.voyageai.VoyageEmbedding",
+            "model_name": "voyage-4-lite",
+            "output_dimension": 1024,
+            "api_key_setting": "VOYAGE_API_KEY",
+            "api_key_parameter": "voyage_api_key",
+        },
+        "openai-catalog": {
+            "class": "llama_index.embeddings.openai.OpenAIEmbedding",
+            "model": "text-embedding-3-small",
+            "dimensions": 1024,
+            "api_key_setting": "OPENAI_API_KEY",
+        },
+        "gemini-catalog": {
+            "class": "llama_index.embeddings.google_genai.GoogleGenAIEmbedding",
+            "model_name": "gemini-embedding-001",
+            "embedding_config": {"output_dimensionality": 1024},
+            "api_key_setting": "GOOGLE_API_KEY",
+        },
+        "deterministic-embedding": {
+            "class": "llama_index.core.embeddings.MockEmbedding",
+            "embed_dim": 1024,
+        },
+    },
+}
+
+AI_CHAT_MODEL = config("AI_CHAT_MODEL", default="deterministic-chat")
+AI_EMBEDDING_MODEL = config("AI_EMBEDDING_MODEL", default="deterministic-embedding")
 
 # Email (PoC: console backend — prints emails to terminal)
 EMAIL_BACKEND = config(

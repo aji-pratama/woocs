@@ -3,8 +3,8 @@ import uuid
 import pytest
 
 from chat.models import ChatMessage, ChatSession
-from chat.services import ChatService, OrderService
-from store.models import Product, Store
+from chat.services import ChatService, OrderService, RagResult
+from store.models import Store
 
 
 @pytest.mark.django_db
@@ -51,9 +51,16 @@ class TestChatService:
         session = ChatSession.objects.get(store=self.store, session_id=self.session_id)
         assert session.messages.count() == 2
 
-    def test_handle_message_normal_with_products(self):
-        # Create a product so the stub returns high confidence
-        Product.objects.create(store=self.store, wc_id=1, name="Test Product")
+    def test_handle_message_normal_with_products(self, mocker):
+        mocker.patch(
+            "chat.services.chat_service.RagService.query",
+            return_value=RagResult(
+                answer="Test Product is available.",
+                confidence=0.9,
+                product_data={"name": "Test Product"},
+                context_used="retrieval",
+            ),
+        )
 
         result = ChatService.handle_message(
             store=self.store,
@@ -67,8 +74,16 @@ class TestChatService:
         assert result["metadata"] is not None
         assert result["metadata"]["name"] == "Test Product"
 
-    def test_handle_message_low_confidence_no_products(self):
-        # No products → stub returns low confidence → escalation
+    def test_handle_message_low_confidence_no_products(self, mocker):
+        mocker.patch(
+            "chat.services.chat_service.RagService.query",
+            return_value=RagResult(
+                answer="No relevant context.",
+                confidence=0.2,
+                product_data=None,
+                context_used="retrieval",
+            ),
+        )
         result = ChatService.handle_message(
             store=self.store,
             session_id=self.session_id,
@@ -78,7 +93,18 @@ class TestChatService:
         assert result["escalation_reason"] == "low_confidence"
         assert result["response_type"] == "escalation"
 
-    def test_handle_message_order_intent(self):
+    def test_handle_message_order_intent(self, mocker):
+        mocker.patch(
+            "chat.services.chat_service.OrderService.get_order_status",
+            return_value={
+                "order_id": "4821",
+                "status": "Processing your order",
+                "items": [],
+                "total": "10.00",
+                "found": True,
+                "error": None,
+            },
+        )
         result = ChatService.handle_message(
             store=self.store,
             session_id=self.session_id,
@@ -89,7 +115,18 @@ class TestChatService:
         assert result["metadata"] is not None
         assert result["metadata"]["order_id"] == "4821"
 
-    def test_handle_message_order_not_found(self):
+    def test_handle_message_order_not_found(self, mocker):
+        mocker.patch(
+            "chat.services.chat_service.OrderService.get_order_status",
+            return_value={
+                "order_id": "99999",
+                "status": None,
+                "items": [],
+                "total": None,
+                "found": False,
+                "error": "Order not found.",
+            },
+        )
         result = ChatService.handle_message(
             store=self.store,
             session_id=self.session_id,
@@ -104,16 +141,30 @@ class TestChatService:
 class TestOrderService:
     def setup_method(self):
         self.store = Store.objects.create(
-            api_key_hash="hash", wc_url="https://test.com"
+            api_key_hash="hash",
+            wc_url="https://test.com",
+            wc_consumer_key="key",
+            wc_consumer_secret="secret",
         )
 
-    def test_order_found(self):
+    def test_order_found(self, mocker):
+        response = mocker.Mock(status_code=200)
+        response.json.return_value = {
+            "status": "processing",
+            "line_items": [{"name": "Hoodie", "quantity": 1}],
+            "total": "34.99",
+        }
+        mocker.patch("chat.services.order_service.requests.get", return_value=response)
         result = OrderService.get_order_status(self.store, "1234")
         assert result["found"] is True
         assert result["order_id"] == "1234"
         assert result["status"] is not None
 
-    def test_order_not_found(self):
+    def test_order_not_found(self, mocker):
+        mocker.patch(
+            "chat.services.order_service.requests.get",
+            return_value=mocker.Mock(status_code=404),
+        )
         result = OrderService.get_order_status(self.store, "99999")
         assert result["found"] is False
         assert result["error"] is not None

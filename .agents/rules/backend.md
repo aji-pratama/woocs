@@ -20,7 +20,7 @@ trigger:
 
 ## 3. Models
 - All models use **UUID primary keys** (`uuid.uuid4`).
-- All models that embed content use **pgvector** `VectorField(dimensions=1536)`.
+- All models that embed content use **pgvector** `VectorField(dimensions=1024)`.
 - Use `django-pgvector` or the `pgvector` package for the vector field.
 - All models scoped to a Store use a `ForeignKey(Store, on_delete=CASCADE)`.
 

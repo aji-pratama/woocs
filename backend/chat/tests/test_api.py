@@ -4,6 +4,7 @@ import pytest
 from ninja.testing import TestClient
 
 from chat.api import router
+from chat.services import RagResult
 from store.models import Product, Store
 from store.services import StoreService
 
@@ -26,7 +27,16 @@ def store_with_products():
 
 @pytest.mark.django_db
 class TestChatAPI:
-    def test_chat_normal_response(self, api_client, store_with_products):
+    def test_chat_normal_response(self, api_client, store_with_products, mocker):
+        mocker.patch(
+            "chat.services.chat_service.RagService.query",
+            return_value=RagResult(
+                answer="The Blue Hoodie is available.",
+                confidence=0.9,
+                product_data={"name": "Blue Hoodie"},
+                context_used="retrieval",
+            ),
+        )
         response = api_client.post(
             "/chat/",
             json={
@@ -42,8 +52,8 @@ class TestChatAPI:
         assert "session_id" in data
 
     def test_chat_keyword_escalation(self, api_client, store_with_products, mocker):
-        # Mock celery task so we don't actually queue
-        mocker.patch("chat.api.send_escalation_email.delay")
+        task = mocker.Mock()
+        mocker.patch("chat.api.send_escalation_email", task)
 
         response = api_client.post(
             "/chat/",
@@ -57,6 +67,7 @@ class TestChatAPI:
         data = response.json()
         assert data["escalated"] is True
         assert data["escalation_reason"] == "keyword_trigger"
+        task.enqueue.assert_called_once()
 
     def test_chat_invalid_store(self, api_client):
         response = api_client.post(
@@ -69,7 +80,18 @@ class TestChatAPI:
         )
         assert response.status_code == 404
 
-    def test_order_status_found(self, api_client, store_with_products):
+    def test_order_status_found(self, api_client, store_with_products, mocker):
+        mocker.patch(
+            "chat.api.OrderService.get_order_status",
+            return_value={
+                "order_id": "1234",
+                "status": "Processing your order",
+                "items": [],
+                "total": "34.99",
+                "found": True,
+                "error": None,
+            },
+        )
         response = api_client.get(
             f"/order-status/?store_id={store_with_products.id}&order_id=1234"
         )
@@ -78,7 +100,18 @@ class TestChatAPI:
         assert data["found"] is True
         assert data["order_id"] == "1234"
 
-    def test_order_status_not_found(self, api_client, store_with_products):
+    def test_order_status_not_found(self, api_client, store_with_products, mocker):
+        mocker.patch(
+            "chat.api.OrderService.get_order_status",
+            return_value={
+                "order_id": "99999",
+                "status": None,
+                "items": [],
+                "total": None,
+                "found": False,
+                "error": "Order not found.",
+            },
+        )
         response = api_client.get(
             f"/order-status/?store_id={store_with_products.id}&order_id=99999"
         )
