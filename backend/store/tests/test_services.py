@@ -24,7 +24,7 @@ class TestStoreService:
         assert store is not None
         assert raw_key is not None
         assert store.wc_url == url
-        assert store.subscription_status == "trial"
+        assert store.subscription.status == "trialing"
 
     def test_update_existing_store(self):
         url = "https://example.com"

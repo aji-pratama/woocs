@@ -3,6 +3,7 @@ import uuid
 import pytest
 from ninja.testing import TestClient
 
+from billing.models import Subscription
 from chat.api import router
 from chat.services import RagResult
 from store.models import Product, Store
@@ -21,6 +22,7 @@ def store_with_products():
         wc_url="https://test.com",
         merchant_email="merchant@test.com",
     )
+    Subscription.start_trial(store)
     Product.objects.create(store=store, wc_id=1, name="Blue Hoodie", price=34.99)
     return store
 
@@ -79,6 +81,25 @@ class TestChatAPI:
             },
         )
         assert response.status_code == 404
+
+    def test_chat_is_denied_when_store_subscription_is_revoked(
+        self, api_client, store_with_products
+    ):
+        subscription = store_with_products.subscription
+        subscription.plan_key = "starter"
+        subscription.status = Subscription.Status.REVOKED
+        subscription.save(update_fields=["plan_key", "status"])
+
+        response = api_client.post(
+            "/chat/",
+            json={
+                "store_id": str(store_with_products.id),
+                "session_id": str(uuid.uuid4()),
+                "message": "Hello",
+            },
+        )
+
+        assert response.status_code == 402
 
     def test_order_status_found(self, api_client, store_with_products, mocker):
         mocker.patch(

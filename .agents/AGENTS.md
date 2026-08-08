@@ -30,6 +30,7 @@ woocs/
 │   ├── config/       # Django settings, URLs
 │   ├── common/       # Shared logic, TaskRecord, custom Postgres task backend
 │   ├── store/        # Store model, registration API, catalog ingest
+│   ├── billing/      # Store-owned subscription and Polar integration
 │   └── chat/         # ChatSession, ChatMessage, RAG pipeline, escalation
 ├── plugin/           # WordPress plugin (PHP)
 │   └── widget/       # React/Vite widget (host process)
@@ -58,11 +59,12 @@ _docs/
 | MySQL | 3306 | `make infra-up` |
 
 ### Django Architecture
-- **3 apps**: `common`, `store`, `chat`
+- **4 apps**: `common`, `store`, `chat`, `billing`
 - **API layer**: Django Ninja — endpoints are prefixed with `/api/stores/` (plugin calls) and `/api/widget/` (widget calls)
 - **Async tasks**: Django 6 Tasks framework + Custom Postgres backend — all heavy work offloaded to `db_worker`
-- **Database**: PostgreSQL 15 + pgvector extension — all models use UUID primary keys
+- **Database**: PostgreSQL 15 + pgvector extension — all domain models use UUID primary keys
 - **Auth model**: Static API key per store (hashed SHA-256 in DB), sent as `X-API-Key` header for `/api/stores/`. `/api/widget/` endpoints are keyless (scoped by `store_id`).
+- **Billing model**: A `Subscription` belongs directly to one `Store` and is reconciled from Polar webhooks. Access is one active/inactive gate. Do not add capabilities, usage ledgers, merchant accounts, or membership before a concrete requirement needs them.
 
 ### WordPress Plugin Architecture
 - Plugin resides in `plugin/` directory

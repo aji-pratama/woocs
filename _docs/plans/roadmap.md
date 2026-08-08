@@ -6,12 +6,11 @@
 
 - Continue the remaining behavioral verification in `_docs/plans/rag.md`.
 
-## Authentication and subscription foundation
+## Subscription foundation
 
 - [x] Define backend, WordPress plugin, and React application boundaries in `_docs/architecture.md`.
-- [ ] Implement a minimal custom user model and store-ownership tests.
-- [ ] Implement merchant session authentication and authorization.
-- [ ] Implement plugin pairing and rotatable installation credentials.
-- [ ] Implement Polar checkout, minimal subscription projection, webhook idempotency, and code-based entitlements.
-- [ ] Add the authenticated merchant React application.
+- [x] Implement Store-owned Polar checkout, subscription projection, webhook idempotency, and one active-subscription gate.
+- [ ] Configure Polar sandbox products and verify checkout/webhook end to end.
+- [ ] Implement API-key rotation when production onboarding requires it.
+- [ ] Define merchant accounts only when a standalone dashboard becomes a concrete requirement.
 - [ ] Harden widget tokens, rate limiting, history access, and order verification.

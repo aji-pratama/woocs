@@ -2,8 +2,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from pgvector.django import CosineDistance
 from llama_index.core.llms import ChatMessage, MessageRole
+from pgvector.django import CosineDistance
 
 from common.services import get_embed_model, get_llm
 from store.models import FAQ, Product, Store

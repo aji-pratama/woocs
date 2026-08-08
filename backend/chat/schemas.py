@@ -12,6 +12,7 @@ class PageContextIn(BaseModel):
 
 class CustomerInfoIn(BaseModel):
     """Optional customer identification from the pre-chat form."""
+
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -33,7 +34,9 @@ class ChatResponseOut(BaseModel):
     session_id: UUID
     response_type: str = "text"  # text | product_card | order_card | escalation
     metadata: Optional[dict[str, Any]] = None  # structured data for card rendering
-    context_used: Optional[str] = None  # "page_context" | "retrieval" | "order_lookup" | "keyword_trigger"
+    context_used: Optional[str] = (
+        None  # "page_context" | "retrieval" | "order_lookup" | "keyword_trigger"
+    )
 
 
 class ChatMessageOut(BaseModel):
@@ -66,6 +69,7 @@ class OrderStatusResponseOut(BaseModel):
 
 class ChatSessionSummaryOut(BaseModel):
     """One row in the Chat History list."""
+
     session_id: UUID
     customer_name: Optional[str] = None
     customer_email: Optional[str] = None
@@ -85,6 +89,7 @@ class ChatHistoryListOut(BaseModel):
 
 class ChatSessionDetailOut(BaseModel):
     """Full session detail for the Chat History drawer."""
+
     session_id: UUID
     customer_name: Optional[str] = None
     customer_email: Optional[str] = None

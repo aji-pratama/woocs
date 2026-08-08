@@ -1,5 +1,5 @@
-from django.db import migrations, models
 import pgvector.django.vector
+from django.db import migrations, models
 
 
 def clear_existing_embeddings(apps, schema_editor) -> None:

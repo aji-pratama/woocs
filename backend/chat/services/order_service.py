@@ -23,7 +23,11 @@ class OrderService:
 
     @staticmethod
     def get_order_status(store: Store, order_id: str) -> dict[str, object]:
-        if not store.wc_url or not store.wc_consumer_key or not store.wc_consumer_secret:
+        if (
+            not store.wc_url
+            or not store.wc_consumer_key
+            or not store.wc_consumer_secret
+        ):
             return OrderService._error(
                 order_id,
                 "Store configuration is incomplete. I cannot check order status right now.",
@@ -55,7 +59,9 @@ class OrderService:
                     order_id,
                     f"I couldn't find order #{order_id}. Please check your order number.",
                 )
-            logger.error("WooCommerce returned %s for order %s", response.status_code, order_id)
+            logger.error(
+                "WooCommerce returned %s for order %s", response.status_code, order_id
+            )
             return OrderService._error(
                 order_id,
                 "I couldn't fetch your order status at the moment. Please try again later.",

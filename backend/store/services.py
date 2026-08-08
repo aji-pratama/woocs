@@ -3,6 +3,8 @@ import secrets
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
+from django.db import transaction
+
 from .models import FAQ, Product, ProductVariation, Store
 from .schemas import SyncRequestIn
 
@@ -64,14 +66,17 @@ class StoreService:
             raw_key = cls.generate_api_key()
             api_key_hash = cls.hash_api_key(raw_key)
 
-            store = Store.objects.create(
-                api_key_hash=api_key_hash,
-                wc_url=url_str,
-                merchant_email=merchant_email,
-                subscription_status="trial",
-                wc_consumer_key=wc_consumer_key,
-                wc_consumer_secret=wc_consumer_secret,
-            )
+            from billing.models import Subscription
+
+            with transaction.atomic():
+                store = Store.objects.create(
+                    api_key_hash=api_key_hash,
+                    wc_url=url_str,
+                    merchant_email=merchant_email,
+                    wc_consumer_key=wc_consumer_key,
+                    wc_consumer_secret=wc_consumer_secret,
+                )
+                Subscription.start_trial(store)
             return store, raw_key, True
 
 

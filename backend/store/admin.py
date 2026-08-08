@@ -5,8 +5,7 @@ from .models import FAQ, Product, ProductVariation, Store
 
 @admin.register(Store)
 class StoreAdmin(admin.ModelAdmin):
-    list_display = ("id", "wc_url", "subscription_status", "plan", "last_synced_at")
-    list_filter = ("subscription_status", "plan")
+    list_display = ("id", "wc_url", "last_synced_at")
     search_fields = ("id", "wc_url", "merchant_email")
     readonly_fields = ("id", "created_at")
 

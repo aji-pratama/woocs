@@ -23,21 +23,6 @@ class Store(models.Model):
     merchant_email = models.EmailField(
         null=True, blank=True, help_text="Escalation destination, trial reminders"
     )
-    subscription_status = models.CharField(
-        max_length=50,
-        default="trial",
-        help_text="trial / active / cancelled / expired / suspended",
-    )
-    plan = models.CharField(
-        max_length=50, null=True, blank=True, help_text="starter / growth / pro / null"
-    )
-
-    trial_ends_at = models.DateTimeField(null=True, blank=True)
-    billing_cycle_end = models.DateTimeField(null=True, blank=True)
-
-    conversation_count = models.IntegerField(
-        default=0, help_text="Incremented per ChatSession, reset monthly"
-    )
     last_synced_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

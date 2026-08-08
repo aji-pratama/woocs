@@ -1,6 +1,7 @@
 import pytest
 from ninja.testing import TestClient
 
+from billing.models import Subscription
 from store.api import router
 from store.models import Store
 from store.services import StoreService
@@ -70,3 +71,20 @@ class TestStoreAPI:
         data = response.json()
         assert data["products_count"] == 0
         assert data["status"] == "pending"
+
+    def test_sync_is_denied_when_store_subscription_is_revoked(
+        self, api_client, store_and_key
+    ):
+        store, raw_key = store_and_key
+        subscription = store.subscription
+        subscription.plan_key = "starter"
+        subscription.status = Subscription.Status.REVOKED
+        subscription.save(update_fields=["plan_key", "status"])
+
+        response = api_client.post(
+            "/sync/",
+            json={"products": [], "faqs": []},
+            headers={"X-API-Key": raw_key},
+        )
+
+        assert response.status_code == 402

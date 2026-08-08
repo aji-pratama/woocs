@@ -1,9 +1,10 @@
 from ninja import Router
 from ninja.errors import HttpError
 
+from billing.services import store_has_access
 from store.models import Store
-from .models import ChatSession
 
+from .models import ChatSession
 from .schemas import (
     ChatHistoryResponseOut,
     ChatRequestIn,
@@ -26,6 +27,8 @@ def chat(request, payload: ChatRequestIn):
         store = Store.objects.get(id=payload.store_id)
     except Store.DoesNotExist:
         raise HttpError(404, "Store not found.")
+    if not store_has_access(store):
+        raise HttpError(402, "An active subscription is required to use chat.")
 
     result = ChatService.handle_message(
         store=store,
@@ -49,7 +52,9 @@ def chat(request, payload: ChatRequestIn):
             session.customer_phone = info.phone
             changed = True
         if changed:
-            session.save(update_fields=["customer_name", "customer_email", "customer_phone"])
+            session.save(
+                update_fields=["customer_name", "customer_email", "customer_phone"]
+            )
 
     # If escalated, trigger async email
     if result["escalated"]:

@@ -12,7 +12,6 @@ class StoreModelTest(TestCase):
         )
         self.assertIsNotNone(store.id)
         self.assertEqual(store.api_key_hash, "dummy_hash")
-        self.assertEqual(store.subscription_status, "trial")
         self.assertEqual(str(store), f"https://test.com ({store.id})")
 
 

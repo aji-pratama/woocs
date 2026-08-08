@@ -1,9 +1,10 @@
 from ninja import Router
 from ninja.errors import HttpError
 
+from billing.services import store_has_access
+from chat.models import ChatMessage, ChatSession
+from chat.schemas import ChatHistoryListOut, ChatMessageOut, ChatSessionDetailOut
 from config.auth import ApiKeyAuth
-from chat.models import ChatSession, ChatMessage
-from chat.schemas import ChatHistoryListOut, ChatSessionDetailOut, ChatMessageOut
 
 from .schemas import (
     StoreRegisterIn,
@@ -52,6 +53,8 @@ def sync_catalog(request, payload: SyncRequestIn):
     and triggers Celery task for embedding.
     """
     store = request.auth  # Provided by ApiKeyAuth
+    if not store_has_access(store):
+        raise HttpError(402, "An active subscription is required to sync the catalog.")
 
     # 1. Upsert data to Postgres
     products_count, variations_count, faqs_count = SyncService.process_sync_payload(
@@ -61,7 +64,7 @@ def sync_catalog(request, payload: SyncRequestIn):
     # 2. Trigger Django embedding task
     task = ingest_catalog.enqueue(store.id)
 
-    task_id = str(task.id) if hasattr(task, 'id') else str(task)
+    task_id = str(task.id) if hasattr(task, "id") else str(task)
     return 202, {"task_id": task_id, "status": "processing"}
 
 
@@ -71,18 +74,19 @@ def dashboard_stats(request):
     Returns high-level statistics for the plugin dashboard.
     """
     store = request.auth
-    
+
     # Use ChatSession and ChatMessage if available
     chat_sessions_count = store.sessions.count()
     messages_count = 0
     escalations_count = 0
-    
+
     from chat.models import ChatMessage
+
     # Optimization: count all messages across all sessions of this store
     messages_qs = ChatMessage.objects.filter(session__store=store)
     messages_count = messages_qs.count()
     escalations_count = messages_qs.filter(escalated=True).count()
-    
+
     products_count = store.products.count()
 
     return 200, {
@@ -123,7 +127,7 @@ def chat_history_list(request, page: int = 1, page_size: int = 20):
 
     qs = ChatSession.objects.filter(store=store).order_by("-created_at")
     total = qs.count()
-    sessions = qs[offset: offset + page_size]
+    sessions = qs[offset : offset + page_size]
 
     result = []
     for session in sessions:
@@ -137,16 +141,18 @@ def chat_history_list(request, page: int = 1, page_size: int = 20):
         msg_count = ChatMessage.objects.filter(session=session).count()
         escalated = ChatMessage.objects.filter(session=session, escalated=True).exists()
 
-        result.append({
-            "session_id": session.session_id,
-            "customer_name": session.customer_name,
-            "customer_email": session.customer_email,
-            "customer_phone": session.customer_phone,
-            "first_message": (first_msg[:120] if first_msg else None),
-            "message_count": msg_count,
-            "escalated": escalated,
-            "created_at": session.created_at.isoformat(),
-        })
+        result.append(
+            {
+                "session_id": session.session_id,
+                "customer_name": session.customer_name,
+                "customer_email": session.customer_email,
+                "customer_phone": session.customer_phone,
+                "first_message": (first_msg[:120] if first_msg else None),
+                "message_count": msg_count,
+                "escalated": escalated,
+                "created_at": session.created_at.isoformat(),
+            }
+        )
 
     return 200, {
         "sessions": result,
@@ -156,7 +162,11 @@ def chat_history_list(request, page: int = 1, page_size: int = 20):
     }
 
 
-@router.get("/chat-history/{session_id}/", response={200: ChatSessionDetailOut}, auth=ApiKeyAuth())
+@router.get(
+    "/chat-history/{session_id}/",
+    response={200: ChatSessionDetailOut},
+    auth=ApiKeyAuth(),
+)
 def chat_history_detail(request, session_id: str):
     """
     Returns full conversation for a single session.

@@ -6,6 +6,7 @@ from django.utils.module_loading import import_string
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.llms import LLM
 
+
 def get_ai_model_config(kind: str, alias: str) -> dict[str, Any]:
     model_config = getattr(settings, "AI_MODELS", {}).get(kind, {}).get(alias)
     if model_config is None:

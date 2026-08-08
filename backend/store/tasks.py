@@ -73,7 +73,7 @@ def ingest_catalog(store_id: UUID):
 
         # Update synced_at timestamp
         store.last_synced_at = timezone.now()
-        store.save(update_fields=['last_synced_at'])
+        store.save(update_fields=["last_synced_at"])
 
         logger.info(
             f"Successfully completed catalog ingestion for store_id: {store_id}"

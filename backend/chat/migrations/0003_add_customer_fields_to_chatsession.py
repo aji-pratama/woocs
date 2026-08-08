@@ -6,23 +6,38 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('chat', '0002_chatmessage_metadata_chatmessage_response_type'),
+        ("chat", "0002_chatmessage_metadata_chatmessage_response_type"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='chatsession',
-            name='customer_name',
-            field=models.CharField(blank=True, help_text='Collected from pre-chat form', max_length=150, null=True),
+            model_name="chatsession",
+            name="customer_name",
+            field=models.CharField(
+                blank=True,
+                help_text="Collected from pre-chat form",
+                max_length=150,
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='chatsession',
-            name='customer_phone',
-            field=models.CharField(blank=True, help_text='Collected from pre-chat form', max_length=30, null=True),
+            model_name="chatsession",
+            name="customer_phone",
+            field=models.CharField(
+                blank=True,
+                help_text="Collected from pre-chat form",
+                max_length=30,
+                null=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='chatsession',
-            name='customer_email',
-            field=models.EmailField(blank=True, help_text='Collected from pre-chat form', max_length=254, null=True),
+            model_name="chatsession",
+            name="customer_email",
+            field=models.EmailField(
+                blank=True,
+                help_text="Collected from pre-chat form",
+                max_length=254,
+                null=True,
+            ),
         ),
     ]

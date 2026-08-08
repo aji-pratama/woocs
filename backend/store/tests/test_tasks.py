@@ -33,7 +33,9 @@ class TestTasks:
 
     def test_build_faq_document(self):
         store = Store.objects.create(api_key_hash="faq-document-hash")
-        faq = FAQ.objects.create(store=store, question="Can I return it?", answer="Yes.")
+        faq = FAQ.objects.create(
+            store=store, question="Can I return it?", answer="Yes."
+        )
 
         assert build_faq_document(faq) == "Question: Can I return it?\nAnswer: Yes."
 
@@ -49,9 +51,7 @@ class TestTasks:
             [[0.1] * 1024],
             [[0.2] * 1024],
         ]
-        mocker.patch(
-            "store.tasks.get_embed_model", return_value=embed_model
-        )
+        mocker.patch("store.tasks.get_embed_model", return_value=embed_model)
 
         assert store.last_synced_at is None
 

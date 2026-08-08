@@ -18,7 +18,9 @@ class ChatService:
 
     @staticmethod
     def get_or_create_session(store: Store, session_id: UUID) -> ChatSession:
-        session, _ = ChatSession.objects.get_or_create(store=store, session_id=session_id)
+        session, _ = ChatSession.objects.get_or_create(
+            store=store, session_id=session_id
+        )
         return session
 
     @staticmethod
@@ -112,7 +114,11 @@ class ChatService:
     ) -> dict[str, Any]:
         result = OrderService.get_order_status(store, order_id)
         found = bool(result["found"])
-        answer = f"Here's the status for order #{order_id}." if found else str(result["error"])
+        answer = (
+            f"Here's the status for order #{order_id}."
+            if found
+            else str(result["error"])
+        )
         metadata = dict(result) if found else {}
         metadata.update(
             {

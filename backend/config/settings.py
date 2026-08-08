@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import json
 from pathlib import Path
 
 from decouple import config
@@ -47,6 +48,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "billing",
     "store",
     "chat",
     "common",
@@ -206,6 +208,13 @@ AI_MODELS = {
 
 AI_CHAT_MODEL = config("AI_CHAT_MODEL", default="deterministic-chat")
 AI_EMBEDDING_MODEL = config("AI_EMBEDDING_MODEL", default="deterministic-embedding")
+
+# Polar billing
+POLAR_ACCESS_TOKEN = config("POLAR_ACCESS_TOKEN", default="")
+POLAR_WEBHOOK_SECRET = config("POLAR_WEBHOOK_SECRET", default="")
+POLAR_API_URL = config("POLAR_API_URL", default="https://api.polar.sh/v1")
+POLAR_SUCCESS_URL = config("POLAR_SUCCESS_URL", default="")
+POLAR_PRODUCTS = config("POLAR_PRODUCTS", default="{}", cast=json.loads)
 
 # Email (PoC: console backend — prints emails to terminal)
 EMAIL_BACKEND = config(

@@ -10,26 +10,26 @@ This document describes system boundaries and ownership. Product behavior remain
 
 ## 1. Architectural principles
 
-1. **Django is the source of truth.** Identity, store ownership, subscriptions, entitlements, catalog data, and conversations are authoritative in PostgreSQL.
-2. **Store is a resource, not a user.** A WooCommerce store must not remain the authentication or billing identity.
-3. **Authentication and authorization are separate.** Authentication establishes the principal; authorization checks store ownership and subscription entitlement.
+1. **Django is the source of truth.** Stores, subscriptions, catalog data, and conversations are authoritative in PostgreSQL.
+2. **Store is the current billing boundary.** Each connected WooCommerce store has one subscription until account requirements are implemented.
+3. **Authentication is intentionally deferred.** Billing uses the existing store API key; do not introduce merchant users before the product needs them.
 4. **The WordPress plugin is a trusted machine client.** It uses a rotatable installation credential and never receives a merchant browser session.
 5. **The storefront widget is an untrusted public client.** It never contains an API key, billing secret, or WooCommerce credential.
-6. **Subscription checks are centralized.** Feature code asks for an entitlement; it does not branch on provider product IDs or plan names.
+6. **Subscription checks are centralized.** Feature code asks whether the store has access; it does not branch on provider product IDs or plan names.
 7. **External providers stay behind adapters.** LlamaIndex abstracts AI providers; `PolarClient` isolates the Polar API.
 8. **Prefer explicit, lean modules.** Add an application or abstraction only when it owns a distinct domain boundary.
 
 ### Mental model: Django first, custom only at domain boundaries
 
-Use this decision order for authentication and subscriptions:
+Use this decision order for subscriptions:
 
-1. **Use Django built-ins first:** `AbstractUser`, password hashing and validators, session middleware, CSRF, permissions, admin, and email utilities.
-2. **Add only the domain model Django cannot provide:** a local Polar `Subscription` projection linked directly to the user.
-3. **Keep policy in plain services:** authorization and plan limits should be small functions/services, not signals, middleware chains, or a generic policy engine.
+1. **Reuse the current store identity:** plugin requests authenticate with the hashed store API key.
+2. **Add only the domain model Django cannot provide:** a local Polar `Subscription` projection linked directly to `Store`.
+3. **Keep policy small:** use `Subscription.is_active` and one `store_has_access` function until real plan limits exist.
 4. **Keep external state outside core models:** Polar IDs and webhook payloads belong in `billing`; WooCommerce credentials belong in `store`.
-5. **Do not add infrastructure speculatively:** no JWT, OAuth server, entitlement table, seat model, usage ledger, or SSO until a concrete requirement needs it.
+5. **Do not add infrastructure speculatively:** no user model, JWT, OAuth server, organization, membership, entitlement table, seat model, usage ledger, or SSO until a concrete requirement needs it.
 
-The initial custom user should subclass `AbstractUser`, set email as the unique login identifier, and otherwise retain Django behavior. Merchant browser authentication uses Django sessions, not JWT. A user owns one or more stores and has at most one current WooCS subscription. `Organization` and `Membership` are intentionally deferred until shared ownership or team roles become a real requirement.
+The current mental model is `Store → Subscription`. Polar checkout uses the store UUID as `external_customer_id`, and webhook reconciliation updates that store's subscription. Merchant accounts are a separate future decision.
 
 ---
 
@@ -38,14 +38,12 @@ The initial custom user should subclass `AbstractUser`, set email as the unique 
 ```mermaid
 flowchart LR
     Merchant["Merchant"] --> WPAdmin["WordPress Admin"]
-    Merchant --> WebApp["Merchant React App (future)"]
     Customer["Store customer"] --> Storefront["WooCommerce storefront"]
 
     WPAdmin --> Plugin["WooCS WordPress plugin"]
     Storefront --> Widget["React support widget"]
 
     Plugin -->|"installation credential"| API["Django Ninja API"]
-    WebApp -->|"user session"| API
     Widget -->|"public widget token"| API
 
     API --> DB["PostgreSQL + pgvector"]
@@ -77,14 +75,13 @@ The merchant React app does not exist yet. WordPress admin remains the merchant 
 
 ## 3. Backend boundaries
 
-The current backend contains `common`, `store`, and `chat`. Authentication and billing should become separate Django apps when implemented rather than expanding `store` into a catch-all.
+The backend contains `common`, `billing`, `store`, and `chat`. Billing remains a separate Django app rather than expanding `store` into a catch-all.
 
 ```text
 backend/
 ├── config/       # settings, URL composition, deployment configuration
 ├── common/       # shared infrastructure, task backend, small cross-cutting utilities
-├── accounts/     # future: custom user and browser auth
-├── billing/      # future: Polar subscription projection and webhooks
+├── billing/      # Polar subscription projection and webhooks
 ├── store/        # WooCommerce store connections, credentials, catalog, sync
 └── chat/         # sessions, messages, RAG, order lookup, escalation
 ```
@@ -93,17 +90,14 @@ backend/
 
 ```mermaid
 flowchart TD
-    API["Django Ninja routers"] --> Accounts["accounts services"]
-    API --> Billing["billing services"]
+    API["Django Ninja routers"] --> Billing["billing services"]
     API --> Store["store services"]
     API --> Chat["chat services"]
 
     Chat --> Store
     Chat --> Billing
     Store --> Billing
-    Billing --> Accounts
-
-    Accounts --> Common
+    Billing --> Store
     Billing --> Common
     Store --> Common
     Chat --> Common
@@ -111,8 +105,7 @@ flowchart TD
 
 Rules:
 
-- `accounts` must not depend on `store`, `chat`, or provider-specific billing code.
-- `billing` may reference a user but must not own user authentication.
+- `billing` references `Store` as the current subscription boundary.
 - `store` owns WooCommerce integration and catalog state.
 - `chat` may read store and entitlement state but must not mutate subscriptions.
 - API routers validate transport input and call services; they do not contain billing or authentication policy.
@@ -132,45 +125,28 @@ Rules:
 - plan and subscription state;
 - usage count.
 
-This is acceptable for the PoC but is not the target model.
+The billing implementation moves subscription state into a dedicated projection while retaining legacy Store fields temporarily for compatibility.
 
 ### Target ownership model
 
 ```mermaid
 erDiagram
-    User ||--o{ StoreConnection : owns
-    User ||--o| Subscription : subscribes
-    StoreConnection ||--o{ PluginInstallation : authorizes
-    StoreConnection ||--o{ Product : contains
-    StoreConnection ||--o{ FAQ : contains
-    StoreConnection ||--o{ ChatSession : receives
+    Store ||--o| Subscription : subscribes
+    Store ||--o{ Product : contains
+    Store ||--o{ FAQ : contains
+    Store ||--o{ ChatSession : receives
     ChatSession ||--o{ ChatMessage : contains
 
-    User {
+    Store {
         UUID id PK
-        string email UK
-        string password_hash
-        boolean is_active
-        datetime created_at
-    }
-    StoreConnection {
-        UUID id PK
-        UUID user_id FK
         URL wc_url
+        string api_key_hash
         encrypted wc_credentials
         datetime last_synced_at
     }
-    PluginInstallation {
-        UUID id PK
-        UUID store_id FK
-        string key_prefix
-        string secret_hash
-        datetime last_used_at
-        datetime revoked_at
-    }
     Subscription {
         UUID id PK
-        UUID user_id FK
+        UUID store_id FK
         string polar_customer_id
         string polar_subscription_id
         string polar_product_id
@@ -190,59 +166,30 @@ erDiagram
 
 | Model | Owns | Must not own |
 |---|---|---|
-| `User` | Login identity and ownership boundary | Store credentials, Polar event payloads |
-| `StoreConnection` | WooCommerce connection and catalog scope | Human identity, subscription |
-| `PluginInstallation` | Rotatable machine credential | Merchant browser login |
-| `Subscription` | Minimal normalized Polar subscription state | Feature checks scattered through business code |
-| Plan catalog in code/settings | Allowed features and limits | Provider webhook payloads |
+| `Store` | WooCommerce connection, plugin identity, and current billing boundary | Polar event payloads |
+| `Subscription` | Minimal normalized Polar subscription state and active-state rule | Feature checks scattered through business code |
 | `PolarWebhookEvent` | Webhook idempotency and processing status | Subscription policy |
 
 Do not create `Entitlement`, `UsagePeriod`, `Invoice`, or `PaymentMethod` models initially. Polar already owns payment records and its Customer Portal exposes invoices and payment methods. Add a local usage model only when WooCS sells a metered limit that cannot be derived cheaply and safely from existing application data.
 
 ### Compatibility migration
 
-Keep the existing `Store` table while auth and billing are introduced:
-
-1. Add the custom `User` model and nullable `Store.user` ownership field.
-2. Add a claim/pairing flow and backfill existing stores to users.
-3. Move plugin secrets into `PluginInstallation`; temporarily accept the legacy store API key.
-4. Move plan fields to the user-owned `Subscription`; add a usage model only if metered limits require it.
-5. Remove legacy fields only after all read paths use the new models.
-
-Use additive migrations and dual-read only where required. Avoid a big-bang migration.
+The billing migration creates a `Subscription` projection from the old Store billing fields before a following Store migration removes those fields. Runtime code has one source of truth and no dual-read fallback.
 
 ---
 
-## 5. Authentication and authorization
+## 5. Current authentication boundary
 
-WooCS has three principal types. They require different credentials.
+WooCS currently has two client types:
 
-| Principal | Surface | Credential | Scope |
-|---|---|---|---|
-| Merchant user | Future React app | Secure HTTP-only session cookie | Owned stores and subscription |
-| Plugin installation | WordPress plugin | Rotatable secret in `X-WooCS-Key` | One store installation |
-| Storefront visitor | React widget | Short-lived signed widget token | Public actions for one store |
+| Client | Credential | Scope |
+|---|---|---|
+| WordPress plugin | `X-API-Key` | One Store, including its subscription endpoints |
+| Storefront widget | Public store/session identifiers | Public widget operations for one Store |
 
-### Merchant web authentication
+Billing checkout, subscription status, and Customer Portal creation are plugin-facing operations authenticated by the existing Store API key. There is no merchant account or browser session API at this stage.
 
-- Use a minimal `AbstractUser` subclass with unique email as `USERNAME_FIELD`, created before production user data exists.
-- Prefer server-managed sessions in secure, HTTP-only, `SameSite=Lax` cookies for the first-party React app.
-- Use CSRF protection on all state-changing browser requests.
-- The authenticated endpoint returns the current user, owned stores, and subscription summary.
-- Store authorization is a direct ownership check. Team roles are deferred.
-- Django Admin remains staff-only and is not the merchant dashboard.
-
-### Plugin authentication
-
-Current behavior uses one static `Store.api_key_hash`. The target is one credential per `PluginInstallation`:
-
-- The raw secret is returned once and stored in `wp_options`.
-- Django stores only a hash plus a non-secret key prefix for lookup.
-- Credentials can be rotated and revoked independently.
-- Every authenticated request resolves directly to one owned store.
-- The plugin must never receive a user session cookie or billing-provider secret.
-
-The existing `X-API-Key` header can remain during migration. New code should converge on one documented header rather than supporting multiple headers indefinitely.
+The raw store API key is returned once, stored in `wp_options`, and represented only by its SHA-256 hash in Django. It must never be injected into widget JavaScript.
 
 ### Widget authentication
 
@@ -263,37 +210,24 @@ Every protected request follows the same sequence:
 
 ```text
 authenticate principal
-→ resolve user and store scope
-→ check ownership/installation permission
-→ check subscription entitlement
+→ resolve store scope
+→ check active subscription
 → execute use case
 → record usage or audit event
 ```
 
 ---
 
-## 6. Polar subscription and entitlement architecture
+## 6. Polar subscription architecture
 
-Polar is the payment and subscription authority. Django stores only enough normalized state to authorize WooCS requests without calling Polar on every request. Business code must not check `store.plan == "pro"`; it asks one small billing service for a capability.
-
-Example capabilities:
-
-```text
-chat.reply
-catalog.sync
-catalog.product_limit
-team.member_limit
-history.retention_days
-ai.monthly_message_limit
-escalation.email
-```
+Polar is the payment and subscription authority. Django stores only enough normalized state to authorize WooCS requests without calling Polar on every request. For now, both chat and catalog sync need the same answer: whether the Store subscription is active.
 
 ### Minimal local models
 
-`Subscription` begins as one row per user:
+`Subscription` is one row per store:
 
 ```text
-user_id
+store_id
 polar_customer_id
 polar_subscription_id
 polar_product_id
@@ -306,45 +240,45 @@ updated_at
 
 `PolarWebhookEvent` stores the unique Polar event ID, event type, processing status, and timestamps. Retaining the full payload is optional and should have a defined retention policy.
 
-The initial plan catalog is a typed Python dictionary in `billing/plans.py`, for example `starter`, `growth`, and `pro` mapped to capabilities and numeric limits. Polar product IDs are configuration that map to these internal plan keys. This keeps provider IDs out of business logic without creating a generic entitlement database prematurely.
+Polar product IDs are configured as a small `plan_key → product_id` mapping for checkout and webhook normalization. Add feature or usage policy only after plans actually differ in product behavior.
 
 ### Core billing services
 
 | Service | Responsibility |
 |---|---|
 | `PolarClient` | Create checkout and customer-portal sessions |
-| `SubscriptionService` | Normalize verified Polar events into the local subscription row |
-| `EntitlementService` | Resolve `plan_key` and status into capabilities and limits |
+| `PolarWebhookService` | Normalize verified Polar events into the local subscription row |
+| `store_has_access` | Return the Store subscription's active state |
 
-Polar IDs and webhook payloads remain inside `billing`. `chat` and `store` consume only normalized entitlement results. Add `UsageService` only when metered limits are introduced.
+Polar IDs and webhook payloads remain inside `billing`. `chat` and `store` consume only the active-state result. Add usage or capability policy only when a paid plan requires it.
 
 ### Checkout and subscription flow
 
 ```mermaid
 sequenceDiagram
-    participant User as Merchant
-    participant App as Merchant React app
+    participant Merchant
+    participant Plugin as WordPress plugin
     participant API as Django
     participant Polar
     participant DB as PostgreSQL
 
-    User->>App: Choose plan
-    App->>API: POST checkout request + CSRF
-    API->>API: Authenticate user
+    Merchant->>Plugin: Choose plan
+    Plugin->>API: POST checkout + Store API key
+    API->>API: Authenticate Store
     API->>Polar: Create checkout for configured product
-    Note over API,Polar: external_customer_id = user UUID
+    Note over API,Polar: external_customer_id = Store UUID
     Polar-->>API: Hosted checkout URL
-    API-->>App: Checkout URL
-    App->>Polar: Complete hosted checkout
+    API-->>Plugin: Checkout URL
+    Plugin->>Polar: Redirect merchant to checkout
     Polar->>API: Signed subscription webhook
     API->>DB: Store event idempotently
     API->>DB: Upsert local subscription projection
-    Polar-->>App: Redirect to success page
-    App->>API: GET current subscription
-    API-->>App: Locally projected status and plan
+    Polar-->>Plugin: Redirect to WordPress success page
+    Plugin->>API: GET current subscription + Store API key
+    API-->>Plugin: Locally projected status and plan
 ```
 
-The redirect is UX only. Access is granted from a verified webhook, never from a browser success URL. Checkout should send the WooCS user UUID as Polar's `external_customer_id` so webhook reconciliation does not depend on email matching.
+The redirect is UX only. Access is granted from a verified webhook, never from a browser success URL. Checkout sends the WooCS Store UUID as Polar's `external_customer_id`.
 
 ### Webhook flow
 
@@ -369,7 +303,7 @@ Requirements:
 - Never trust plan or price values posted by a browser.
 - Treat local subscription state as a projection of verified provider events.
 - Define grace-period behavior for `past_due`, `cancelled`, and webhook delays.
-- Increment usage transactionally and enforce limits server-side.
+- If metered limits are introduced, increment usage transactionally and enforce them server-side.
 
 ### Polar status policy
 
@@ -377,7 +311,7 @@ Initial policy:
 
 | Polar state | WooCS access |
 |---|---|
-| `trialing` / `active` | Plan entitlements enabled |
+| `trialing` / `active` | Access enabled |
 | Active with `cancel_at_period_end` | Enabled until `current_period_end` |
 | `past_due` | Short configurable grace period; show billing warning |
 | `unpaid` / `revoked` / ended `canceled` | Paid entitlements disabled |
@@ -393,8 +327,7 @@ Keep APIs grouped by trust boundary.
 | Prefix | Caller | Authentication | Purpose |
 |---|---|---|---|
 | `/api/widget/` | Storefront React widget | Public token | Chat and verified customer actions |
-| `/api/plugin/` | WordPress plugin | Installation credential | Store sync, settings, plugin status |
-| `/api/app/` | Merchant React app | Session + CSRF | Account, stores, subscription, analytics |
+| `/api/stores/` | WordPress plugin | Store API key | Store sync, subscription, billing portal, status |
 | `/api/webhooks/polar/` | Polar | Standard Webhooks signature | Subscription projection updates |
 | `/admin/` | Internal staff | Django staff session | Operations and support |
 
@@ -443,15 +376,7 @@ The plugin is an integration client, not a second backend.
 
 ### Plugin connection flow
 
-The target onboarding flow is explicit pairing rather than a permanently public registration endpoint:
-
-1. Merchant signs in to WooCS.
-2. Merchant generates a short-lived pairing code for a store they own.
-3. Plugin exchanges the code server-to-server for an installation credential.
-4. Django creates the `StoreConnection` and `PluginInstallation` relationship.
-5. Plugin stores the returned secret once and uses it for subsequent calls.
-
-The existing public `/api/stores/register/` endpoint is PoC behavior and should not become the production ownership mechanism.
+The current plugin registers a Store through `/api/stores/register/`, stores the returned API key once, and uses it for sync and billing calls. A more advanced account/pairing flow is deferred with merchant authentication.
 
 ---
 
@@ -468,11 +393,9 @@ The existing public `/api/stores/register/` endpoint is PoC behavior and should 
 
 ### Merchant app (future)
 
-- First-party authenticated application.
-- Owns account, stores, subscription, and cross-store analytics UI.
-- Calls only `/api/app/` using the secure session cookie and CSRF token.
-- Does not reuse the plugin installation key.
-- May share TypeScript API types and design tokens with the widget, but should not share application state or feature components by default.
+- Not implemented in the current billing phase.
+- Its account and authentication model must be designed separately when required.
+- It must not cause speculative user, organization, or membership models now.
 
 Do not turn the storefront widget into the dashboard application. Their security context, bundle constraints, and user journeys are different.
 
@@ -516,19 +439,17 @@ sequenceDiagram
     API-->>Widget: Typed response
 ```
 
-### Merchant login and billing
+### Plugin billing
 
 ```mermaid
 sequenceDiagram
-    participant App as Merchant React app
+    participant Plugin as WordPress plugin
     participant API as Django API
     participant Billing as Polar
 
-    App->>API: Login + CSRF
-    API-->>App: Secure session cookie
-    App->>API: Create checkout session
-    API->>Billing: Create checkout for user
-    Billing-->>App: Hosted checkout
+    Plugin->>API: Create checkout + Store API key
+    API->>Billing: Create checkout for Store
+    Billing-->>Plugin: Hosted checkout
     Billing->>API: Signed subscription webhook
     API->>API: Update subscription and entitlements
 ```
@@ -537,7 +458,7 @@ sequenceDiagram
 
 ## 11. Security invariants
 
-- All store-scoped ORM queries include a store owned by the authenticated user or resolved from an authenticated plugin installation.
+- All plugin billing queries use the Store resolved from `X-API-Key`, never a caller-supplied store ID.
 - Raw API keys, pairing codes, WooCommerce secrets, and billing secrets are never logged.
 - WooCommerce credentials must be encrypted at rest before production.
 - Production CORS uses an allowlist; `CORS_ALLOW_ALL_ORIGINS` is development-only.
@@ -554,29 +475,25 @@ sequenceDiagram
 All requests and tasks should carry:
 
 - request/correlation ID;
-- user ID when available;
 - store ID when available;
 - principal type, never the raw credential;
 - task or billing-event ID when relevant.
 
 Measure at minimum API latency/error rate, task failures, catalog sync duration, AI latency/provider errors, conversations, entitlement denials, and billing webhook failures.
 
-Audit events are required for login, store pairing, credential rotation/revocation, subscription changes, and staff impersonation if it is ever introduced.
+Audit events are required for subscription changes, webhook failures, and API-key rotation if it is introduced.
 
 ---
 
 ## 13. Implementation order
 
-1. Add `accounts` with a minimal custom user model.
-2. Add merchant session authentication and `/api/app/me`.
-3. Add `Store.user` ownership and a claim/backfill path for existing stores.
-4. Replace public store registration with short-lived plugin pairing.
-5. Add minimal Polar subscription projection and idempotent webhook ingestion.
-6. Add centralized code-based plan entitlements; add usage periods only when required.
-7. Enforce entitlements in catalog sync and chat entry points.
-8. Add the merchant React app only after the authenticated API boundary is stable.
-9. Add short-lived widget tokens, rate limiting, and verified order lookup.
-10. Remove legacy Store identity, plan, and usage fields after migration.
+1. Add the Store-owned Polar subscription projection and idempotent webhook ingestion.
+2. Add plugin-authenticated checkout, subscription status, and Customer Portal endpoints.
+3. Add centralized code-based plan entitlements.
+4. Enforce entitlements in catalog sync and chat entry points.
+5. Configure Polar sandbox products and verify the end-to-end webhook flow.
+6. Remove legacy Store plan/status fields after migration compatibility is no longer needed.
+7. Add short-lived widget tokens, rate limiting, and verified order lookup separately.
 
 Each phase must begin with tests for store isolation, authorization, idempotency, and denied access. Auth and billing are not complete until negative-path tests pass.
 
@@ -587,9 +504,7 @@ Each phase must begin with tests for store isolation, authorization, idempotency
 These choices should be recorded when implementation begins:
 
 - Polar product IDs, currencies, prices, and trial configuration;
-- email/password versus passwordless merchant login;
-- session deployment topology and CSRF origin policy;
-- exact plugin pairing UX;
+- merchant account and authentication requirements;
 - widget-token issuer and lifetime;
 - customer verification method for order lookup;
 - retention policy by plan;
@@ -597,6 +512,6 @@ These choices should be recorded when implementation begins:
 
 They are intentionally not hardcoded in the architecture before product and deployment requirements are confirmed.
 
-### Deferred multi-user accounts
+### Deferred merchant accounts
 
-Do not add `Organization` or `Membership` in the initial implementation. If WooCS later needs team members, shared store ownership, agency accounts, or one invoice shared by unrelated users, introduce an account/organization boundary through a separate architecture decision and migrate `Store.user` plus `Subscription.user` to that account. The current user-owned model deliberately optimizes for one merchant account with one or more stores.
+Do not add `User`, `Organization`, or `Membership` ownership to WooCS in the billing phase. If a standalone merchant dashboard, multiple stores per billing account, or team access becomes a real requirement, define that identity boundary in a separate architecture decision and migrate Store-owned subscriptions deliberately.
