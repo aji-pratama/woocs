@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, Clock, Maximize, MessageCircle, Minimize, Plus, X } from "lucide-react";
 
 type ResponseType = "text" | "product_card" | "order_card" | "escalation";
 
@@ -41,8 +42,51 @@ interface Message {
   latency?: number;
 }
 
+type PrechatField = { key: string; label: string; type: string; required: boolean };
+type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string };
+type HistoryEntry = { sessionId: string; title: string; updatedAt: string };
+
 const STORAGE_KEY = "woocs_chat_state_v1";
+const HISTORY_KEY = "woocs_chat_history_v1";
 const QUICK_REPLIES = ["Check my order", "Returns & refunds", "Browse products"];
+
+function readHistory(): HistoryEntry[] {
+  try {
+    return JSON.parse(window.localStorage.getItem(HISTORY_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(entries: HistoryEntry[]) {
+  try {
+    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, 20)));
+  } catch {
+    /* Storage can be unavailable in private browsing. */
+  }
+}
+
+function mapMessages(messages: any[]): Message[] {
+  return messages.map((message) => ({
+    id: message.id,
+    role: message.role === "assistant" ? "bot" : message.role,
+    text: message.content,
+    response_type: message.response_type,
+    metadata: message.metadata,
+    error: message.error,
+    confidence: message.metadata?.confidence,
+    context_used: message.metadata?.context_used,
+  }));
+}
+
+async function fetchConversation(config: Config, sessionId: string) {
+  const baseUrl = config.api_url.replace(/\/$/, "");
+  const params = new URLSearchParams({ store_id: config.store_id, session_id: sessionId });
+  const response = await fetch(`${baseUrl}/api/widget/history/?${params}`);
+  if (!response.ok) return [];
+  const data = await response.json();
+  return mapMessages(data.messages || []);
+}
 
 declare global {
   interface Window {
@@ -83,9 +127,6 @@ declare global {
 
 
 export default function App() {
-  type PrechatField = { key: string; label: string; type: string; required: boolean };
-  type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string };
-
   const [config, setConfig] = useState<Config | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -94,6 +135,10 @@ export default function App() {
   const [slowHint, setSlowHint] = useState<"none" | "slow" | "timeout">("none");
   const [lastUserMessage, setLastUserMessage] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   
   // Pre-chat state
   const [prechatDone, setPrechatDone] = useState(false);
@@ -108,7 +153,7 @@ export default function App() {
       console.warn("WooCS widget requires window.WooCS.store_id to be set.");
     }
     const pageContext = wc?.page_context ?? { type: "general" };
-    const primaryColor = wc?.primary_color || "#4f46e5"; // Default to indigo-600
+    const primaryColor = wc?.primary_color || "#2271b1";
     const cfg: Config = {
       store_id: wc?.store_id ?? "",
       api_url: wc?.api_url ?? "http://localhost:8000",
@@ -145,27 +190,15 @@ export default function App() {
     const currentSessionId = savedSessionId || uuid();
     setSessionId(currentSessionId);
     setIsOpen(savedIsOpen);
+    setHistory(readHistory());
 
     // Fetch history from DB
     async function fetchHistory() {
       try {
-        const res = await fetch(`${cfg.api_url.replace(/\/$/, "")}/api/widget/history/?store_id=${cfg.store_id}&session_id=${currentSessionId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.messages && data.messages.length > 0) {
-            const mapped = data.messages.map((m: any) => ({
-              id: m.id,
-              role: m.role === "assistant" ? "bot" : m.role,
-              text: m.content,
-              response_type: m.response_type,
-              metadata: m.metadata,
-              error: m.error,
-              confidence: m.metadata?.confidence ?? null,
-              context_used: m.metadata?.context_used ?? null,
-            }));
-            setMessages(mapped);
-            return;
-          }
+        const storedMessages = await fetchConversation(cfg, currentSessionId);
+        if (storedMessages.length > 0) {
+          setMessages(storedMessages);
+          return;
         }
       } catch (err) {
         console.error("Failed to load chat history", err);
@@ -242,9 +275,16 @@ export default function App() {
 
   async function sendMessage(text: string) {
     if (!config || !text.trim() || loading) return;
-    const userMsg: Message = { id: uuid(), role: "user", text: text.trim() };
+    const cleanText = text.trim();
+    const userMsg: Message = { id: uuid(), role: "user", text: cleanText };
+    const nextHistory = [
+      { sessionId, title: messages.some((message) => message.role === "user") ? (history.find((item) => item.sessionId === sessionId)?.title || cleanText) : cleanText, updatedAt: new Date().toISOString() },
+      ...history.filter((item) => item.sessionId !== sessionId),
+    ].slice(0, 20);
+    setHistory(nextHistory);
+    saveHistory(nextHistory);
     setMessages((m) => [...m, userMsg]);
-    setLastUserMessage(text.trim());
+    setLastUserMessage(cleanText);
     setInput("");
     setLoading(true);
     setSlowHint("none");
@@ -262,7 +302,7 @@ export default function App() {
         body: JSON.stringify({
           store_id: config.store_id,
           session_id: sessionId,
-          message: text.trim(),
+          message: cleanText,
           page_context: config.page_context.type === "product"
             ? { type: "product", product_id: config.page_context.product_id, product_name: config.page_context.product_name }
             : { type: "general" },
@@ -323,9 +363,10 @@ export default function App() {
   function resetChat() {
     const newId = uuid();
     setSessionId(newId);
+    setShowHistory(false);
     const greeting = config?.page_context?.type === "product"
-      ? (config.page_context.product_name ? `Hi! Looking at the ${config.page_context.product_name}? Ask me about sizes, stock, or anything else!` : `Hi! Ask me anything about this product.`)
-      : `Hi! I'm your ${config?.store_name ?? "Store assistant"}. How can I help today?`;
+      ? (config.page_context.product_name ? `Looking at ${config.page_context.product_name}? I can help with sizing, availability, or your order.` : `I can help with details, availability, or anything else about this product.`)
+      : `Hi — I’m the ${config?.store_name ?? "store"} assistant. What can I help you find?`;
 
     setMessages([
       {
@@ -337,56 +378,82 @@ export default function App() {
     ]);
   }
 
+  async function openConversation(entry: HistoryEntry) {
+    if (!config) return;
+    setHistoryLoading(true);
+    try {
+      const storedMessages = await fetchConversation(config, entry.sessionId);
+      setSessionId(entry.sessionId);
+      setMessages(storedMessages);
+      setShowHistory(false);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   if (!config) return null;
 
   // Render as a floating widget
   return (
     <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end">
       {isOpen && (
-        <div className="mb-4 flex h-[600px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-slate-50 to-white shadow-2xl ring-1 ring-slate-200">
-          {/* Header */}
-          <header className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur-sm sm:px-6">
-            <div className="flex items-center gap-3">
-              <div 
-                style={{ backgroundColor: config.primary_color }}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-white shadow-sm"
-              >
-                <BotIcon />
-              </div>
-              <div>
-                <h1 className="text-sm font-semibold text-slate-900 sm:text-base">{config.store_name}</h1>
-                <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Online
-                </p>
+        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-[#c3c4c7] bg-white font-sans text-[#1d2327] transition-[width,height] duration-150 ${
+          isMaximized
+            ? "h-[760px] w-[720px] rounded"
+            : "h-[620px] w-[400px] rounded"
+        }`}>
+          <header className="flex min-h-14 items-center justify-between border-b border-[#dcdcde] bg-[#f6f7f7] px-3">
+            <div className="flex min-w-0 items-center gap-2">
+              {showHistory && (
+                <IconButton label="Back to chat" onClick={() => setShowHistory(false)}>
+                  <ArrowLeft size={16} />
+                </IconButton>
+              )}
+              <div className="min-w-0">
+                <h1 className="truncate text-[13px] font-semibold text-[#1d2327]">
+                  {showHistory ? "Conversations" : config.store_name}
+                </h1>
+                {!showHistory && (
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#646970]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#00a32a]" aria-hidden="true" />
+                    Available now
+                  </p>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={resetChat}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="New chat"
+            <div className="flex items-center gap-0.5">
+              {!showHistory && (
+                <IconButton label="Conversation history" onClick={() => setShowHistory(true)}>
+                  <Clock size={16} />
+                </IconButton>
+              )}
+              <IconButton label="New conversation" onClick={resetChat}>
+                <Plus size={18} />
+              </IconButton>
+              <IconButton
+                onClick={() => setIsMaximized((value) => !value)}
+                label={isMaximized ? "Restore chat size" : "Maximize chat"}
               >
-                <RefreshIcon />
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Close"
-              >
-                <CloseIcon />
-              </button>
+                {isMaximized
+                  ? <Minimize size={16} />
+                  : <Maximize size={16} />}
+              </IconButton>
+              <IconButton label="Close" onClick={() => setIsOpen(false)}>
+                <X size={17} />
+              </IconButton>
             </div>
           </header>
 
-          {config.prechat_enabled && !prechatDone ? (
+          {showHistory ? (
+            <HistoryList entries={history} loading={historyLoading} onSelect={openConversation} onNew={resetChat} />
+          ) : config.prechat_enabled && !prechatDone ? (
             <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8 text-center">
               <div className="mb-6">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50" style={{ color: config.primary_color }}>
-                  <ChatIcon />
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded border border-[#c3c4c7] bg-[#f6f7f7]" style={{ color: config.primary_color }}>
+                  <MessageCircle size={26} strokeWidth={1.6} />
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900">Welcome to {config.store_name}</h2>
-                <p className="mt-2 text-sm text-slate-500">Please introduce yourself before we start.</p>
+                <h2 className="text-lg font-semibold text-[#1d2327]">Welcome to {config.store_name}</h2>
+                <p className="mt-2 text-sm text-[#646970]">Please introduce yourself before we start.</p>
               </div>
               <form 
                 onSubmit={(e) => {
@@ -405,21 +472,21 @@ export default function App() {
               >
                 {config.prechat_fields.map(f => (
                   <div key={f.key}>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-700">
+                    <label className="mb-1.5 block text-xs font-medium text-[#1d2327]">
                       {f.label} {f.required && <span className="text-red-500">*</span>}
                     </label>
                     <input
                       type={f.type}
                       name={f.key}
                       required={f.required}
-                      className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                      className="block w-full rounded-sm border border-[#8c8f94] px-3 py-2 text-sm text-[#1d2327] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
                     />
                   </div>
                 ))}
                 <button
                   type="submit"
                   style={{ backgroundColor: config.primary_color }}
-                  className="mt-4 w-full rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
+                className="mt-4 w-full rounded-sm px-4 py-2.5 text-sm font-medium text-white hover:brightness-95"
                 >
                   Start Chatting
                 </button>
@@ -428,23 +495,22 @@ export default function App() {
           ) : (
             <>
               {/* Thread */}
-              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5">
-                <div className="flex flex-col gap-4">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto bg-white px-4 py-5">
+                <div className="flex flex-col gap-5">
                   {messages.map((m) => (
                     <MessageRow key={m.id} message={m} onEscalate={handleEscalate} />
                   ))}
 
                   {loading && (
-                    <div className="flex items-end gap-2">
-                      <Avatar />
-                      <div className="rounded-2xl rounded-bl-sm bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200">
+                    <div className="border-l-2 border-[#dcdcde] pl-3">
+                      <div className="py-1">
                         {slowHint === "timeout" ? (
                           <div className="flex flex-col gap-2">
                             <span className="text-sm text-slate-600">Taking too long — try again.</span>
                             <button
                               onClick={() => sendMessage(lastUserMessage)}
                               style={{ backgroundColor: config.primary_color }}
-                              className="self-start rounded-md px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:opacity-90"
+                              className="self-start rounded-md px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
                             >
                               Retry
                             </button>
@@ -459,14 +525,15 @@ export default function App() {
                   )}
 
                   {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && (
-                    <div className="ml-10 flex flex-wrap gap-2">
+                    <div className="divide-y divide-[#dcdcde] border-y border-[#dcdcde]">
                       {(config?.page_context?.type === "product" ? ["Is this in stock?", "What sizes are available?", "Check my order"] : QUICK_REPLIES).map((q) => (
                         <button
                           key={q}
                           onClick={() => sendMessage(q)}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                          className="group flex w-full items-center justify-between py-2.5 text-left text-[12px] font-medium text-[#2271b1] hover:text-[#135e96]"
                         >
-                          {q}
+                          <span>{q}</span>
+                          <ArrowRight className="text-[#8c8f94] group-hover:text-[#2271b1]" size={14} strokeWidth={1.7} aria-hidden="true" />
                         </button>
                       ))}
                     </div>
@@ -475,27 +542,27 @@ export default function App() {
               </div>
 
               {/* Input */}
-              <div className="border-t border-slate-200 bg-white p-3">
-                <form onSubmit={handleSubmit} className="flex items-center gap-2">
+              <div className="border-t border-[#dcdcde] bg-[#f6f7f7] px-3 pb-2.5 pt-3">
+                <form onSubmit={handleSubmit} className="flex items-center gap-2 rounded-sm border border-[#8c8f94] bg-white p-1 pl-3 focus-within:border-[#2271b1] focus-within:ring-1 focus-within:ring-[#2271b1]">
                   <input
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     disabled={loading}
                     placeholder="Ask anything..."
-                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+                    className="min-w-0 flex-1 bg-transparent py-1.5 text-[13px] text-[#1d2327] placeholder:text-[#8c8f94] focus:outline-none disabled:opacity-50"
                   />
                   <button
                     type="submit"
                     disabled={loading || !input.trim()}
                     style={{ backgroundColor: config.primary_color }}
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sm text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label="Send"
                   >
-                    <SendIcon />
+                    <ArrowUp size={17} strokeWidth={1.8} />
                   </button>
                 </form>
-                <p className="mt-2 text-center text-[10px] text-slate-400">Powered by WooCS.ai</p>
+                <p className="mt-2 text-center text-[10px] text-[#787c82]">Powered by WooCS.ai</p>
               </div>
             </>
           )}
@@ -507,12 +574,68 @@ export default function App() {
         <button
           onClick={() => setIsOpen(true)}
           style={{ backgroundColor: config.primary_color }}
-          className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg transition-transform hover:scale-110 active:scale-95"
+          className="flex h-12 w-12 items-center justify-center rounded border border-black/10 text-white hover:brightness-95 active:brightness-90"
           aria-label="Open chat"
         >
-          <ChatIcon />
+          <MessageCircle size={22} strokeWidth={1.75} />
         </button>
       )}
+    </div>
+  );
+}
+
+function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="grid h-8 w-8 place-items-center rounded-sm text-[#50575e] hover:bg-[#dcdcde] hover:text-[#1d2327] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2271b1]"
+      aria-label={label}
+      title={label}
+    >
+      <span className="[&>svg]:stroke-[1.55]">{children}</span>
+    </button>
+  );
+}
+
+function HistoryList({ entries, loading, onSelect, onNew }: {
+  entries: HistoryEntry[];
+  loading: boolean;
+  onSelect: (entry: HistoryEntry) => void;
+  onNew: () => void;
+}) {
+  if (entries.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
+        <p className="text-sm font-medium text-[#1d2327]">No conversations yet</p>
+        <p className="mt-1 text-xs leading-5 text-[#646970]">Your recent conversations will appear here.</p>
+        <button onClick={onNew} className="mt-5 text-xs font-semibold text-[#2271b1] underline underline-offset-4 hover:text-[#135e96]">
+          Start a conversation
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-2" aria-busy={loading}>
+      <div className="divide-y divide-[#dcdcde]">
+        {entries.map((entry) => (
+          <button
+            key={entry.sessionId}
+            onClick={() => onSelect(entry)}
+            disabled={loading}
+            className="group flex w-full items-center justify-between gap-5 px-2 py-3.5 text-left hover:bg-[#f6f7f7] disabled:opacity-50"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] font-medium text-[#2271b1] group-hover:text-[#135e96]">{entry.title}</span>
+              <span className="mt-1 block text-[11px] text-[#787c82]">
+                {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(entry.updatedAt))}
+              </span>
+            </span>
+            <ChevronRight className="shrink-0 text-[#8c8f94] group-hover:text-[#2271b1]" size={16} strokeWidth={1.6} />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -522,8 +645,8 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
     return (
       <div className="flex justify-end">
         <div 
-          style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#4f46e5" : "#4f46e5" }}
-          className="max-w-[85%] rounded-2xl rounded-br-sm px-3.5 py-2 text-[13px] leading-relaxed text-white shadow-sm animate-in fade-in slide-in-from-bottom-2"
+          style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+          className="max-w-[78%] rounded px-3 py-2 text-[13px] leading-relaxed text-white animate-in fade-in"
         >
           {message.text}
         </div>
@@ -532,14 +655,14 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
   }
 
   return (
-    <div className="flex items-end gap-2 animate-in fade-in slide-in-from-bottom-2">
-      <Avatar />
-      <div className="flex max-w-[85%] flex-col gap-2">
+    <div className="animate-in fade-in">
+      <div className="flex max-w-[90%] flex-col gap-3">
         <div
-          className={`relative rounded-2xl rounded-bl-sm px-3.5 py-2 text-[13px] leading-relaxed shadow-sm ring-1 ${
+          style={{ borderColor: message.error ? undefined : (typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1") }}
+          className={`relative border-l-2 py-0.5 pl-3 text-[13px] leading-6 ${
             message.error
-              ? "bg-red-50 text-red-700 ring-red-200"
-              : "bg-white text-slate-800 ring-slate-200"
+              ? "border-red-400 text-red-700"
+              : "text-[#2c3338]"
           }`}
         >
           {message.text}
@@ -573,22 +696,22 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
       ? { label: "Out of stock", cls: "bg-red-50 text-red-700 ring-red-200" }
       : { label: "Backorder", cls: "bg-amber-50 text-amber-700 ring-amber-200" };
   return (
-    <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+    <div className="overflow-hidden rounded border border-[#c3c4c7] bg-white">
       {meta.image_url && (
         <img src={meta.image_url} alt={meta.name} className="h-28 w-full object-cover" />
       )}
       <div className="p-3">
-        <div className="text-[13px] font-semibold leading-tight text-slate-900">{meta.name}</div>
+        <div className="text-[13px] font-semibold leading-tight text-[#1d2327]">{meta.name}</div>
         <div className="mt-2 flex items-center justify-between">
-          <span className="font-bold text-slate-900">${meta.price}</span>
+          <span className="font-bold text-[#1d2327]">${meta.price}</span>
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${stock.cls}`}>{stock.label}</span>
         </div>
         <a
           href={meta.wc_url}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#4f46e5" : "#4f46e5" }}
-          className="mt-3 block w-full rounded-lg px-3 py-1.5 text-center text-[11px] font-medium text-white transition hover:opacity-90"
+          style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+          className="mt-3 block w-full rounded-sm px-3 py-1.5 text-center text-[11px] font-medium text-white hover:brightness-95"
         >
           View product
         </a>
@@ -599,7 +722,7 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
 
 function OrderCard({ meta }: { meta: OrderMeta }) {
   return (
-    <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+    <div className="rounded border border-[#c3c4c7] bg-white p-3">
       <div className="text-[13px] font-semibold text-slate-900">Order #{meta.order_id}</div>
       <div className="mt-2.5 space-y-2 text-[11px]">
         <div className="flex justify-between border-b border-slate-100 pb-1.5">
@@ -627,7 +750,7 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
   const [done, setDone] = useState(false);
   if (done) return null;
   return (
-    <div className="rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
       <div className="flex items-start gap-2">
         <span className="text-sm text-amber-600">⚠</span>
         <div className="flex-1">
@@ -658,76 +781,11 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
   );
 }
 
-function Avatar({ color }: { color?: string }) {
-  // Try to use window config if available, fallback to provided or transparent
-  const wc = typeof window !== "undefined" ? window.WooCS : undefined;
-  const bgColor = color || wc?.primary_color || "#2271b1";
-
-  return (
-    <div 
-      style={{ backgroundColor: bgColor }}
-      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-white shadow-sm"
-    >
-      <BotIcon small />
-    </div>
-  );
-}
-
 function TypingDots() {
   return (
-    <div className="flex gap-1 py-1">
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
+    <div className="flex items-center gap-2 py-1 text-[11px] text-slate-500">
+      <span>Thinking</span>
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" />
     </div>
-  );
-}
-
-function BotIcon({ small = false }: { small?: boolean }) {
-  const s = small ? 14 : 18;
-  return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="8" width="18" height="12" rx="3" />
-      <path d="M12 4v4" />
-      <circle cx="9" cy="14" r="1.5" />
-      <circle cx="15" cy="14" r="1.5" />
-    </svg>
-  );
-}
-
-function SendIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 2L11 13" />
-      <path d="M22 2l-7 20-4-9-9-4 20-7z" />
-    </svg>
-  );
-}
-
-function ChatIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 6L6 18" />
-      <path d="M6 6l12 12" />
-    </svg>
-  );
-}
-
-function RefreshIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M23 4v6h-6" />
-      <path d="M1 20v-6h6" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
-      <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
-    </svg>
   );
 }
