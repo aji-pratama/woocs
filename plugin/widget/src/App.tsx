@@ -502,8 +502,8 @@ export default function App() {
                   ))}
 
                   {loading && (
-                    <div className="border-l-2 border-[#dcdcde] pl-3">
-                      <div className="py-1">
+                    <div className="max-w-[90%]">
+                      <div className="rounded border border-[#dcdcde] bg-[#f6f7f7] px-3 py-2.5">
                         {slowHint === "timeout" ? (
                           <div className="flex flex-col gap-2">
                             <span className="text-sm text-slate-600">Taking too long — try again.</span>
@@ -658,11 +658,10 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
     <div className="animate-in fade-in">
       <div className="flex max-w-[90%] flex-col gap-3">
         <div
-          style={{ borderColor: message.error ? undefined : (typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1") }}
-          className={`relative border-l-2 py-0.5 pl-3 text-[13px] leading-6 ${
+          className={`relative rounded border px-3 py-2.5 text-[13px] leading-5 ${
             message.error
-              ? "border-red-400 text-red-700"
-              : "text-[#2c3338]"
+              ? "border-[#d63638] bg-[#fcf0f1] text-[#8a2424]"
+              : "border-[#dcdcde] bg-[#f6f7f7] text-[#2c3338]"
           }`}
         >
           {message.text}
