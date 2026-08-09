@@ -7,3 +7,6 @@
 - [x] Add a next-action onboarding checklist to Overview.
 - [x] Move API-key details out of the primary connection UI.
 - [x] Reduce decorative shadows, hover motion, and card radius.
+- [x] Remove obsolete embedded-view branches and misleading catalog status.
+- [x] Keep developer-only preview controls behind `WP_DEBUG`.
+- [x] Escape conversation customer data before rendering it in the admin table.

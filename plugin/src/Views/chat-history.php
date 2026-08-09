@@ -117,7 +117,8 @@ $is_connected = !empty(get_option('woocs_store_id'));
                     }
 
                     tbody.innerHTML = data.sessions.map(function(s) {
-                        var customer = s.customer_name || s.customer_email || s.customer_phone || '<span style="color:#8c8f94;">Anonymous</span>';
+                        var customerValue = s.customer_name || s.customer_email || s.customer_phone;
+                        var customer = customerValue ? esc(customerValue) : '<span class="woocs-text-muted">Anonymous</span>';
                         var date = s.created_at ? new Date(s.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}) : '—';
                         var escalated = s.escalated
                             ? '<span class="woocs-badge woocs-badge-warning">Escalated</span>'

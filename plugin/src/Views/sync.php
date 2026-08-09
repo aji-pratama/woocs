@@ -4,13 +4,7 @@ if (!defined('ABSPATH')) exit;
 
 $logs = get_option('woocs_sync_logs', []);
 if (!is_array($logs)) $logs = [];
-$is_embedded = !empty($woocs_embedded);
 ?>
-<?php if (!$is_embedded): ?>
-<div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">Catalog</h1>
-    <hr class="wp-header-end">
-<?php endif; ?>
 
     <input type="hidden" id="woocs_sync_nonce" value="<?php echo esc_attr(wp_create_nonce('woocs_sync_nonce')); ?>">
     <input type="hidden" id="woocs_ajax_url" value="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">
@@ -36,15 +30,6 @@ $is_embedded = !empty($woocs_embedded);
                 <div class="woocs-sync-item">
                     <span class="woocs-sync-label">FAQs</span>
                     <span class="woocs-sync-value" id="count-faqs">—</span>
-                </div>
-                <div class="woocs-sync-item">
-                    <span class="woocs-sync-label">Orders API</span>
-                    <div class="woocs-sync-value">
-                        <span class="woocs-badge woocs-badge-success">
-                            <span class="dashicons dashicons-yes-alt" style="font-size:14px;width:14px;height:14px;"></span>
-                            Live
-                        </span>
-                    </div>
                 </div>
             </div>
             <p class="woocs-sync-time">
@@ -98,10 +83,6 @@ $is_embedded = !empty($woocs_embedded);
             </table>
         </div>
     </div>
-<?php if (!$is_embedded): ?>
-</div>
-<?php endif; ?>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var syncBtn = document.getElementById('woocs-sync-now-btn');

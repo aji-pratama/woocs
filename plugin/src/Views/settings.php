@@ -213,7 +213,7 @@ $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
     </form>
 
     <?php elseif ($active_tab === 'billing'): ?>
-        <?php $woocs_embedded = true; require WOOCS_PLUGIN_DIR . 'src/Views/billing.php'; ?>
+        <?php require WOOCS_PLUGIN_DIR . 'src/Views/billing.php'; ?>
 
     <?php elseif ($active_tab === 'advanced'): ?>
     <!-- ===== ADVANCED TAB ===== -->

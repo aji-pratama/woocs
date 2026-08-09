@@ -73,20 +73,16 @@
 
 /* Catalog Sync Metric Cards */
 .woocs-sync-grid {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    gap: 16px !important;
-    margin-bottom: 20px !important;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
 }
 
 .woocs-sync-item {
-    flex: 1 1 0 !important;
-    width: 0 !important;
-    min-width: 150px !important;
     background: #f6f7f7;
     border: 1px solid #e2e4e7;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 16px 20px;
     display: flex;
     flex-direction: column;
@@ -192,34 +188,25 @@
 }
 
 .woocs-plan-grid {
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 20px !important;
-    max-width: 960px !important;
-    margin-bottom: 16px !important;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    max-width: 960px;
+    margin-bottom: 16px;
 }
 
 .woocs-plan-card {
-    position: relative !important;
-    flex: 1 1 0 !important;
-    width: 0 !important;
-    min-width: 200px !important;
-    margin-bottom: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
+    position: relative;
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
     border: 1px solid #c3c4c7;
-    border-radius: 6px;
+    border-radius: 4px;
     background: #fff;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.woocs-plan-card:hover {
-    border-color: #2271b1;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .woocs-plan-card.is-popular {
-    border: 2px solid #2271b1 !important;
+    border: 2px solid #2271b1;
 }
 
 .woocs-popular-badge {
@@ -238,12 +225,12 @@
 }
 
 .woocs-plan-card .woocs-card-body {
-    padding: 24px !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: space-between !important;
-    height: 100% !important;
-    box-sizing: border-box !important;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    box-sizing: border-box;
 }
 
 .woocs-plan-header h3 {
@@ -289,6 +276,15 @@
 
 .woocs-billing-footer-note {
     margin-top: 12px;
+}
+
+.woocs-text-muted { color: #8c8f94; }
+.woocs-text-danger { color: #d63638; }
+.woocs-full-width { width: 100%; }
+.woocs-control-label {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
 }
 
 .woocs-steps {

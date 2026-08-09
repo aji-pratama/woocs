@@ -38,10 +38,11 @@ $products = function_exists('wc_get_products') ? wc_get_products(['limit' => 50,
 
             <button type="button" id="woocs-test-simulate-btn" class="button button-primary" style="width:100%;margin-bottom:16px;">Apply Context</button>
 
-            <hr class="woocs-divider">
-
-            <p style="margin:0 0 8px;font-weight:600;font-size:13px;">Trigger Events</p>
-            <button type="button" id="woocs-test-escalate-btn" class="button" style="width:100%;">Test Escalation</button>
+            <?php if (defined('WP_DEBUG') && WP_DEBUG): ?>
+                <hr class="woocs-divider">
+                <p class="woocs-control-label">Developer tools</p>
+                <button type="button" id="woocs-test-escalate-btn" class="button woocs-full-width">Test escalation</button>
+            <?php endif; ?>
         </div>
 
         <!-- Widget Area -->
@@ -113,13 +114,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    escalateBtn.addEventListener('click', function() {
-        if (window.WooCS_Test && typeof window.WooCS_Test.triggerMessage === 'function') {
-            window.WooCS_Test.triggerMessage("I want a refund");
-        } else {
-            alert('Widget message helper not available yet.');
-        }
-    });
+    if (escalateBtn) {
+        escalateBtn.addEventListener('click', function() {
+            if (window.WooCS_Test && typeof window.WooCS_Test.triggerMessage === 'function') {
+                window.WooCS_Test.triggerMessage("I want a refund");
+            } else {
+                alert('Widget message helper not available yet.');
+            }
+        });
+    }
     
     // Automatically apply saved context if it exists
     if (savedType && window.WooCS) {

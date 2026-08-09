@@ -3,7 +3,6 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
 
 $is_connected = !empty(get_option('woocs_store_id'));
-$is_embedded = !empty($woocs_embedded);
 $subscription = $is_connected ? (new WooCS\ApiClient())->get_subscription() : null;
 $error = get_transient('woocs_billing_error');
 if ($error) delete_transient('woocs_billing_error');
@@ -40,11 +39,6 @@ $period_end = !empty($subscription['current_period_end'])
     ? wp_date(get_option('date_format'), strtotime($subscription['current_period_end']))
     : null;
 ?>
-<?php if (!$is_embedded): ?>
-<div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">Plan &amp; Billing</h1>
-    <hr class="wp-header-end">
-<?php endif; ?>
 
     <?php if (isset($_GET['checkout']) && $_GET['checkout'] === 'success'): ?>
         <div class="notice notice-success"><p>Payment completed. Your subscription status will update automatically after Polar confirms it.</p></div>
@@ -122,6 +116,3 @@ $period_end = !empty($subscription['current_period_end'])
             </div>
         <?php endif; ?>
     <?php endif; ?>
-<?php if (!$is_embedded): ?>
-</div>
-<?php endif; ?>

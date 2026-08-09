@@ -5,7 +5,6 @@ if (!defined('ABSPATH')) exit;
 $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'catalog';
 $active_tab = in_array($active_tab, ['catalog', 'faqs'], true) ? $active_tab : 'catalog';
 $tabs = ['catalog' => 'Catalog', 'faqs' => 'FAQs'];
-$woocs_embedded = true;
 ?>
 <div class="wrap woocs-wrap">
     <h1>Knowledge</h1>

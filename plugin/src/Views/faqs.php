@@ -4,16 +4,8 @@ if (!defined('ABSPATH')) exit;
 
 $faqs = get_option('woocs_faqs', []);
 if (!is_array($faqs)) $faqs = [];
-$is_embedded = !empty($woocs_embedded);
 ?>
-<?php if (!$is_embedded): ?>
-<div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">FAQs</h1>
-    <a href="#" class="page-title-action" id="woocs-add-faq-btn">Add FAQ</a>
-    <hr class="wp-header-end">
-<?php else: ?>
     <p><button type="button" class="button button-primary" id="woocs-add-faq-btn">Add FAQ</button></p>
-<?php endif; ?>
     <p class="description">FAQ changes are included the next time you sync the catalog.</p>
 
     <input type="hidden" id="woocs_faq_nonce" value="<?php echo esc_attr(wp_create_nonce('woocs_faq_nonce')); ?>">
@@ -79,10 +71,6 @@ $is_embedded = !empty($woocs_embedded);
             </table>
         </div>
     </div>
-<?php if (!$is_embedded): ?>
-</div>
-<?php endif; ?>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const addBtn = document.getElementById('woocs-add-faq-btn');

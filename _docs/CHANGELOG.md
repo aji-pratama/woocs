@@ -9,6 +9,7 @@
 - [x] Moved Billing into Settings and kept Widget Preview as a focused hidden utility page.
 - [x] Added a next-action onboarding checklist that disappears after setup.
 - [x] Hid API-key details under diagnostics and flattened decorative admin styling.
+- [x] Simplified Knowledge and Billing partials, removed forced CSS overrides and hover shadows, and tightened conversation rendering safety.
 
 ## AI Provider and RAG Service Architecture
 > Completed: 2026-08-08
