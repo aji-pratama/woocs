@@ -89,7 +89,7 @@ class TestSubscription:
             customer_email=None,
             success_url=(
                 "https://shop.example.com/wp-admin/admin.php"
-                "?page=woocs-billing&checkout=success"
+                "?page=woocs-settings&tab=billing&checkout=success"
             ),
         )
 
@@ -114,7 +114,10 @@ class TestSubscription:
         assert response.json()["url"] == "https://polar.sh/portal/test"
         create_portal.assert_called_once_with(
             customer_id="customer_123",
-            return_url="https://shop.example.com/wp-admin/admin.php?page=woocs-billing",
+            return_url=(
+                "https://shop.example.com/wp-admin/admin.php"
+                "?page=woocs-settings&tab=billing"
+            ),
         )
 
 

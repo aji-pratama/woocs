@@ -22,10 +22,12 @@ trigger:
 ## 3. Admin Pages
 | Page | Slug | Purpose |
 |---|---|---|
-| Settings | `woocs-settings` | WC credentials, API key, widget toggle |
-| Sync | `woocs-sync` | Sync status, manual sync trigger |
-| FAQs | `woocs-faqs` | FAQ CRUD, sync FAQs |
-| Preview | `woocs-preview` | Iframe storefront preview with debug overlay |
+| Overview | `woocs-dashboard` | Onboarding next action and activity summary |
+| Knowledge | `woocs-knowledge` | Catalog sync, status, logs, and FAQ management |
+| Conversations | `woocs-chat-history` | Conversation history and escalation review |
+| Settings | `woocs-settings` | Connection, widget, pre-chat, billing, and advanced settings |
+
+`woocs-preview` is registered under WooCS for authorization, then removed from the visible submenu during `admin_head`. This preserves access and a valid parent/title while keeping the utility page hidden.
 
 ## 4. WordPress Standards
 - Use `add_action` / `add_filter` exclusively. Never modify core or WC files.

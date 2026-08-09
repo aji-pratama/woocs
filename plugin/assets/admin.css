@@ -7,8 +7,7 @@
 .woocs-card {
     background: #fff;
     border: 1px solid #c3c4c7;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border-radius: 4px;
     margin-bottom: 24px;
     overflow: hidden;
 }
@@ -46,18 +45,11 @@
 .woocs-stat-card {
     background: #fff;
     border: 1px solid #e2e4e7;
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 24px;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.woocs-stat-card:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-    transform: translateY(-2px);
 }
 
 .woocs-stat-label {
@@ -105,30 +97,196 @@
     color: #116329;
 }
 
+/* Billing & Subscription Styles */
+.woocs-subscription-card {
+    margin-bottom: 28px;
+}
+
+.woocs-subscription-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.woocs-plan-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #646970;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.woocs-plan-name {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.woocs-manage-form {
+    margin-top: 16px;
+}
+
+.woocs-plans-section {
+    margin-top: 24px;
+}
+
+.woocs-plans-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+}
+
 .woocs-plan-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-    max-width: 960px;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 20px !important;
+    max-width: 960px !important;
+    margin-bottom: 16px !important;
 }
 
 .woocs-plan-card {
-    margin-bottom: 12px;
+    position: relative !important;
+    flex: 1 1 0 !important;
+    width: 0 !important;
+    min-width: 200px !important;
+    margin-bottom: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    border: 1px solid #c3c4c7;
+    border-radius: 6px;
+    background: #fff;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.woocs-plan-card h3,
-.woocs-plan-name {
+.woocs-plan-card:hover {
+    border-color: #2271b1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.woocs-plan-card.is-popular {
+    border: 2px solid #2271b1 !important;
+}
+
+.woocs-popular-badge {
+    position: absolute;
+    top: -12px;
+    right: 16px;
+    background: #2271b1;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    z-index: 1;
+}
+
+.woocs-plan-card .woocs-card-body {
+    padding: 24px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    height: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.woocs-plan-header h3 {
     margin: 0 0 12px;
     font-size: 20px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.woocs-plan-pricing {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
 }
 
 .woocs-plan-price {
-    font-size: 24px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #1d2327;
+    line-height: 1;
+}
+
+.woocs-plan-period {
+    color: #646970;
+    font-size: 14px;
+}
+
+.woocs-plan-desc {
+    color: #50575e;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0 0 20px;
+}
+
+.woocs-plan-btn {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+    height: 36px;
+    line-height: 34px;
+}
+
+.woocs-billing-footer-note {
+    margin-top: 12px;
+}
+
+.woocs-steps {
+    display: flex;
+    gap: 24px;
+    margin: 0 0 20px;
+    padding: 0;
+    list-style: none;
+}
+
+.woocs-steps li {
+    color: #646970;
+}
+
+.woocs-steps li::before {
+    content: "○";
+    margin-right: 6px;
+}
+
+.woocs-steps .is-complete {
+    color: #116329;
+}
+
+.woocs-steps .is-complete::before {
+    content: "✓";
+}
+
+.woocs-steps .is-current {
+    color: #1d2327;
+    font-weight: 600;
+}
+
+.woocs-diagnostics {
+    margin: 12px 0;
+}
+
+.woocs-diagnostics summary {
+    cursor: pointer;
+    color: #2271b1;
 }
 
 @media (max-width: 782px) {
     .woocs-plan-grid {
         grid-template-columns: 1fr;
+    }
+
+    .woocs-steps {
+        flex-direction: column;
+        gap: 8px;
     }
 }
 
@@ -143,9 +301,8 @@
 .woocs-preview-controls {
     background: #fff;
     border: 1px solid #c3c4c7;
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     align-self: start;
 }
 
@@ -175,7 +332,7 @@
 .woocs-preview-widget-area {
     background: #f0f0f1;
     border: 2px dashed #c3c4c7;
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 24px;
     min-height: 600px;
     position: relative;

@@ -18,7 +18,7 @@ webhook_router = Router(tags=["webhooks"])
 def wordpress_billing_url(store: Store, *, checkout_success: bool = False) -> str:
     url = urlsplit(store.wc_url)
     path = f"{url.path.rstrip('/')}/wp-admin/admin.php"
-    query = "page=woocs-billing"
+    query = "page=woocs-settings&tab=billing"
     if checkout_success:
         query += "&checkout=success"
     return urlunsplit(

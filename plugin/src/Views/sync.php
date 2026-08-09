@@ -4,10 +4,13 @@ if (!defined('ABSPATH')) exit;
 
 $logs = get_option('woocs_sync_logs', []);
 if (!is_array($logs)) $logs = [];
+$is_embedded = !empty($woocs_embedded);
 ?>
+<?php if (!$is_embedded): ?>
 <div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">WooCS &rsaquo; Sync</h1>
+    <h1 class="wp-heading-inline">Catalog</h1>
     <hr class="wp-header-end">
+<?php endif; ?>
 
     <input type="hidden" id="woocs_sync_nonce" value="<?php echo esc_attr(wp_create_nonce('woocs_sync_nonce')); ?>">
     <input type="hidden" id="woocs_ajax_url" value="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">
@@ -91,7 +94,9 @@ if (!is_array($logs)) $logs = [];
             </table>
         </div>
     </div>
+<?php if (!$is_embedded): ?>
 </div>
+<?php endif; ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

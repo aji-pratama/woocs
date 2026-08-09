@@ -3,14 +3,14 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
 
 $store_id = get_option('woocs_store_id');
-$api_url = get_option('woocs_api_url', 'http://localhost:8000');
-$store_name = get_bloginfo('name');
+update_option('woocs_previewed', '1', false);
 
 // Fetch up to 50 products for the context dropdown
 $products = function_exists('wc_get_products') ? wc_get_products(['limit' => 50, 'status' => 'publish', 'return' => 'objects']) : [];
 ?>
 <div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">WooCS &rsaquo; Widget Preview</h1>
+    <p><a href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings&tab=widget')); ?>">&larr; Back to Widget settings</a></p>
+    <h1 class="wp-heading-inline">Widget Preview</h1>
     <hr class="wp-header-end">
 
     <div class="woocs-preview-container">

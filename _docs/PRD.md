@@ -508,8 +508,8 @@ ASSISTANT:
 
 ---
 
-#### A2. Sync status page
-**Route:** `/wp-admin/admin.php?page=woocs-sync`
+#### A2. Knowledge page — Catalog tab
+**Route:** `/wp-admin/admin.php?page=woocs-knowledge&tab=catalog`
 
 **Features:**
 - Sync summary: products count, variations count, FAQs count, last_synced_at
@@ -520,8 +520,8 @@ ASSISTANT:
 
 ---
 
-#### A3. FAQ manager page
-**Route:** `/wp-admin/admin.php?page=woocs-faqs`
+#### A3. Knowledge page — FAQs tab
+**Route:** `/wp-admin/admin.php?page=woocs-knowledge&tab=faqs`
 
 **Features:**
 - FAQ list: question, answer preview, last updated
@@ -532,8 +532,10 @@ ASSISTANT:
 
 ---
 
-#### A4. Widget preview page
+#### A4. Widget preview utility page
 **Route:** `/wp-admin/admin.php?page=woocs-preview`
+
+Preview is opened from Settings → Widget. It stays registered under WooCS through authorization, then its visible submenu item is removed during `admin_head`.
 
 **Features:**
 - Iframe: storefront with widget visible

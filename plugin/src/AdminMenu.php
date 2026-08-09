@@ -12,6 +12,7 @@ class AdminMenu {
         add_action('admin_post_woocs_disconnect_store', [$this, 'handle_disconnect_store']);
         add_action('admin_post_woocs_start_checkout', [$this, 'handle_start_checkout']);
         add_action('admin_post_woocs_open_billing_portal', [$this, 'handle_open_billing_portal']);
+        add_action('admin_head', [$this, 'hide_preview_submenu']);
     }
 
     public function enqueue_assets($hook) {
@@ -19,7 +20,8 @@ class AdminMenu {
             return;
         }
 
-        wp_enqueue_style('woocs-admin-css', WOOCS_PLUGIN_URL . 'assets/admin.css', [], WOOCS_VERSION);
+        $css_ver = file_exists(WOOCS_PLUGIN_DIR . 'assets/admin.css') ? (string) filemtime(WOOCS_PLUGIN_DIR . 'assets/admin.css') : WOOCS_VERSION;
+        wp_enqueue_style('woocs-admin-css', WOOCS_PLUGIN_URL . 'assets/admin.css', [], $css_ver);
         wp_enqueue_script('woocs-admin-js', WOOCS_PLUGIN_URL . 'assets/admin.js', [], WOOCS_VERSION, true);
     }
 
@@ -27,7 +29,7 @@ class AdminMenu {
         $capability = 'manage_woocommerce';
 
         add_menu_page(
-            'WooCS Dashboard',
+            'WooCS Overview',
             'WooCS',
             $capability,
             'woocs-dashboard',
@@ -38,8 +40,8 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-dashboard',
-            'WooCS Dashboard',
-            'Dashboard',
+            'WooCS Overview',
+            'Overview',
             $capability,
             'woocs-dashboard',
             [$this, 'render_dashboard_page']
@@ -47,11 +49,20 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-dashboard',
-            'WooCS Billing',
-            'Plan & Billing',
+            'WooCS Knowledge',
+            'Knowledge',
             $capability,
-            'woocs-billing',
-            [$this, 'render_billing_page']
+            'woocs-knowledge',
+            [$this, 'render_knowledge_page']
+        );
+
+        add_submenu_page(
+            'woocs-dashboard',
+            'WooCS Conversations',
+            'Conversations',
+            $capability,
+            'woocs-chat-history',
+            [$this, 'render_chat_history_page']
         );
 
         add_submenu_page(
@@ -65,35 +76,8 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-dashboard',
-            'WooCS Sync Status',
-            'Sync',
-            $capability,
-            'woocs-sync',
-            [$this, 'render_sync_page']
-        );
-
-        add_submenu_page(
-            'woocs-dashboard',
-            'WooCS FAQs',
-            'FAQs',
-            $capability,
-            'woocs-faqs',
-            [$this, 'render_faqs_page']
-        );
-
-        add_submenu_page(
-            'woocs-dashboard',
-            'WooCS Chat History',
-            'Chat History',
-            $capability,
-            'woocs-chat-history',
-            [$this, 'render_chat_history_page']
-        );
-
-        add_submenu_page(
-            'woocs-dashboard',
-            'WooCS Preview',
-            'Preview',
+            'WooCS Widget Preview',
+            'Widget Preview',
             $capability,
             'woocs-preview',
             [$this, 'render_preview_page']
@@ -112,20 +96,16 @@ class AdminMenu {
         require WOOCS_PLUGIN_DIR . 'src/Views/settings.php';
     }
 
-    public function render_billing_page() {
-        require WOOCS_PLUGIN_DIR . 'src/Views/billing.php';
-    }
-
-    public function render_sync_page() {
-        require WOOCS_PLUGIN_DIR . 'src/Views/sync.php';
-    }
-
-    public function render_faqs_page() {
-        require WOOCS_PLUGIN_DIR . 'src/Views/faqs.php';
+    public function render_knowledge_page() {
+        require WOOCS_PLUGIN_DIR . 'src/Views/knowledge.php';
     }
 
     public function render_preview_page() {
         require WOOCS_PLUGIN_DIR . 'src/Views/preview.php';
+    }
+
+    public function hide_preview_submenu(): void {
+        remove_submenu_page('woocs-dashboard', 'woocs-preview');
     }
 
     public function handle_save_settings() {
@@ -251,7 +231,7 @@ class AdminMenu {
 
     private function redirect_billing_error(string $message): never {
         set_transient('woocs_billing_error', sanitize_text_field($message), 45);
-        wp_safe_redirect(admin_url('admin.php?page=woocs-billing'));
+        wp_safe_redirect(admin_url('admin.php?page=woocs-settings&tab=billing'));
         exit;
     }
 }

@@ -3,9 +3,15 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
 
 $is_connected = !empty(get_option('woocs_store_id'));
+$sync_logs = get_option('woocs_sync_logs', []);
+$has_synced = is_array($sync_logs) && !empty(array_filter($sync_logs, function($log) {
+    return ($log['status'] ?? '') === 'success';
+}));
+$widget_enabled = get_option('woocs_widget_enabled', '1') === '1';
+$has_previewed = get_option('woocs_previewed', '0') === '1';
 ?>
 <div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">WooCS Dashboard</h1>
+    <h1 class="wp-heading-inline">Overview</h1>
     <hr class="wp-header-end">
 
     <?php if (!$is_connected): ?>
@@ -27,6 +33,26 @@ $is_connected = !empty(get_option('woocs_store_id'));
     <?php else: ?>
         <input type="hidden" id="woocs_dashboard_nonce" value="<?php echo esc_attr(wp_create_nonce('woocs_dashboard_nonce')); ?>">
         <input type="hidden" id="woocs_ajax_url" value="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">
+
+        <?php if (!$has_synced || !$has_previewed || !$widget_enabled): ?>
+        <div class="woocs-card woocs-onboarding">
+            <div class="woocs-card-header"><h2>Get started</h2></div>
+            <div class="woocs-card-body">
+                <ol class="woocs-steps">
+                    <li class="is-complete">Store connected</li>
+                    <li class="<?php echo $has_synced ? 'is-complete' : 'is-current'; ?>">Sync your catalog</li>
+                    <li class="<?php echo $has_previewed && $widget_enabled ? 'is-complete' : ($has_synced ? 'is-current' : ''); ?>">Preview and enable the widget</li>
+                </ol>
+                <?php if (!$has_synced): ?>
+                    <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-knowledge')); ?>">Sync catalog</a>
+                <?php elseif (!$has_previewed): ?>
+                    <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-preview')); ?>">Preview widget</a>
+                <?php else: ?>
+                    <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings&tab=widget')); ?>">Enable widget</a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="woocs-card">
             <div class="woocs-card-header">
@@ -52,35 +78,6 @@ $is_connected = !empty(get_option('woocs_store_id'));
                         <span class="woocs-stat-value is-red" id="stat-escalations">—</span>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div class="woocs-card">
-            <div class="woocs-card-header">
-                <h2>Quick Links</h2>
-            </div>
-            <div class="woocs-card-body">
-                <p style="margin-top:0;">
-                    <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-sync')); ?>" class="button">
-                        <span class="dashicons dashicons-update" style="margin-top:3px;"></span>
-                        Sync Catalog
-                    </a>
-                    &nbsp;
-                    <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-faqs')); ?>" class="button">
-                        <span class="dashicons dashicons-editor-help" style="margin-top:3px;"></span>
-                        Manage FAQs
-                    </a>
-                    &nbsp;
-                    <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-preview')); ?>" class="button">
-                        <span class="dashicons dashicons-visibility" style="margin-top:3px;"></span>
-                        Preview Widget
-                    </a>
-                    &nbsp;
-                    <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings')); ?>" class="button">
-                        <span class="dashicons dashicons-admin-settings" style="margin-top:3px;"></span>
-                        Settings
-                    </a>
-                </p>
             </div>
         </div>
 

@@ -5,7 +5,7 @@ if (!defined('ABSPATH')) exit;
 $is_connected = !empty(get_option('woocs_store_id'));
 ?>
 <div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">WooCS &rsaquo; Chat History</h1>
+    <h1 class="wp-heading-inline">Conversations</h1>
     <hr class="wp-header-end">
 
     <?php if (!$is_connected): ?>

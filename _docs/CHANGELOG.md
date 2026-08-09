@@ -1,5 +1,15 @@
 # WooCS.ai — Changelog
 
+## Lean WordPress plugin navigation
+
+> Completed: 2026-08-09
+
+- [x] Reduced the WooCS sidebar to Overview, Knowledge, Conversations, and Settings.
+- [x] Combined catalog sync and FAQs under Knowledge.
+- [x] Moved Billing into Settings and kept Widget Preview as a focused hidden utility page.
+- [x] Added a next-action onboarding checklist that disappears after setup.
+- [x] Hid API-key details under diagnostics and flattened decorative admin styling.
+
 ## AI Provider and RAG Service Architecture
 > Completed: 2026-08-08
 
