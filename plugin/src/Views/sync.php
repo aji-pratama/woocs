@@ -39,12 +39,16 @@ $is_embedded = !empty($woocs_embedded);
                 </div>
                 <div class="woocs-sync-item">
                     <span class="woocs-sync-label">Orders API</span>
-                    <span class="woocs-sync-value">
-                        Live&nbsp;<span class="dashicons dashicons-yes-alt woocs-text-success" style="font-size:18px;width:18px;height:18px;"></span>
-                    </span>
+                    <div class="woocs-sync-value">
+                        <span class="woocs-badge woocs-badge-success">
+                            <span class="dashicons dashicons-yes-alt" style="font-size:14px;width:14px;height:14px;"></span>
+                            Live
+                        </span>
+                    </div>
                 </div>
             </div>
             <p class="woocs-sync-time">
+                <span class="dashicons dashicons-clock" style="font-size:16px;width:16px;height:16px;color:#646970;"></span>
                 Last sync: <strong><span id="last-sync-time"><?php echo !empty($logs) ? esc_html(date('M j, Y H:i', strtotime($logs[0]['time']))) : 'Never'; ?></span></strong>
             </p>
         </div>
@@ -114,8 +118,8 @@ document.addEventListener('DOMContentLoaded', function() {
         function setCount(id, val) {
             var el = document.getElementById(id);
             if (!el) return;
-            if (val !== undefined) {
-                el.innerHTML = val + ' <span class="dashicons dashicons-yes-alt woocs-text-success" style="font-size:16px;width:16px;height:16px;vertical-align:middle;"></span>';
+            if (val !== undefined && val !== null) {
+                el.textContent = val;
             }
         }
 

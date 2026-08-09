@@ -71,6 +71,57 @@
 .woocs-stat-value.is-green { color: #00a32a; }
 .woocs-stat-value.is-red { color: #d63638; }
 
+/* Catalog Sync Metric Cards */
+.woocs-sync-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 16px !important;
+    margin-bottom: 20px !important;
+}
+
+.woocs-sync-item {
+    flex: 1 1 0 !important;
+    width: 0 !important;
+    min-width: 150px !important;
+    background: #f6f7f7;
+    border: 1px solid #e2e4e7;
+    border-radius: 6px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.woocs-sync-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #646970;
+    margin-bottom: 6px;
+}
+
+.woocs-sync-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1d2327;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    min-height: 32px;
+}
+
+.woocs-sync-time {
+    margin: 0;
+    font-size: 13px;
+    color: #646970;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 /* Badges */
 .woocs-badge {
     display: inline-flex;
