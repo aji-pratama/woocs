@@ -48,16 +48,19 @@ help:
 	@echo "  db-dump               Dump backend_db to fixtures/init.sql"
 	@echo ""
 
+COMPOSE_ENV := $(if $(wildcard backend/.env),--env-file backend/.env,)
+COMPOSE     := podman compose -f compose.dev.yml $(COMPOSE_ENV)
+
 # ─── Infrastructure ──────────────────────────────────────────────────────────
 
 infra-up:
-	podman compose -f compose.dev.yml up -d
+	$(COMPOSE) up -d
 
 infra-down:
-	podman compose -f compose.dev.yml down
+	$(COMPOSE) down
 
 infra-logs:
-	podman compose -f compose.dev.yml logs -f
+	$(COMPOSE) logs -f
 
 # ─── Backend ─────────────────────────────────────────────────────────────────
 
@@ -117,7 +120,7 @@ dev: infra-up
 dev-hard-clean:
 	@echo "⚠️  WARNING: This will remove all containers, volumes, networks, and images for this project."
 	@read -p "Are you sure you want to proceed? [y/N] " ans && if [ "$${ans:-N}" = "y" ] || [ "$${ans:-N}" = "Y" ]; then \
-		podman compose -f compose.dev.yml down --rmi all -v --remove-orphans; \
+		$(COMPOSE) down --rmi all -v --remove-orphans; \
 		echo "Hard clean complete."; \
 	else \
 		echo "Aborted."; \
@@ -125,7 +128,7 @@ dev-hard-clean:
 
 dev-clean:
 	@echo "Cleaning containers and volumes..."
-	podman compose -f compose.dev.yml down -v --remove-orphans
+	$(COMPOSE) down -v --remove-orphans
 
 dev-setup:
 	@echo "Setting up development environment..."

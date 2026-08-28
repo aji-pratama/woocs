@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: woocs
       POSTGRES_PASSWORD: woocs_dev
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - backend_db_data:/var/lib/postgresql/data
     healthcheck:
@@ -29,7 +29,7 @@ services:
       MYSQL_PASSWORD: wordpress_dev
       MYSQL_ROOT_PASSWORD: root_dev
     ports:
-      - "3306:3306"
+      - "${WP_DB_PORT:-3306}:3306"
     volumes:
       - wp_db_data:/var/lib/mysql
     healthcheck:
@@ -47,7 +47,7 @@ services:
       wp_db:
         condition: service_healthy
     ports:
-      - "8080:80"
+      - "${WP_PORT:-8080}:80"
     environment:
       WORDPRESS_DB_HOST: wp_db:3306
       WORDPRESS_DB_NAME: wordpress
