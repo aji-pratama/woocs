@@ -52,3 +52,9 @@ mysql_data/
 *.swp
 *.swo
 *.pyc
+
+# Hono API Backend
+api/node_modules/
+api/dist/
+api/.env
+api/.wrangler/

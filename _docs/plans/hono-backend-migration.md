@@ -370,14 +370,14 @@ woocs/
 
 ## 7. Actionable Roadmap & Checklist
 
-- [ ] **Milestone 1: Scaffolding & Setup Test Runner**
-  - [ ] Inisialisasi direktori `api/` dengan `npm init`, pasang dependencies (Hono, Drizzle, Postgres, Zod, Vitest).
-  - [ ] Konfigurasi `drizzle.config.ts` dan test runner Vitest.
-  - [ ] Siapkan entrypoint ganda (`server.node.ts` & `server.worker.ts` + `wrangler.toml`).
-- [ ] **Milestone 2: Schema & Porting Model Tests (TDD)**
-  - [ ] Buat skema Drizzle di `api/src/db/schema/`.
-  - [ ] Port `test_models.py` ke Vitest dan jalankan migrasi database test.
-  - [ ] Pastikan ekstensi `vector` aktif dan query pgvector berjalan sukses.
+- [x] **Milestone 1: Scaffolding & Setup Test Runner**
+  - [x] Inisialisasi direktori `api/` dengan `npm init`, pasang dependencies (Hono, Drizzle, Postgres, Zod, Vitest).
+  - [x] Konfigurasi `drizzle.config.ts` dan test runner Vitest.
+  - [x] Siapkan entrypoint ganda (`server.node.ts` & `server.worker.ts` + `wrangler.toml`).
+- [x] **Milestone 2: Schema & Porting Model Tests (TDD)**
+  - [x] Buat skema Drizzle di `api/src/db/schema/`.
+  - [x] Port `test_models.py` ke Vitest dan jalankan migrasi database test.
+  - [x] Pastikan ekstensi `vector` aktif dan query pgvector berjalan sukses.
 - [ ] **Milestone 3: Porting Service Tests & Business Logic**
   - [ ] Port `test_services.py`, `test_rag_service.py`, `test_billing.py` ke Vitest.
   - [ ] Implementasikan StoreService, RagService (Vercel AI SDK/LLM), dan Polar service hingga test Green.
