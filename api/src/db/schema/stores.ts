@@ -9,6 +9,7 @@ import {
   jsonb,
   vector,
   index,
+  unique,
 } from 'drizzle-orm/pg-core';
 
 export const stores = pgTable('stores', {
@@ -45,6 +46,7 @@ export const products = pgTable(
       'hnsw',
       table.embedding.op('vector_cosine_ops')
     ),
+    unqStoreWcId: unique().on(table.storeId, table.wcId),
   })
 );
 
@@ -57,7 +59,9 @@ export const productVariations = pgTable('product_variations', {
   attributes: jsonb('attributes').default({}).notNull(),
   stockQuantity: integer('stock_quantity'),
   price: numeric('price', { precision: 10, scale: 2 }),
-});
+}, (table) => ({
+  unqProductWcVariationId: unique().on(table.productId, table.wcVariationId),
+}));
 
 export const faqs = pgTable(
   'faqs',
