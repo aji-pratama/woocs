@@ -2,6 +2,7 @@
         infra-up infra-down infra-logs \
         backend-install backend-migrate backend-createsuperuser backend-format \
         dev-api dev-celery dev-widget widget-install \
+        api-install api-dev api-worker api-test api-db-generate api-db-migrate api-db-studio \
         dev wp-build db-dump
 
 PYTHON  = backend/.venv/bin/python
@@ -38,6 +39,16 @@ help:
 	@echo "  widget-install        npm install in widget/"
 	@echo "  dev-widget            Start Vite dev server (port 5173)"
 	@echo "  wp-build              Build widget bundle and package plugin zip"
+	@echo ""
+	@echo "  Hono API (TypeScript — runs on host)"
+	@echo "  ─────────────────────────────"
+	@echo "  api-install           npm install in api/"
+	@echo "  api-dev               Start Hono dev server (port 8001)"
+	@echo "  api-worker            Start Hono background task worker"
+	@echo "  api-test              Run Vitest test suite"
+	@echo "  api-db-generate       Generate Drizzle SQL migrations"
+	@echo "  api-db-migrate        Apply Drizzle migrations to database"
+	@echo "  api-db-studio         Launch Drizzle Studio web GUI"
 	@echo ""
 	@echo "  All-in-one"
 	@echo "  ─────────────────────────────"
@@ -106,6 +117,29 @@ wp-build:
 wp-dev-setup:
 	@chmod +x plugin/scripts/dev.sh
 	@./plugin/scripts/dev.sh
+
+# ─── Hono API (TypeScript) ───────────────────────────────────────────────────
+
+api-install:
+	cd api && npm install
+
+api-dev:
+	cd api && npm run dev
+
+api-worker:
+	cd api && npm run worker
+
+api-test:
+	cd api && npm test
+
+api-db-generate:
+	cd api && npx drizzle-kit generate
+
+api-db-migrate:
+	cd api && npx drizzle-kit migrate
+
+api-db-studio:
+	cd api && npx drizzle-kit studio
 
 # ─── All-in-one ──────────────────────────────────────────────────────────────
 

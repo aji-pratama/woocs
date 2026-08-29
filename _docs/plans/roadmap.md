@@ -5,6 +5,7 @@
 ## Active Feature Plans
 
 - Continue the remaining behavioral verification in `_docs/plans/rag.md`.
+- Hono JS backend migration plan and schema specification in `_docs/plans/hono-backend-migration.md`.
 
 ## Subscription foundation
 
