@@ -378,13 +378,13 @@ woocs/
   - [x] Buat skema Drizzle di `api/src/db/schema/`.
   - [x] Port `test_models.py` ke Vitest dan jalankan migrasi database test.
   - [x] Pastikan ekstensi `vector` aktif dan query pgvector berjalan sukses.
-- [ ] **Milestone 3: Porting Service Tests & Business Logic**
-  - [ ] Port `test_services.py`, `test_rag_service.py`, `test_billing.py` ke Vitest.
-  - [ ] Implementasikan StoreService, RagService (Vercel AI SDK/LLM), dan Polar service hingga test Green.
-- [ ] **Milestone 4: Porting API & Endpoint Tests**
-  - [ ] Port `test_api.py` untuk store, widget chat, dan billing.
-  - [ ] Implementasikan middleware `X-API-Key` dan subscription gate di Hono.
-  - [ ] Verifikasi seluruh route menggunakan `app.request()` tanpa jaringan eksternal.
+- [x] **Milestone 3: Porting Service Tests & Business Logic**
+  - [x] Port `test_services.py`, `test_rag_service.py`, `test_billing.py` ke Vitest.
+  - [x] Implementasikan StoreService, RagService (Vercel AI SDK/LLM), dan Polar service hingga test Green.
+- [x] **Milestone 4: Porting API & Endpoint Tests**
+  - [x] Port `test_api.py` untuk store, widget chat, dan billing.
+  - [x] Implementasikan middleware `X-API-Key` dan subscription gate di Hono.
+  - [x] Verifikasi seluruh route menggunakan `app.request()` tanpa jaringan eksternal.
 - [ ] **Milestone 5: Postgres Task Worker & Escalation Email**
   - [ ] Implementasi worker queue berbasis `task_records` di PostgreSQL.
   - [ ] Port `test_tasks.py` untuk katalog ingestion dan pengiriman email eskalasi.

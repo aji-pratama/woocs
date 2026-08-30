@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import {
   pgTable,
   uuid,
@@ -12,9 +13,9 @@ import {
 import { stores } from './stores';
 
 export const chatSessions = pgTable(
-  'chat_sessions',
+  'chat_chatsession',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
     storeId: uuid('store_id')
       .references(() => stores.id, { onDelete: 'cascade' })
       .notNull(),
@@ -22,24 +23,24 @@ export const chatSessions = pgTable(
     customerEmail: varchar('customer_email', { length: 255 }),
     customerName: varchar('customer_name', { length: 150 }),
     customerPhone: varchar('customer_phone', { length: 30 }),
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
   },
   (table) => ({
     unqSession: unique().on(table.storeId, table.sessionId),
   })
 );
 
-export const chatMessages = pgTable('chat_messages', {
-  id: uuid('id').primaryKey().defaultRandom(),
+export const chatMessages = pgTable('chat_chatmessage', {
+  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   sessionId: uuid('session_id')
     .references(() => chatSessions.id, { onDelete: 'cascade' })
     .notNull(),
   role: varchar('role', { length: 10 }).notNull(), // 'user' | 'assistant'
   content: text('content').notNull(),
   confidenceScore: doublePrecision('confidence_score'),
-  escalated: boolean('escalated').default(false).notNull(),
+  escalated: boolean('escalated').$defaultFn(() => false).notNull(),
   escalationReason: varchar('escalation_reason', { length: 30 }),
-  responseType: varchar('response_type', { length: 20 }).default('text').notNull(),
+  responseType: varchar('response_type', { length: 20 }).$defaultFn(() => 'text').notNull(),
   metadata: jsonb('metadata'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
 });

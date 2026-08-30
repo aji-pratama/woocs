@@ -51,6 +51,6 @@ storeRouter.post('/sync', requireApiKey, requireActiveSubscription, zValidator('
 });
 
 // GET /api/stores/sync/status/
-storeRouter.get('/sync/status/', requireApiKey, async (c) => {
+storeRouter.get('/sync/status', requireApiKey, async (c) => {
   return c.json({ task_id: 'dummy', status: 'pending', products_count: 0 });
 });

@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
+import { cors } from 'hono/cors';
 import { storeRouter } from './routes/store.js';
 import { widgetRouter } from './routes/widget.js';
 import { webhooksRouter } from './routes/webhooks.js';
 
-const app = new Hono();
+const app = new Hono({ strict: false });
 
+app.use('*', cors());
 app.use('*', logger());
 
 app.route('/api/stores', storeRouter);

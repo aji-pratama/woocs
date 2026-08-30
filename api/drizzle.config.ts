@@ -5,7 +5,7 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL || 'postgres://woocs:woocs_dev@127.0.0.1:5435/woocs_api',
+    url: process.env.DATABASE_URL || 'postgres://woocs:woocs_dev@127.0.0.1:5435/woocs',
   },
   verbose: true,
   strict: true,

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import {
   pgTable,
   uuid,
@@ -12,21 +13,21 @@ import {
   unique,
 } from 'drizzle-orm/pg-core';
 
-export const stores = pgTable('stores', {
-  id: uuid('id').primaryKey().defaultRandom(),
+export const stores = pgTable('store_store', {
+  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   apiKeyHash: varchar('api_key_hash', { length: 64 }).unique().notNull(),
   wcUrl: varchar('wc_url', { length: 255 }),
   wcConsumerKey: varchar('wc_consumer_key', { length: 255 }),
   wcConsumerSecret: varchar('wc_consumer_secret', { length: 255 }),
   merchantEmail: varchar('merchant_email', { length: 255 }),
   lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
 });
 
 export const products = pgTable(
-  'products',
+  'store_product',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
     storeId: uuid('store_id')
       .references(() => stores.id, { onDelete: 'cascade' })
       .notNull(),
@@ -34,12 +35,12 @@ export const products = pgTable(
     name: varchar('name', { length: 255 }).notNull(),
     description: text('description'),
     price: numeric('price', { precision: 10, scale: 2 }),
-    stockStatus: varchar('stock_status', { length: 50 }).default('instock').notNull(),
+    stockStatus: varchar('stock_status', { length: 50 }).$defaultFn(() => 'instock').notNull(),
     stockQuantity: integer('stock_quantity'),
-    categories: jsonb('categories').default([]).notNull(),
-    tags: jsonb('tags').default([]).notNull(),
+    categories: jsonb('categories').$defaultFn(() => []).notNull(),
+    tags: jsonb('tags').$defaultFn(() => []).notNull(),
     embedding: vector('embedding', { dimensions: 1024 }),
-    syncedAt: timestamp('synced_at', { withTimezone: true }).defaultNow().notNull(),
+    syncedAt: timestamp('synced_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
   },
   (table) => ({
     embeddingIndex: index('product_embedding_idx').using(
@@ -50,13 +51,13 @@ export const products = pgTable(
   })
 );
 
-export const productVariations = pgTable('product_variations', {
-  id: uuid('id').primaryKey().defaultRandom(),
+export const productVariations = pgTable('store_productvariation', {
+  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   productId: uuid('product_id')
     .references(() => products.id, { onDelete: 'cascade' })
     .notNull(),
   wcVariationId: integer('wc_variation_id').notNull(),
-  attributes: jsonb('attributes').default({}).notNull(),
+  attributes: jsonb('attributes').$defaultFn(() => ({})).notNull(),
   stockQuantity: integer('stock_quantity'),
   price: numeric('price', { precision: 10, scale: 2 }),
 }, (table) => ({
@@ -64,16 +65,16 @@ export const productVariations = pgTable('product_variations', {
 }));
 
 export const faqs = pgTable(
-  'faqs',
+  'store_faq',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
     storeId: uuid('store_id')
       .references(() => stores.id, { onDelete: 'cascade' })
       .notNull(),
     question: text('question').notNull(),
     answer: text('answer').notNull(),
     embedding: vector('embedding', { dimensions: 1024 }),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
   },
   (table) => ({
     embeddingIndex: index('faq_embedding_idx').using(

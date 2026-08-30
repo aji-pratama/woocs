@@ -34,6 +34,7 @@ backend/staticfiles/
 .pytest_cache/
 .coverage
 htmlcov/
+node_modules
 
 # Build artifacts
 woocs.zip

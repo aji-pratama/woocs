@@ -4,16 +4,17 @@
   "description": "WooCS.ai Hono JS Backend",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.node.ts",
-    "start": "tsx src/server.node.ts",
-    "build": "tsc",
+    "dev": "tsx watch --env-file=.env src/server.node.ts",
+    "start": "node --env-file=.env dist/server.node.js",
+    "build": "esbuild src/server.node.ts --bundle --platform=node --format=esm --outfile=dist/server.node.js",
     "test": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "worker": "tsx src/worker/index.ts"
+    "worker": "tsx --env-file=.env src/worker/index.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.51",
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.4.1",
     "@polar-sh/sdk": "^0.11.0",

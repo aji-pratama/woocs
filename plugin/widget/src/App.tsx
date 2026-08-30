@@ -156,7 +156,7 @@ export default function App() {
     const primaryColor = wc?.primary_color || "#2271b1";
     const cfg: Config = {
       store_id: wc?.store_id ?? "",
-      api_url: wc?.api_url ?? "http://localhost:8000",
+      api_url: wc?.api_url ?? "http://localhost:8001",
       store_name: wc?.store_name ?? "Store assistant",
       page_context: pageContext,
       prechat_enabled: wc?.prechat_enabled ?? false,

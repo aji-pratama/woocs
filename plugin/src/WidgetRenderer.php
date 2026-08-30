@@ -61,7 +61,7 @@ class WidgetRenderer {
      * @param string $store_id The connected store ID or a test fallback.
      */
     public static function render(string $store_id) {
-        $api_url = get_option('woocs_api_url', 'http://localhost:8000'); // Default to local for dev
+        $api_url = get_option('woocs_api_url', 'http://localhost:8001'); // Default to local for dev
         $store_name = get_bloginfo('name');
 
         echo '<!-- WooCS Widget Injected by PHP -->';
