@@ -2,7 +2,7 @@
 
 > AI-powered customer support assistant for WooCommerce — PoC
 
-WooCS.ai is a three-layer system that brings zero-setup RAG-based chat support to WooCommerce stores. A WordPress plugin syncs the product catalog to a Django backend, which handles RAG retrieval and chat generation via Claude Haiku. A React widget is injected into the storefront for customers to interact with.
+WooCS.ai is a three-layer system that brings zero-setup RAG-based chat support to WooCommerce stores. A WordPress plugin syncs the product catalog to a Hono JS backend, which handles RAG retrieval and chat generation via Claude Haiku. A React widget is injected into the storefront for customers to interact with.
 
 ---
 
@@ -16,14 +16,14 @@ WooCS.ai is a three-layer system that brings zero-setup RAG-based chat support t
 └──────────────────────┬───────────────────────────────────┘
                        │ HTTP
 ┌──────────────────────▼───────────────────────────────────┐
-│  Django Backend (host)                                   │
-│  django-ninja API  +  Celery workers                     │
+│  Hono JS backend (host)                                   │
+│  Hono-ninja API  +  Background Worker workers                     │
 │  Apps: store · chat                                      │
 └──────┬──────────────────────────────┬────────────────────┘
        │                              │
 ┌──────▼──────┐              ┌────────▼───────┐
 │ PostgreSQL  │              │  Redis         │
-│ 15+pgvector │              │  (Celery broker│
+│ 15+pgvector │              │  (Background Worker broker│
 │ (containers)│              │   + backend)   │
 └─────────────┘              └────────────────┘
 
@@ -42,8 +42,8 @@ WooCS.ai is a three-layer system that brings zero-setup RAG-based chat support t
 |---|---|
 | WP Plugin | PHP 8.1 |
 | Widget | React + Vite |
-| Backend | Django 5.x + Django Ninja |
-| Task Queue | Celery + Redis |
+| Backend | Hono 5.x + Hono Ninja |
+| Task Queue | Background Worker + Redis |
 | Database | PostgreSQL 15 + pgvector |
 | RAG | LlamaIndex + Claude Haiku (Anthropic) |
 | Containers | Docker Compose (infra only) |
@@ -54,7 +54,7 @@ WooCS.ai is a three-layer system that brings zero-setup RAG-based chat support t
 
 | Service | Port | Notes |
 |---|---|---|
-| Django API | `8000` | `make dev-api` |
+| Hono API | `8000` | `npm run dev:api` |
 | Vite (Widget) | `5173` | `make dev-widget` |
 | WordPress | `8080` | `make infra-up` |
 | PostgreSQL | `5432` | `make infra-up` |
@@ -85,17 +85,17 @@ Starts: PostgreSQL (port 5432), MySQL (port 3306), WordPress (port 8080), Redis 
 cp backend/.env.example backend/.env
 # Edit backend/.env with your settings
 
-make backend-install
-make backend-migrate
-make backend-createsuperuser
+npm install
+npm run migrate
+npm run setup
 ```
 
 ### 3. Start backend services
 
 ```bash
 # In separate terminals:
-make dev-api       # Django dev server → http://localhost:8000
-make dev-celery    # Celery worker
+npm run dev:api       # Hono dev server → http://localhost:8000
+make dev-Background Worker    # Background Worker worker
 ```
 
 ### 4. Start widget
@@ -115,8 +115,8 @@ WordPress is available at http://localhost:8080. The `plugin/` directory is bind
 
 ```
 woocs/
-├── backend/          # Django backend (runs on host)
-│   ├── config/       # Django project config + Celery
+├── backend/          # Hono JS backend (runs on host)
+│   ├── config/       # Hono project config + Background Worker
 │   ├── store/        # Store model, registration API, catalog ingest
 │   ├── chat/         # RAG chat + escalation app
 │   └── requirements.txt
@@ -135,7 +135,7 @@ The project is orchestrated entirely via `make`.
 ### Daily Development
 
 ```bash
-make dev                   # Start EVERYTHING (containers, API, Celery, Vite) in parallel
+make dev                   # Start EVERYTHING (containers, API, Background Worker, Vite) in parallel
 ```
 *Note: If port 5173 is in use, Vite will automatically try 5174.*
 
@@ -143,16 +143,16 @@ make dev                   # Start EVERYTHING (containers, API, Celery, Vite) in
 
 ```bash
 make infra-up              # Start PostgreSQL, MySQL, Redis, WordPress
-make dev-api               # Start Django dev server
-make dev-celery            # Start Celery worker
+npm run dev:api               # Start Hono dev server
+make dev-Background Worker            # Start Background Worker worker
 make dev-widget            # Start Vite dev server
 ```
 
 ### Setup & Build
 
 ```bash
-make backend-install       # Install Python dependencies
-make backend-migrate       # Run Django migrations
+npm install       # Install Node dependencies
+npm run migrate       # Run Hono migrations
 make wp-build              # Build widget and package plugin into woocs.zip
 make db-dump               # Dump Postgres data to fixtures/init.sql
 ```

@@ -1,5 +1,5 @@
 services:
-  # PostgreSQL 15 + pgvector — Django backend database
+  # PostgreSQL 15 + pgvector — Hono backend database
   backend_db:
     image: pgvector/pgvector:pg15
     container_name: woocs_backend_db

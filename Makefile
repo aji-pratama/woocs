@@ -41,7 +41,7 @@ help:
 	@echo "  dev                   Start everything (infra + api + worker + widget)"
 	@echo ""
 
-COMPOSE_ENV := $(if $(wildcard backend/.env),--env-file backend/.env,)
+COMPOSE_ENV := $(if $(wildcard api/.env),--env-file api/.env,)
 COMPOSE := podman compose -f compose.dev.yml $(COMPOSE_ENV)
 
 # ─── Infrastructure ──────────────────────────────────────────────────────────
