@@ -25,21 +25,25 @@ export const requireApiKey = createMiddleware(async (c, next) => {
   await next();
 });
 
+const ACTIVE_STATUSES = new Set(['active', 'trialing']);
+
 export const requireActiveSubscription = createMiddleware(async (c, next) => {
   const storeId = c.get('storeId');
   if (!storeId) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const existingSubs = await db.select().from(subscriptions).where(eq(subscriptions.storeId, storeId));
-  if (existingSubs.length === 0) {
+  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, storeId));
+  if (!sub) {
     return c.json({ error: 'Subscription Required' }, 402);
   }
 
-  const sub = existingSubs[0];
-  if (sub.status === 'revoked' || sub.status === 'canceled' || sub.status === 'past_due') {
+  if (!ACTIVE_STATUSES.has(sub.status)) {
     return c.json({ error: 'Subscription is inactive' }, 402);
   }
+
+  // Pass subscription to downstream handlers and middleware
+  c.set('subscription', sub);
 
   await next();
 });

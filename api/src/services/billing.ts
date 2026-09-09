@@ -10,7 +10,83 @@ type Subscription = InferSelectModel<typeof subscriptions>;
 
 export class BillingService {
   static storeHasAccess(subscription: Subscription | null): boolean {
-    return Boolean(subscription && subscription.status === 'active');
+    if (!subscription) return false;
+    return subscription.status === 'active' || subscription.status === 'trialing';
+  }
+
+  static async getSubscription(storeId: string): Promise<Subscription | null> {
+    const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, storeId));
+    return sub || null;
+  }
+}
+
+export class PolarCheckoutService {
+  static async createCheckout(storeId: string, planKey: string): Promise<string> {
+    const { getPlanConfig } = await import('../config/pricing');
+    const plan = getPlanConfig(planKey);
+
+    if (!plan.polarProductId || plan.polarProductId === 'prod_placeholder') {
+      throw new Error(`Polar product not configured for plan: ${planKey}`);
+    }
+
+    const polarApiUrl = process.env.POLAR_API_URL || 'https://api.polar.sh';
+    const polarAccessToken = process.env.POLAR_ACCESS_TOKEN;
+    if (!polarAccessToken) {
+      throw new Error('POLAR_ACCESS_TOKEN is not configured');
+    }
+
+    const response = await fetch(`${polarApiUrl}/v1/checkouts/custom/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${polarAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        product_id: plan.polarProductId,
+        customer_external_id: storeId,
+        success_url: process.env.POLAR_SUCCESS_URL || `${process.env.APP_URL || 'http://localhost:8080'}/wp-admin/admin.php?page=woocs-settings&checkout=success`,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Polar checkout creation failed: ${error}`);
+    }
+
+    const data = await response.json() as { url: string };
+    return data.url;
+  }
+
+  static async createPortalSession(storeId: string): Promise<string> {
+    const sub = await BillingService.getSubscription(storeId);
+    if (!sub?.polarCustomerId) {
+      throw new Error('No Polar customer linked to this store');
+    }
+
+    const polarApiUrl = process.env.POLAR_API_URL || 'https://api.polar.sh';
+    const polarAccessToken = process.env.POLAR_ACCESS_TOKEN;
+    if (!polarAccessToken) {
+      throw new Error('POLAR_ACCESS_TOKEN is not configured');
+    }
+
+    const response = await fetch(`${polarApiUrl}/v1/customer-sessions/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${polarAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        customer_id: sub.polarCustomerId,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Polar portal session creation failed: ${error}`);
+    }
+
+    const data = await response.json() as { customer_portal_url: string };
+    return data.customer_portal_url;
   }
 }
 

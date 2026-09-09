@@ -44,7 +44,7 @@ describe('StoreService', () => {
     // Check subscription
     const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, createdStoreId));
     expect(sub).toBeDefined();
-    expect(sub.status).toBe('trialing');
+    expect(sub.status).toBe('active');
   });
 
   it('should update existing store', async () => {

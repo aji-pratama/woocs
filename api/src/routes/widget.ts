@@ -5,8 +5,10 @@ import { ChatService } from '../services/chat';
 import { OrderService } from '../services/order';
 import { db } from '../db/client';
 import { stores } from '../db/schema/stores';
+import { subscriptions } from '../db/schema/billing';
 import { chatMessages, chatSessions } from '../db/schema/chat';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, gte, sql } from 'drizzle-orm';
+import { getPlanConfig } from '../config/pricing';
 
 export const widgetRouter = new Hono({ strict: false });
 
@@ -17,6 +19,41 @@ widgetRouter.post('/chat', zValidator('json', ChatRequestInSchema), async (c) =>
   const [store] = await db.select().from(stores).where(eq(stores.id, body.store_id));
   if (!store) {
     return c.json({ error: 'Store not found' }, 404);
+  }
+
+  // Conversation limit check
+  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, store.id));
+  if (sub) {
+    const plan = getPlanConfig(sub.planKey);
+    const limit = plan.features.monthlyConversationsLimit;
+
+    if (limit !== -1) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const [result] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(chatSessions)
+        .where(
+          and(
+            eq(chatSessions.storeId, store.id),
+            gte(chatSessions.createdAt, startOfMonth)
+          )
+        );
+
+      if (Number(result?.count || 0) >= limit) {
+        return c.json({
+          answer: "We're experiencing high demand right now. Please leave a message for our team and they'll get back to you shortly.",
+          confidence: null,
+          escalated: true,
+          escalation_reason: 'limit_reached',
+          session_id: body.session_id,
+          response_type: 'text',
+          metadata: null,
+        });
+      }
+    }
   }
 
   const result = await ChatService.handleMessage(store, body.session_id, body.message, body.page_context);
@@ -37,8 +74,6 @@ widgetRouter.get('/chat/history', async (c) => {
   if (!session) {
     return c.json({ session_id: sessionId, messages: [] });
   }
-
-  // TODO: validate storeId matches session?
   
   const messages = await db.select().from(chatMessages)
     .where(eq(chatMessages.sessionId, session.id))
@@ -64,6 +99,22 @@ widgetRouter.post('/order-status', zValidator('json', OrderStatusRequestInSchema
   const [store] = await db.select().from(stores).where(eq(stores.id, body.store_id));
   if (!store) {
     return c.json({ error: 'Store not found' }, 404);
+  }
+
+  // Feature gate: order status lookup
+  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, store.id));
+  if (sub) {
+    const plan = getPlanConfig(sub.planKey);
+    if (!plan.features.orderStatusLookup) {
+      return c.json({
+        order_id: body.order_id,
+        found: false,
+        status: null,
+        items: [],
+        total: null,
+        error: 'Order tracking is available on the Pro plan. Please contact the store team directly for order updates.',
+      });
+    }
   }
 
   const result = await OrderService.getOrderStatus(store, body.order_id);

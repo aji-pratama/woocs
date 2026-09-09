@@ -69,12 +69,11 @@ export class StoreService {
           wcConsumerSecret,
         }).returning();
 
-        // Subscriptions start trial
+        // Free tier subscription — active immediately, no payment needed
         await tx.insert(subscriptions).values({
           storeId: newStore.id,
-          planKey: 'trial',
-          status: 'trialing',
-          active: true, // simplified for now
+          planKey: 'free',
+          status: 'active',
         });
 
         return newStore;

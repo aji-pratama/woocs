@@ -9,7 +9,7 @@ export const SubscriptionOutSchema = z.object({
 });
 
 export const CheckoutInSchema = z.object({
-  plan_key: z.enum(['starter', 'growth']),
+  plan_key: z.enum(['pro']),
 });
 
 export const UrlOutSchema = z.object({
