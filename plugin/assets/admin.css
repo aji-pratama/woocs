@@ -386,3 +386,112 @@
     display: flex;
     flex-direction: column;
 }
+
+.woocs-paywall-wrapper {
+    position: relative;
+    overflow: hidden;
+}
+
+.woocs-paywall-content.is-locked {
+    filter: blur(3px) grayscale(20%);
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.7;
+}
+
+.woocs-paywall-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    background: rgba(240, 240, 241, 0.6);
+}
+
+.woocs-paywall-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 32px 40px;
+    max-width: 480px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.woocs-paywall-card .dashicons-lock {
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+    color: #646970;
+    margin-bottom: 16px;
+}
+
+.woocs-paywall-card h3 {
+    margin: 0 0 12px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.woocs-paywall-card p {
+    color: #50575e;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0 0 20px;
+}
+
+/* Utility & Refactored Classes for UI */
+.woocs-btn-icon {
+    margin-top: 3px;
+}
+
+.woocs-icon-clock {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    color: #646970;
+}
+
+.woocs-card-header-desc {
+    font-size: 12px;
+    font-weight: 400;
+    color: #646970;
+}
+
+.woocs-col-time {
+    width: 170px;
+}
+
+.woocs-col-status {
+    width: 110px;
+}
+
+.woocs-p-16 {
+    padding: 16px;
+}
+
+.woocs-icon-small {
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
+}
+
+.woocs-text-error {
+    color: #d63638;
+    font-weight: 600;
+}
+
+.woocs-icon-warning {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+}
+
+.woocs-badge-inline {
+    vertical-align: middle;
+    margin-left: 8px;
+}

@@ -5,6 +5,9 @@ if (!defined('ABSPATH')) exit;
 $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'catalog';
 $active_tab = in_array($active_tab, ['catalog', 'faqs'], true) ? $active_tab : 'catalog';
 $tabs = ['catalog' => 'Catalog', 'faqs' => 'FAQs'];
+
+$subscription = (new WooCS\ApiClient())->get_subscription();
+$is_free_plan = !is_wp_error($subscription) && isset($subscription['plan_key']) && in_array($subscription['plan_key'], ['free', 'trial'], true);
 ?>
 <div class="wrap woocs-wrap">
     <h1>Knowledge</h1>

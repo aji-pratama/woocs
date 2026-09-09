@@ -190,7 +190,7 @@ class AdminMenu {
         $this->guard_billing_action('woocs_start_checkout');
 
         $plan_key = sanitize_key($_POST['plan_key'] ?? '');
-        if (!in_array($plan_key, ['starter', 'growth', 'pro'], true)) {
+        if (!in_array($plan_key, ['pro'], true)) {
             $this->redirect_billing_error('Please choose a valid plan.');
         }
 

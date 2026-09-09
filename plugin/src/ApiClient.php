@@ -159,7 +159,7 @@ class ApiClient {
             return $data ?? [];
         }
 
-        $error_message = isset($data['detail']) ? $data['detail'] : 'Unknown error from WooCS';
+        $error_message = $data['error'] ?? ($data['detail'] ?? 'Unknown error from WooCS');
         return new \WP_Error('woocs_api_error', $error_message, ['status' => $status_code]);
     }
 }

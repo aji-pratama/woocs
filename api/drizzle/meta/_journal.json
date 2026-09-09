@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1787966365841,
-      "tag": "0000_romantic_diamondback",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1787966929288,
-      "tag": "0001_calm_scrambler",
+      "when": 1788992195752,
+      "tag": "0000_melodic_spiral",
       "breakpoints": true
     }
   ]

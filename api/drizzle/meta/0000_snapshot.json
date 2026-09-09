@@ -1,19 +1,18 @@
 {
-  "id": "e9d64441-710c-4280-a9d9-4e21dd828797",
+  "id": "db8270b9-e940-4efa-b4d1-877baa3d0e04",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.polar_webhook_events": {
-      "name": "polar_webhook_events",
+    "public.billing_polarwebhookevent": {
+      "name": "billing_polarwebhookevent",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "event_id": {
           "name": "event_id",
@@ -37,8 +36,7 @@
           "name": "status",
           "type": "varchar(32)",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'received'"
+          "notNull": true
         },
         "error": {
           "name": "error",
@@ -50,8 +48,7 @@
           "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         },
         "processed_at": {
           "name": "processed_at",
@@ -64,8 +61,8 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "polar_webhook_events_event_id_unique": {
-          "name": "polar_webhook_events_event_id_unique",
+        "billing_polarwebhookevent_event_id_unique": {
+          "name": "billing_polarwebhookevent_event_id_unique",
           "nullsNotDistinct": false,
           "columns": [
             "event_id"
@@ -76,16 +73,15 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.subscriptions": {
-      "name": "subscriptions",
+    "public.billing_subscription": {
+      "name": "billing_subscription",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "store_id": {
           "name": "store_id",
@@ -97,15 +93,13 @@
           "name": "plan_key",
           "type": "varchar(32)",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'trial'"
+          "notNull": true
         },
         "status": {
           "name": "status",
           "type": "varchar(32)",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'trialing'"
+          "notNull": true
         },
         "polar_customer_id": {
           "name": "polar_customer_id",
@@ -129,30 +123,21 @@
           "name": "cancel_at_period_end",
           "type": "boolean",
           "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "subscriptions_store_id_stores_id_fk": {
-          "name": "subscriptions_store_id_stores_id_fk",
-          "tableFrom": "subscriptions",
-          "tableTo": "stores",
+        "billing_subscription_store_id_store_store_id_fk": {
+          "name": "billing_subscription_store_id_store_store_id_fk",
+          "tableFrom": "billing_subscription",
+          "tableTo": "store_store",
           "columnsFrom": [
             "store_id"
           ],
@@ -165,8 +150,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "subscriptions_store_id_unique": {
-          "name": "subscriptions_store_id_unique",
+        "billing_subscription_store_id_unique": {
+          "name": "billing_subscription_store_id_unique",
           "nullsNotDistinct": false,
           "columns": [
             "store_id"
@@ -177,16 +162,15 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.chat_messages": {
-      "name": "chat_messages",
+    "public.chat_chatmessage": {
+      "name": "chat_chatmessage",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "session_id": {
           "name": "session_id",
@@ -216,8 +200,7 @@
           "name": "escalated",
           "type": "boolean",
           "primaryKey": false,
-          "notNull": true,
-          "default": false
+          "notNull": true
         },
         "escalation_reason": {
           "name": "escalation_reason",
@@ -229,8 +212,7 @@
           "name": "response_type",
           "type": "varchar(20)",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'text'"
+          "notNull": true
         },
         "metadata": {
           "name": "metadata",
@@ -242,16 +224,15 @@
           "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "chat_messages_session_id_chat_sessions_id_fk": {
-          "name": "chat_messages_session_id_chat_sessions_id_fk",
-          "tableFrom": "chat_messages",
-          "tableTo": "chat_sessions",
+        "chat_chatmessage_session_id_chat_chatsession_id_fk": {
+          "name": "chat_chatmessage_session_id_chat_chatsession_id_fk",
+          "tableFrom": "chat_chatmessage",
+          "tableTo": "chat_chatsession",
           "columnsFrom": [
             "session_id"
           ],
@@ -268,16 +249,15 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.chat_sessions": {
-      "name": "chat_sessions",
+    "public.chat_chatsession": {
+      "name": "chat_chatsession",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "store_id": {
           "name": "store_id",
@@ -313,16 +293,15 @@
           "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "chat_sessions_store_id_stores_id_fk": {
-          "name": "chat_sessions_store_id_stores_id_fk",
-          "tableFrom": "chat_sessions",
-          "tableTo": "stores",
+        "chat_chatsession_store_id_store_store_id_fk": {
+          "name": "chat_chatsession_store_id_store_store_id_fk",
+          "tableFrom": "chat_chatsession",
+          "tableTo": "store_store",
           "columnsFrom": [
             "store_id"
           ],
@@ -335,8 +314,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "chat_sessions_store_id_session_id_unique": {
-          "name": "chat_sessions_store_id_session_id_unique",
+        "chat_chatsession_store_id_session_id_unique": {
+          "name": "chat_chatsession_store_id_session_id_unique",
           "nullsNotDistinct": false,
           "columns": [
             "store_id",
@@ -348,16 +327,15 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.faqs": {
-      "name": "faqs",
+    "public.store_faq": {
+      "name": "store_faq",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "store_id": {
           "name": "store_id",
@@ -387,8 +365,7 @@
           "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         }
       },
       "indexes": {
@@ -410,10 +387,10 @@
         }
       },
       "foreignKeys": {
-        "faqs_store_id_stores_id_fk": {
-          "name": "faqs_store_id_stores_id_fk",
-          "tableFrom": "faqs",
-          "tableTo": "stores",
+        "store_faq_store_id_store_store_id_fk": {
+          "name": "store_faq_store_id_store_store_id_fk",
+          "tableFrom": "store_faq",
+          "tableTo": "store_store",
           "columnsFrom": [
             "store_id"
           ],
@@ -430,16 +407,15 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.product_variations": {
-      "name": "product_variations",
+    "public.store_productvariation": {
+      "name": "store_productvariation",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "product_id": {
           "name": "product_id",
@@ -457,8 +433,7 @@
           "name": "attributes",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
+          "notNull": true
         },
         "stock_quantity": {
           "name": "stock_quantity",
@@ -475,10 +450,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "product_variations_product_id_products_id_fk": {
-          "name": "product_variations_product_id_products_id_fk",
-          "tableFrom": "product_variations",
-          "tableTo": "products",
+        "store_productvariation_product_id_store_product_id_fk": {
+          "name": "store_productvariation_product_id_store_product_id_fk",
+          "tableFrom": "store_productvariation",
+          "tableTo": "store_product",
           "columnsFrom": [
             "product_id"
           ],
@@ -490,21 +465,29 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "store_productvariation_product_id_wc_variation_id_unique": {
+          "name": "store_productvariation_product_id_wc_variation_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "product_id",
+            "wc_variation_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.products": {
-      "name": "products",
+    "public.store_product": {
+      "name": "store_product",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "store_id": {
           "name": "store_id",
@@ -540,8 +523,7 @@
           "name": "stock_status",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'instock'"
+          "notNull": true
         },
         "stock_quantity": {
           "name": "stock_quantity",
@@ -553,15 +535,13 @@
           "name": "categories",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
+          "notNull": true
         },
         "tags": {
           "name": "tags",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
+          "notNull": true
         },
         "embedding": {
           "name": "embedding",
@@ -573,8 +553,7 @@
           "name": "synced_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         }
       },
       "indexes": {
@@ -596,10 +575,10 @@
         }
       },
       "foreignKeys": {
-        "products_store_id_stores_id_fk": {
-          "name": "products_store_id_stores_id_fk",
-          "tableFrom": "products",
-          "tableTo": "stores",
+        "store_product_store_id_store_store_id_fk": {
+          "name": "store_product_store_id_store_store_id_fk",
+          "tableFrom": "store_product",
+          "tableTo": "store_store",
           "columnsFrom": [
             "store_id"
           ],
@@ -611,21 +590,29 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "store_product_store_id_wc_id_unique": {
+          "name": "store_product_store_id_wc_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "store_id",
+            "wc_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.stores": {
-      "name": "stores",
+    "public.store_store": {
+      "name": "store_store",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "api_key_hash": {
           "name": "api_key_hash",
@@ -667,16 +654,15 @@
           "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "stores_api_key_hash_unique": {
-          "name": "stores_api_key_hash_unique",
+        "store_store_api_key_hash_unique": {
+          "name": "store_store_api_key_hash_unique",
           "nullsNotDistinct": false,
           "columns": [
             "api_key_hash"
@@ -695,8 +681,7 @@
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "task_name": {
           "name": "task_name",
@@ -729,8 +714,7 @@
           "name": "enqueued_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": true
         },
         "started_at": {
           "name": "started_at",

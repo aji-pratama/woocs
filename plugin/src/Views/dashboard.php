@@ -9,9 +9,17 @@ $has_synced = is_array($sync_logs) && !empty(array_filter($sync_logs, function($
 }));
 $widget_enabled = get_option('woocs_widget_enabled', '1') === '1';
 $has_previewed = get_option('woocs_previewed', '0') === '1';
+
+$subscription = $is_connected ? (new WooCS\ApiClient())->get_subscription() : null;
+$is_free_plan = !is_wp_error($subscription) && isset($subscription['plan_key']) && in_array($subscription['plan_key'], ['free', 'trial'], true);
 ?>
 <div class="wrap woocs-wrap">
     <h1 class="wp-heading-inline">Overview</h1>
+    <?php if ($is_connected && !is_wp_error($subscription)): ?>
+        <span class="woocs-badge <?php echo $is_free_plan ? 'woocs-badge-neutral' : 'woocs-badge-success'; ?> woocs-badge-inline">
+            <?php echo esc_html(ucfirst($subscription['plan_key'] ?? 'free')); ?> Plan
+        </span>
+    <?php endif; ?>
     <hr class="wp-header-end">
 
     <?php if (!$is_connected): ?>
@@ -19,7 +27,7 @@ $has_previewed = get_option('woocs_previewed', '0') === '1';
             <div class="woocs-card-header">
                 <h2>Connection Status</h2>
                 <span class="woocs-badge woocs-badge-neutral">
-                    <span class="dashicons dashicons-warning" style="font-size:14px;width:14px;height:14px;"></span>
+                    <span class="dashicons dashicons-warning woocs-icon-warning"></span>
                     Not connected
                 </span>
             </div>
@@ -43,7 +51,9 @@ $has_previewed = get_option('woocs_previewed', '0') === '1';
                     <li class="<?php echo $has_synced ? 'is-complete' : 'is-current'; ?>">Sync your catalog</li>
                     <li class="<?php echo $has_previewed && $widget_enabled ? 'is-complete' : ($has_synced ? 'is-current' : ''); ?>">Preview and enable the widget</li>
                 </ol>
-                <?php if (!$has_synced): ?>
+                <?php if (!$has_synced && $is_free_plan): ?>
+                    <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings&tab=billing')); ?>">Upgrade to Pro to sync catalog</a>
+                <?php elseif (!$has_synced): ?>
                     <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-knowledge')); ?>">Sync catalog</a>
                 <?php elseif (!$has_previewed): ?>
                     <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-preview')); ?>">Preview widget</a>
@@ -57,7 +67,7 @@ $has_previewed = get_option('woocs_previewed', '0') === '1';
         <div class="woocs-card">
             <div class="woocs-card-header">
                 <h2>Activity Overview</h2>
-                <span id="woocs-dash-refresh-status" style="font-size:12px;color:#646970;">Auto-refreshes every 60s</span>
+                <span id="woocs-dash-refresh-status" class="woocs-card-header-desc">Auto-refreshes every 60s</span>
             </div>
             <div class="woocs-card-body">
                 <div class="woocs-stat-grid">
