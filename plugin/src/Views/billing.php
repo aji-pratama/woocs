@@ -127,7 +127,7 @@ $period_end = !empty($subscription['current_period_end'])
                                 <?php endif; ?>
                                 <?php if (!empty($plan['is_current'])): ?>
                                     <button class="button woocs-plan-btn" disabled>Current Plan</button>
-                                <?php elseif ($key in_array($subscription['plan_key'], ['free', 'trial'], true)): ?>
+                                <?php elseif ($key === 'free'): ?>
                                     <!-- Free tier — no checkout needed -->
                                 <?php elseif ($key === 'custom'): ?>
                                     <a class="button woocs-plan-btn" href="mailto:support@woocs.ai?subject=Custom%20Plan%20Inquiry" target="_blank">Contact Us</a>
