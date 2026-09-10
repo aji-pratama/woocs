@@ -111,6 +111,48 @@ class ApiClient {
         return $this->handle_response($response);
     }
 
+    public function get_knowledge_documents(): array|\WP_Error {
+        $url = $this->base_url . '/api/stores/knowledge';
+
+        $response = wp_remote_get($url, [
+            'headers' => [
+                'X-API-Key' => $this->api_key,
+            ],
+            'timeout' => 10,
+        ]);
+
+        return $this->handle_response($response);
+    }
+
+    public function sync_knowledge_url(string $url_source): array|\WP_Error {
+        $url = $this->base_url . '/api/stores/knowledge/document';
+
+        $response = wp_remote_post($url, [
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-API-Key' => $this->api_key,
+            ],
+            'body' => wp_json_encode(['url' => $url_source]),
+            'timeout' => 30,
+        ]);
+
+        return $this->handle_response($response, true);
+    }
+
+    public function delete_knowledge_document(string $id): array|\WP_Error {
+        $url = $this->base_url . '/api/stores/knowledge/document/' . rawurlencode($id);
+
+        $response = wp_remote_request($url, [
+            'method' => 'DELETE',
+            'headers' => [
+                'X-API-Key' => $this->api_key,
+            ],
+            'timeout' => 10,
+        ]);
+
+        return $this->handle_response($response);
+    }
+
     public function get_subscription(): array|\WP_Error {
         return $this->billing_request('GET', '/api/stores/subscription/');
     }
@@ -146,7 +188,7 @@ class ApiClient {
         );
     }
 
-    private function handle_response($response): array|\WP_Error {
+    private function handle_response($response, bool $include_raw_data = false): array|\WP_Error {
         if (is_wp_error($response)) {
             return $response;
         }
@@ -160,6 +202,11 @@ class ApiClient {
         }
 
         $error_message = $data['error'] ?? ($data['detail'] ?? 'Unknown error from WooCS');
-        return new \WP_Error('woocs_api_error', $error_message, ['status' => $status_code]);
+        $error_data = ['status' => $status_code];
+        if ($include_raw_data && isset($data['upgrade_required'])) {
+            $error_data['upgrade_required'] = $data['upgrade_required'];
+        }
+        
+        return new \WP_Error('woocs_api_error', $error_message, $error_data);
     }
 }

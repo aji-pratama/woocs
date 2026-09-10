@@ -1,7 +1,7 @@
 import { embed, generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { db } from '../db/client';
-import { stores, products, faqs } from '../db/schema/stores';
+import { stores, products, faqs, knowledgeChunks, knowledgeDocuments } from '../db/schema/stores';
 import { chatMessages, chatSessions } from '../db/schema/chat';
 import { eq, sql, and, desc, isNotNull } from 'drizzle-orm';
 import { InferSelectModel } from 'drizzle-orm';
@@ -9,6 +9,8 @@ import { InferSelectModel } from 'drizzle-orm';
 type Store = InferSelectModel<typeof stores>;
 type Product = InferSelectModel<typeof products>;
 type FAQ = InferSelectModel<typeof faqs>;
+type KnowledgeChunk = InferSelectModel<typeof knowledgeChunks>;
+type KnowledgeDocument = InferSelectModel<typeof knowledgeDocuments>;
 type ChatSession = InferSelectModel<typeof chatSessions>;
 
 export interface RagResult {
@@ -77,14 +79,27 @@ export class RagService {
       .orderBy(sql`${faqs.embedding} <=> ${queryVector}::vector`)
       .limit(5);
 
+      // Vector search Knowledge Chunks
+      const kResults = await db.select({
+        chunk: knowledgeChunks,
+        doc: knowledgeDocuments,
+        distance: sql<number>`${knowledgeChunks.embedding} <=> ${queryVector}::vector`
+      })
+      .from(knowledgeChunks)
+      .innerJoin(knowledgeDocuments, eq(knowledgeChunks.documentId, knowledgeDocuments.id))
+      .where(and(eq(knowledgeDocuments.storeId, store.id), isNotNull(knowledgeChunks.embedding)))
+      .orderBy(sql`${knowledgeChunks.embedding} <=> ${queryVector}::vector`)
+      .limit(5);
+
       retrievedProducts = pResults.map(r => r.product);
       retrievedFaqs = fResults.map(r => r.faq);
+      const retrievedKnowledge = kResults.map(r => ({ chunk: r.chunk, source: r.doc.source }));
       
-      const allDistances = [...pResults.map(r => r.distance), ...fResults.map(r => r.distance)];
+      const allDistances = [...pResults.map(r => r.distance), ...fResults.map(r => r.distance), ...kResults.map(r => r.distance)];
       confidence = this._topConfidence(allDistances);
     }
 
-    if (retrievedProducts.length === 0 && retrievedFaqs.length === 0) {
+    if (retrievedProducts.length === 0 && retrievedFaqs.length === 0 && allDistances.length === 0) {
       return {
         answer: "I couldn't find relevant information in the store catalog.",
         confidence: 0.0,
@@ -102,7 +117,7 @@ export class RagService {
     // Reverse to chronological
     history.reverse();
 
-    const prompt = this._buildPrompt(message, retrievedProducts, retrievedFaqs, history, contextUsed === 'page_context' ? primaryProduct : null);
+    const prompt = this._buildPrompt(message, retrievedProducts, retrievedFaqs, typeof kResults !== 'undefined' ? kResults.map(r => ({ chunk: r.chunk, source: r.doc.source })) : [], history, contextUsed === 'page_context' ? primaryProduct : null);
 
     const response = await generateText({
       model: openai('gpt-3.5-turbo'),
@@ -141,7 +156,7 @@ export class RagService {
     return Math.max(0.0, Math.min(1.0, 1.0 - minDistance));
   }
 
-  private static _buildPrompt(message: string, retrievedProducts: Product[], retrievedFaqs: FAQ[], history: any[], primaryProduct: Product | null): string {
+  private static _buildPrompt(message: string, retrievedProducts: Product[], retrievedFaqs: FAQ[], retrievedKnowledge: {chunk: KnowledgeChunk, source: string}[], history: any[], primaryProduct: Product | null): string {
     const sections = [`CUSTOMER QUESTION:\n${message}`];
 
     if (primaryProduct) {
@@ -159,8 +174,9 @@ export class RagService {
 
     const contextDocs = retrievedProducts.map(p => this._productDocument(p));
     const faqDocs = retrievedFaqs.map(f => `FAQ: ${f.question}\nAnswer: ${f.answer}`);
+    const knowledgeDocs = retrievedKnowledge.map(k => `[Source: ${k.source}]\n${k.chunk.content}`);
     
-    sections.push(`RETRIEVED CATALOG CONTEXT:\n` + [...contextDocs, ...faqDocs].join('\n---\n'));
+    sections.push(`RETRIEVED CATALOG CONTEXT:\n` + [...contextDocs, ...faqDocs, ...knowledgeDocs].join('\n---\n'));
 
     return sections.join('\n\n');
   }

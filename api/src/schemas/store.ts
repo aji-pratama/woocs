@@ -58,3 +58,11 @@ export const SyncStatusOutSchema = z.object({
   faqs_synced: z.number().int().optional(),
   error: z.string().nullable().optional(),
 });
+
+export const KnowledgeDocumentOutSchema = z.object({
+  id: z.string().uuid(),
+  type: z.string(),
+  source: z.string(),
+  status: z.string(),
+  updated_at: z.string(),
+});

@@ -2,6 +2,7 @@ import { db } from '../db/client';
 import { taskRecords } from '../db/schema/tasks';
 import { eq, sql } from 'drizzle-orm';
 import { embedCatalog } from './tasks/embedCatalog';
+import { processKnowledgeDocument } from './tasks/processKnowledgeDocument';
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -12,6 +13,11 @@ const TASK_HANDLERS: Record<string, TaskHandler> = {
     const storeId = kwargs.store_id;
     if (!storeId) throw new Error('Missing store_id in task kwargs');
     return embedCatalog(storeId);
+  },
+  process_knowledge_document: async (kwargs) => {
+    const { store_id, document_id, type, source } = kwargs;
+    if (!store_id || !document_id || !type || !source) throw new Error('Missing required kwargs');
+    return processKnowledgeDocument(store_id, document_id, type, source);
   },
 };
 

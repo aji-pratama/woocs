@@ -9,6 +9,9 @@ import { requireFeature, enforceProductLimit } from '../middleware/paywall';
 import { getPlanConfig } from '../config/pricing';
 import { db } from '../db/client';
 import { taskRecords } from '../db/schema/tasks';
+import { KnowledgeService } from '../services/knowledge';
+import { stores } from '../db/schema/stores';
+import { eq } from 'drizzle-orm';
 
 type Variables = {
   storeId: string;
@@ -114,6 +117,82 @@ storeRouter.get('/sync/status', requireApiKey, async (c) => {
     finished_at: task.finishedAt,
     error: task.traceback,
   });
+});
+
+// GET /api/stores/knowledge/
+storeRouter.get('/knowledge', requireApiKey, async (c) => {
+  const storeId = c.get('storeId');
+  const docs = await KnowledgeService.getDocuments(storeId);
+  return c.json({ documents: docs });
+});
+
+// POST /api/stores/knowledge/document
+storeRouter.post('/knowledge/document', requireApiKey, async (c) => {
+  const storeId = c.get('storeId');
+  
+  // Dynamic Limits Check
+  const sub = await BillingService.getSubscription(storeId);
+  const isPro = sub && sub.planKey === 'pro';
+  
+  const MAX_SYNCS = isPro ? 20 : 3;
+  const MAX_URLS = isPro ? 5 : 1;
+  const MAX_PDFS = isPro ? 5 : 0;
+
+  // Check monthly sync limit
+  const store = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (store[0].knowledgeSyncsThisMonth >= MAX_SYNCS) {
+    return c.json({ error: 'Monthly sync limit reached', upgrade_required: !isPro }, 403);
+  }
+
+  const counts = await KnowledgeService.getDocumentCount(storeId);
+  const body = await c.req.parseBody();
+  
+  let type: 'url' | 'pdf' = 'url';
+  let source = '';
+  
+  if (body.url && typeof body.url === 'string') {
+    if (counts.urls >= MAX_URLS) {
+      return c.json({ error: `URL limit reached (max ${MAX_URLS})`, upgrade_required: !isPro }, 403);
+    }
+    type = 'url';
+    source = body.url;
+  } else if (body.pdf) {
+    if (counts.pdfs >= MAX_PDFS) {
+      return c.json({ error: `PDF limit reached (max ${MAX_PDFS})`, upgrade_required: !isPro }, 403);
+    }
+    // PDF upload handling
+    type = 'pdf';
+    const file = body.pdf as File;
+    source = file.name;
+    // In production we would save the file to S3 or process it directly.
+    // For PoC, we just pretend it was saved.
+  } else {
+    return c.json({ error: 'Missing url or pdf in body' }, 400);
+  }
+
+  // Increment syncs
+  await db.update(stores).set({
+    knowledgeSyncsThisMonth: store[0].knowledgeSyncsThisMonth + 1,
+  }).where(eq(stores.id, storeId));
+
+  const doc = await KnowledgeService.createDocument(storeId, type, source);
+
+  // Queue background task
+  const [task] = await db.insert(taskRecords).values({
+    taskName: 'process_knowledge_document',
+    args: [],
+    kwargs: { store_id: storeId, document_id: doc.id, type, source },
+  }).returning();
+
+  return c.json({ document: doc, task_id: task.id }, 202);
+});
+
+// DELETE /api/stores/knowledge/document/:id
+storeRouter.delete('/knowledge/document/:id', requireApiKey, async (c) => {
+  const storeId = c.get('storeId');
+  const documentId = c.req.param('id');
+  await KnowledgeService.deleteDocument(storeId, documentId);
+  return c.json({ success: true });
 });
 
 // GET /api/stores/subscription/

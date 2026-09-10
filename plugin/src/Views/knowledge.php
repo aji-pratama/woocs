@@ -3,8 +3,8 @@ declare(strict_types=1);
 if (!defined('ABSPATH')) exit;
 
 $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'catalog';
-$active_tab = in_array($active_tab, ['catalog', 'faqs'], true) ? $active_tab : 'catalog';
-$tabs = ['catalog' => 'Catalog', 'faqs' => 'FAQs'];
+$active_tab = in_array($active_tab, ['catalog', 'faqs', 'general'], true) ? $active_tab : 'catalog';
+$tabs = ['catalog' => 'Catalog', 'faqs' => 'FAQs', 'general' => 'General'];
 
 $subscription = (new WooCS\ApiClient())->get_subscription();
 $is_free_plan = !is_wp_error($subscription) && isset($subscription['plan_key']) && in_array($subscription['plan_key'], ['free', 'trial'], true);
@@ -22,5 +22,13 @@ $is_free_plan = !is_wp_error($subscription) && isset($subscription['plan_key']) 
         <?php endforeach; ?>
     </nav>
 
-    <?php require WOOCS_PLUGIN_DIR . 'src/Views/' . ($active_tab === 'faqs' ? 'faqs.php' : 'sync.php'); ?>
+    <?php 
+        if ($active_tab === 'faqs') {
+            require WOOCS_PLUGIN_DIR . 'src/Views/faqs.php';
+        } elseif ($active_tab === 'general') {
+            require WOOCS_PLUGIN_DIR . 'src/Views/knowledge-general.php';
+        } else {
+            require WOOCS_PLUGIN_DIR . 'src/Views/sync.php';
+        }
+    ?>
 </div>

@@ -1,0 +1,1 @@
+ALTER TABLE "store_store" ALTER COLUMN "knowledge_syncs_this_month" SET DEFAULT 0;

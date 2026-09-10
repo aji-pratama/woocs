@@ -20,6 +20,7 @@ export const stores = pgTable('store_store', {
   wcConsumerKey: varchar('wc_consumer_key', { length: 255 }),
   wcConsumerSecret: varchar('wc_consumer_secret', { length: 255 }),
   merchantEmail: varchar('merchant_email', { length: 255 }),
+  knowledgeSyncsThisMonth: integer('knowledge_syncs_this_month').default(0).notNull(),
   lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
 });
@@ -83,3 +84,28 @@ export const faqs = pgTable(
     ),
   })
 );
+
+export const knowledgeDocuments = pgTable('store_knowledgedocument', {
+  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  storeId: uuid('store_id')
+    .references(() => stores.id, { onDelete: 'cascade' })
+    .notNull(),
+  type: varchar('type', { length: 20 }).notNull(), // 'url' or 'pdf'
+  source: varchar('source', { length: 2048 }).notNull(),
+  status: varchar('status', { length: 50 }).notNull(), // 'pending', 'processing', 'completed', 'error'
+  updatedAt: timestamp('updated_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
+});
+
+export const knowledgeChunks = pgTable('store_knowledgechunk', {
+  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  documentId: uuid('document_id')
+    .references(() => knowledgeDocuments.id, { onDelete: 'cascade' })
+    .notNull(),
+  content: text('content').notNull(),
+  embedding: vector('embedding', { dimensions: 1024 }),
+}, (table) => ({
+  embeddingIndex: index('chunk_embedding_idx').using(
+    'hnsw',
+    table.embedding.op('vector_cosine_ops')
+  ),
+}));
