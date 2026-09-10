@@ -69,9 +69,11 @@ Two Modules, all connected through a single API surface:
 
 **Responsibilities:**
 - Pull catalog from WooCommerce REST API (products, variations, FAQs)
+- Accept merchant-provided General Knowledge (URLs and PDF uploads)
 - POST catalog payload to Hono `/api/stores/sync/`
+- POST knowledge documents to Hono `/api/stores/knowledge/document`
 - Inject widget JS bundle into storefront footer
-- Admin pages: Settings, Sync status, FAQ manager, Widget preview
+- Admin pages: Settings, Sync status, FAQ manager, General Knowledge manager, Widget preview
 
 **Sync strategy:** Pull (not webhook). Plugin initiates on-demand from settings page, or cron triggers every 6 hours using stored WooCommerce credentials.
 
@@ -88,12 +90,13 @@ Two Modules, all connected through a single API surface:
 **stores** — one record per merchant. Responsible for:
 - Tenant identity: holds WooCommerce credentials, API key hash, merchant email, subscription state
 - Catalog ingestion: receives sync payload, persists Product, ProductVariation, and FAQ records
-- Embedding pipeline: background job that builds text documents, calls the selected LlamaIndex embedding model, and saves vectors to pgvector
+- Knowledge ingestion: receives URLs and PDFs, queues LlamaParse extraction task
+- Embedding pipeline: background job that builds text documents (and chunks for PDFs/URLs), calls LlamaIndex embedding model, and saves vectors to pgvector
 - Sync status tracking: last_synced_at, per-entity counts, task status
 
 **chat** — handles all widget-facing interactions:
 - Creates and manages ChatSession and ChatMessage records
-- On each incoming message: runs keyword check → embed query through LlamaIndex → tenant-scoped pgvector similarity search → build prompt → call the selected LlamaIndex LLM → evaluate confidence → return answer or escalation signal
+- On each incoming message: runs keyword check → embed query through LlamaIndex → tenant-scoped pgvector similarity search (across Products, FAQs, and KnowledgeChunks) → build prompt → call the selected LlamaIndex LLM → evaluate confidence → return answer or escalation signal
 - Dispatches escalation email via background job
 
 #### Hono endpoints
@@ -102,7 +105,12 @@ Two Modules, all connected through a single API surface:
 
 `POST /api/stores/sync/` — authenticated (X-API-Key). Accepts catalog payload, persists records, queues Hono embedding task, returns task_id.
 
-`GET /api/stores/sync/status/` — authenticated (X-API-Key). Returns products_count, faqs_count, variations_count, last_synced_at, task status.
+`POST /api/stores/knowledge/document` — authenticated (X-API-Key). Accepts URL string or PDF file upload. Queues LlamaParse extraction and embedding task.
+*Limitations:* 
+- Free plan: Max 1 URL (up to 3 pages), No PDFs. Max 3 document syncs/crawls per month.
+- Pro plan: Max 5 URLs (up to 50 pages each), Max 5 PDFs (up to 10MB/50 pages each). Max 20 document syncs/crawls per month.
+
+`GET /api/stores/sync/status/` — authenticated (X-API-Key). Returns products_count, faqs_count, variations_count, knowledge_docs_count, last_synced_at, task status.
 
 `POST /api/widget/chat/` — unauthenticated. Accepts store_id, session_id, message. Returns answer, confidence, escalated flag, escalation_reason. Rate-limited by store_id (soft: 60 req/min, unenforced in PoC).
 
@@ -189,6 +197,22 @@ erDiagram
         datetime updated_at
     }
     
+    KnowledgeDocument {
+        UUID id PK
+        UUID store_id FK
+        string type
+        string source
+        string status
+        datetime updated_at
+    }
+    
+    KnowledgeChunk {
+        UUID id PK
+        UUID document_id FK
+        text content
+        vector embedding
+    }
+    
     ChatSession {
         UUID id PK
         UUID store_id FK
@@ -210,8 +234,10 @@ erDiagram
 
     Store ||--o{ Product : "has"
     Store ||--o{ FAQ : "has"
+    Store ||--o{ KnowledgeDocument : "has"
     Store ||--o{ ChatSession : "has"
     Product ||--o{ ProductVariation : "has"
+    KnowledgeDocument ||--o{ KnowledgeChunk : "contains"
     ChatSession ||--o{ ChatMessage : "contains"
 ```
 
@@ -231,6 +257,7 @@ Central anchor. One record per merchant. All other records scoped here.
 | trial_ends_at | datetime | Set at registration |
 | billing_cycle_end | datetime | Updated on Polar.sh webhook |
 | conversation_count | integer | Incremented per ChatSession, reset monthly |
+| knowledge_syncs_this_month | integer | Tracks manual document syncs/re-crawls, reset monthly |
 | last_synced_at | datetime | Updated after each successful sync |
 | created_at | datetime | |
 
@@ -277,6 +304,28 @@ Merchant-authored Q&A pairs. Embedded and indexed alongside products.
 | answer | text | |
 | embedding | vector(1024) | pgvector field — null until embedding pipeline runs |
 | updated_at | datetime | |
+
+### KnowledgeDocument
+Tracks the uploaded file or URL source for General Knowledge.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| store | FK → Store | |
+| type | string | `url` or `pdf` |
+| source | string | e.g. `https://example.com/about` or `shipping_policy.pdf` |
+| status | string | `pending`, `processing`, `completed`, `error` |
+| updated_at | datetime | |
+
+### KnowledgeChunk
+Stores the parsed text chunks for a KnowledgeDocument.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| document | FK → KnowledgeDocument | |
+| content | text | Extracted and chunked text |
+| embedding | vector(1024) | pgvector field |
 
 ### ChatSession
 One record per widget session.
@@ -343,6 +392,14 @@ FAQs are stored as separate nodes from products — they are retrieved independe
 ### Why variations inline (not separate nodes)
 
 Embedding each variation as a separate node would generate 1000+ nodes for a store with 100 products × 10 variations. The parent product document with all variations inline gives the LLM enough context to answer variation-specific questions (e.g. "do you have this in M?") while keeping the index size manageable. Post-PoC: if a store has >500 variations, split into separate nodes with parent product metadata.
+
+### General Knowledge document format (PDF/URL)
+
+Unlike Products and FAQs, General Knowledge documents can be arbitrarily long.
+- Documents are sent to LlamaParse (for PDFs) or WebReader (for URLs) to extract markdown text.
+- The text is split into chunks of ~1024 tokens with 200 tokens overlap using LlamaIndex's `TokenTextSplitter`.
+- Each chunk is stored as a separate `KnowledgeChunk` record in `pgvector` with a reference to its parent `KnowledgeDocument`.
+- When retrieving, the LLM prompt is injected with the chunk's text and the `source` name.
 
 ---
 
@@ -532,7 +589,21 @@ ASSISTANT:
 
 ---
 
-#### A4. Widget preview utility page
+#### A4. Knowledge page — General tab
+**Route:** `/wp-admin/admin.php?page=woocs-knowledge&tab=general`
+
+**Features:**
+- Document list: source URL/PDF name, type, status (processing, active, error), last updated
+- Add URL form: input field for website URL
+- Upload PDF form: file uploader via WP Media Library or direct proxy
+- Delete document with confirm dialog
+- "Re-sync Document" → triggers LlamaParse background job via `POST /api/stores/knowledge/document` (drops old chunks and re-crawls/re-parses the source)
+- **Immutability Rule:** Extracted chunks are read-only. Users cannot manually edit the text of a PDF/URL in the UI. To update, they must re-sync.
+- **Limitations Enforced:** Displays upgrade prompt if Free user attempts to upload PDF or exceed 1 URL limit.
+
+---
+
+#### A5. Widget preview utility page
 **Route:** `/wp-admin/admin.php?page=woocs-preview`
 
 Preview is opened from Settings → Widget. It stays registered under WooCS through authorization, then its visible submenu item is removed during `admin_head`.
