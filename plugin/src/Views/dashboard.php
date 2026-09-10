@@ -48,11 +48,19 @@ $is_free_plan = !is_wp_error($subscription) && isset($subscription['plan_key']) 
             <div class="woocs-card-body">
                 <ol class="woocs-steps">
                     <li class="is-complete">Store connected</li>
-                    <li class="<?php echo $has_synced ? 'is-complete' : 'is-current'; ?>">Sync your catalog</li>
+                    <li class="<?php echo $has_synced ? 'is-complete' : 'is-current'; ?>">
+                        Sync your catalog
+                        <?php if (!$has_synced && $is_free_plan): ?>
+                            <span class="woocs-pro-badge">PRO</span>
+                        <?php endif; ?>
+                    </li>
                     <li class="<?php echo $has_previewed && $widget_enabled ? 'is-complete' : ($has_synced ? 'is-current' : ''); ?>">Preview and enable the widget</li>
                 </ol>
                 <?php if (!$has_synced && $is_free_plan): ?>
-                    <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings&tab=billing')); ?>">Upgrade to Pro to sync catalog</a>
+                    <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings&tab=billing')); ?>">
+                        <span class="dashicons dashicons-star-filled" style="vertical-align: middle; line-height: 1;"></span>
+                        Upgrade to Pro to sync catalog
+                    </a>
                 <?php elseif (!$has_synced): ?>
                     <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-knowledge')); ?>">Sync catalog</a>
                 <?php elseif (!$has_previewed): ?>

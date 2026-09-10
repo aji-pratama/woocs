@@ -31,7 +31,7 @@ $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
     <?php endif; ?>
 
     <!-- Tabs -->
-    <nav class="nav-tab-wrapper" style="margin-bottom:0;">
+    <nav class="nav-tab-wrapper">
         <?php foreach ($tabs as $slug => $label): ?>
             <a href="<?php echo esc_url(add_query_arg('tab', $slug, admin_url('admin.php?page=woocs-settings'))); ?>"
                class="nav-tab <?php echo $active_tab === $slug ? 'nav-tab-active' : ''; ?>">
