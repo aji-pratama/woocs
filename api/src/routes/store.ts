@@ -10,8 +10,9 @@ import { getPlanConfig } from '../config/pricing';
 import { db } from '../db/client';
 import { taskRecords } from '../db/schema/tasks';
 import { KnowledgeService } from '../services/knowledge';
-import { stores } from '../db/schema/stores';
-import { eq } from 'drizzle-orm';
+import { stores, products } from '../db/schema/stores';
+import { chatSessions, chatMessages } from '../db/schema/chat';
+import { eq, sql } from 'drizzle-orm';
 
 type Variables = {
   storeId: string;
@@ -246,4 +247,60 @@ storeRouter.post('/subscription/portal', requireApiKey, async (c) => {
   } catch (e: any) {
     return c.json({ error: e.message }, 400);
   }
+});
+
+// GET /api/stores/dashboard/stats/
+storeRouter.get('/dashboard/stats', requireApiKey, async (c) => {
+  const storeId = c.get('storeId');
+  
+  const sessionsCount = await db.select({ count: sql<number>`count(*)` }).from(chatSessions).where(eq(chatSessions.storeId, storeId));
+  
+  const messagesCount = await db.select({ count: sql<number>`count(*)` })
+    .from(chatMessages)
+    .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
+    .where(eq(chatSessions.storeId, storeId));
+    
+  const escalationsCount = await db.select({ count: sql<number>`count(*)` })
+    .from(chatMessages)
+    .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
+    .where(sql`${chatSessions.storeId} = ${storeId} AND ${chatMessages.escalated} = true`);
+
+  const productsCount = await db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.storeId, storeId));
+
+  return c.json({
+    chat_sessions: Number(sessionsCount[0].count),
+    total_messages: Number(messagesCount[0].count),
+    products_synced: Number(productsCount[0].count),
+    escalations: Number(escalationsCount[0].count),
+  });
+});
+
+// GET /api/stores/chat-history/
+storeRouter.get('/chat-history', requireApiKey, async (c) => {
+  const storeId = c.get('storeId');
+  
+  const page = parseInt(c.req.query('page') || '1', 10);
+  const pageSize = parseInt(c.req.query('page_size') || '20', 10);
+  const offset = (page - 1) * pageSize;
+  
+  const sessions = await db.select().from(chatSessions)
+    .where(eq(chatSessions.storeId, storeId))
+    .orderBy(sql`${chatSessions.createdAt} DESC`)
+    .limit(pageSize)
+    .offset(offset);
+  
+  return c.json({ sessions, page, page_size: pageSize });
+});
+
+// GET /api/stores/chat-history/:id/
+storeRouter.get('/chat-history/:id', requireApiKey, async (c) => {
+  const storeId = c.get('storeId');
+  const sessionId = c.req.param('id');
+  
+  const session = await db.select().from(chatSessions).where(sql`${chatSessions.id} = ${sessionId} AND ${chatSessions.storeId} = ${storeId}`).limit(1);
+  if (session.length === 0) return c.json({ error: 'Session not found' }, 404);
+  
+  const messages = await db.select().from(chatMessages).where(eq(chatMessages.sessionId, session[0].id)).orderBy(chatMessages.createdAt);
+  
+  return c.json({ session: session[0], messages });
 });

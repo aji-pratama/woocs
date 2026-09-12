@@ -82,7 +82,7 @@ function mapMessages(messages: any[]): Message[] {
 async function fetchConversation(config: Config, sessionId: string) {
   const baseUrl = config.api_url.replace(/\/$/, "");
   const params = new URLSearchParams({ store_id: config.store_id, session_id: sessionId });
-  const response = await fetch(`${baseUrl}/api/widget/history/?${params}`);
+  const response = await fetch(`${baseUrl}/api/widget/chat/history/?${params}`);
   if (!response.ok) return [];
   const data = await response.json();
   return mapMessages(data.messages || []);

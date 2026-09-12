@@ -112,7 +112,27 @@ Two Modules, all connected through a single API surface:
 
 `GET /api/stores/sync/status/` — authenticated (X-API-Key). Returns products_count, faqs_count, variations_count, knowledge_docs_count, last_synced_at, task status.
 
+`GET /api/stores/knowledge/` — authenticated (X-API-Key). Lists all knowledge documents and their status.
+
+`DELETE /api/stores/knowledge/document/:id` — authenticated (X-API-Key). Deletes a knowledge document and its chunks.
+
+`GET /api/stores/dashboard/stats/` — authenticated (X-API-Key). Returns overall stats: chat_sessions, total_messages, products_synced, escalations.
+
+`GET /api/stores/chat-history/` — authenticated (X-API-Key). Lists all chat sessions for the store.
+
+`GET /api/stores/chat-history/:id/` — authenticated (X-API-Key). Returns the message thread for a specific session.
+
+`GET /api/stores/subscription/` — authenticated (X-API-Key). Returns current Polar subscription status and plan info.
+
+`POST /api/stores/subscription/checkout/` — authenticated (X-API-Key). Generates a Polar checkout URL for upgrading.
+
+`POST /api/stores/subscription/portal/` — authenticated (X-API-Key). Generates a Polar customer portal session URL.
+
+`POST /api/webhooks/polar/` — Polar Webhook endpoint to sync subscription states (active, cancelled, etc.).
+
 `POST /api/widget/chat/` — unauthenticated. Accepts store_id, session_id, message. Returns answer, confidence, escalated flag, escalation_reason. Rate-limited by store_id (soft: 60 req/min, unenforced in PoC).
+
+`GET /api/widget/chat/history/` — unauthenticated. Accepts store_id, session_id. Returns the message thread for the current session.
 
 `GET /api/widget/order-status/` — unauthenticated. Accepts store_id, order_id. Calls WooCommerce REST API live, returns mapped order status, line items, total. No caching — always fresh. Rate-limited by store_id (soft: 30 req/min, unenforced in PoC).
 
@@ -356,85 +376,7 @@ One record per message turn (user and assistant).
 
 ---
 
-## 7. build_document spec
-
-The quality of RAG retrieval depends entirely on how catalog records are converted to text before embedding. This is the `build_document()` function called by the Hono embedding task.
-
-### Product document format
-
-Fields are joined in this order, separated by newlines:
-
-```
-Product: {name}
-Category: {categories joined by ", "}
-Tags: {tags joined by ", "}
-Price: ${price}
-Stock: {stock_status} ({stock_quantity} units if not null)
-Description: {description}
-Variations:
-  - {variation.attributes as "key: value" pairs} | Price: ${variation.price} | Stock: {variation.stock_quantity}
-  - (one line per variation)
-```
-
-**Rules:**
-- If description is empty, omit the Description line entirely — do not embed "Description: "
-- If stock_quantity is null, emit only the stock_status (e.g. "Stock: instock")
-- Each variation is embedded inline in the parent product document — variations are not separate nodes
-- Maximum document length: 1500 tokens. If exceeded, truncate description first, then tags
-
-### FAQ document format
-
-```
-Question: {question}
-Answer: {answer}
-```
-
-FAQs are stored as separate nodes from products — they are retrieved independently by similarity search.
-
-### Why variations inline (not separate nodes)
-
-Embedding each variation as a separate node would generate 1000+ nodes for a store with 100 products × 10 variations. The parent product document with all variations inline gives the LLM enough context to answer variation-specific questions (e.g. "do you have this in M?") while keeping the index size manageable. Post-PoC: if a store has >500 variations, split into separate nodes with parent product metadata.
-
-### General Knowledge document format (PDF/URL)
-
-Unlike Products and FAQs, General Knowledge documents can be arbitrarily long.
-- Documents are sent to LlamaParse (for PDFs) or WebReader (for URLs) to extract markdown text.
-- The text is split into chunks of ~1024 tokens with 200 tokens overlap using LlamaIndex's `TokenTextSplitter`.
-- Each chunk is stored as a separate `KnowledgeChunk` record in `pgvector` with a reference to its parent `KnowledgeDocument`.
-- When retrieving, the LLM prompt is injected with the chunk's text and the `source` name.
-
----
-
-## 8. Prompt template
-
-Sent to Claude Haiku on every widget chat turn (non-order, non-keyword path):
-
-```
-You are a customer support assistant for {store_name}.
-Answer questions using ONLY the context below.
-If the answer is not in the context, say you will connect the customer with the team.
-Never invent product details, prices, or stock levels.
-
-CONTEXT:
-{retrieved_chunks}
-
-ORDER STATUS (if queried):
-{order_data}
-
-CONVERSATION HISTORY:
-{last_5_messages}
-
-CUSTOMER: {user_message}
-ASSISTANT:
-```
-
-`{retrieved_chunks}` = top-5 nodes from pgvector similarity search, concatenated with `---` separator.
-`{order_data}` = populated only when order intent detected, otherwise omitted.
-`{last_5_messages}` = last 5 ChatMessage records for this session, formatted as `role: content`.
-
----
-
-## 9. Error handling
+## 7. Error handling
 
 ### Embedding pipeline (background job)
 
@@ -474,7 +416,7 @@ ASSISTANT:
 
 ---
 
-## 10. Tech stack
+## 8. Tech stack
 
 | Layer | Choice | Reason |
 |---|---|---|
@@ -492,7 +434,7 @@ ASSISTANT:
 
 ---
 
-## 11. Kill switches
+## 9. Kill switches
 
 | Signal | Threshold | Action |
 |---|---|---|
@@ -505,7 +447,7 @@ ASSISTANT:
 
 ---
 
-## 12. Test plan (Week 4)
+## 10. Test plan (Week 4)
 
 **Manual query set — 20 queries:**
 
@@ -535,7 +477,7 @@ ASSISTANT:
 
 ---
 
-## 13. Deliverables
+## 11. Deliverables
 
 - [ ] WP plugin installable via zip upload
 - [ ] Hono JS backend live on VPS
@@ -547,7 +489,7 @@ ASSISTANT:
 
 ---
 
-## 14. Screen inventory & feature map
+## 12. Screen inventory & feature map
 
 ### Layer A — WP Admin Dashboard (plugin pages)
 
@@ -648,7 +590,7 @@ Shows the generated API key (once only) and instructions to install the WP plugi
 
 ---
 
-## 15. Widget specification
+## 13. Widget specification
 
 The widget is the only customer-facing surface. It is a React bundle injected into every storefront page by the WP plugin. It starts collapsed as a floating bubble and expands to a full chat panel on click.
 
@@ -904,7 +846,7 @@ Widget
 
 ---
 
-## 16. Auth model
+## 14. Auth model
 
 ### Overview
 
@@ -952,7 +894,7 @@ The widget does not use the API key. It uses `store_id` only — a non-secret UU
 
 ---
 
-## 17. Onboarding flows
+## 15. Onboarding flows
 
 Two entry points, same end state: store connected, catalog synced, widget live.
 
@@ -1021,7 +963,7 @@ Both paths converge at step 8 of Entry point A. After `POST /api/stores/register
 
 ---
 
-## 18. Subscription & billing
+## 16. Subscription & billing
 
 ### Trial
 
@@ -1072,7 +1014,7 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 
 ---
 
-## 19. Mock UX (ASCII wireframes)
+## 17. Mock UX (ASCII wireframes)
 
 ### A1. WP Admin — Settings (connected state)
 
@@ -1380,7 +1322,7 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 
 ---
 
-## 20. System design diagrams
+## 18. System design diagrams
 
 ---
 
