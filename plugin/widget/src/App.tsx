@@ -395,51 +395,55 @@ export default function App() {
 
   // Render as a floating widget
   return (
-    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end">
+    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end">
       {isOpen && (
-        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-[#c3c4c7] bg-white font-sans text-[#1d2327] transition-[width,height] duration-150 ${
+        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-[#c3c4c7] bg-white font-sans text-[#1d2327] shadow-[0_3px_6px_rgba(0,0,0,0.1)] transition-[width,height] duration-150 ${
           isMaximized
             ? "h-[760px] w-[720px] rounded"
             : "h-[620px] w-[400px] rounded"
         }`}>
-          <header className="flex min-h-14 items-center justify-between border-b border-[#dcdcde] bg-[#f6f7f7] px-3">
-            <div className="flex min-w-0 items-center gap-2">
+          <header 
+            style={{ backgroundColor: config.primary_color }}
+            className="woocs-embossed flex min-h-14 items-center justify-between px-3 text-white"
+          >
+            <div className="flex min-w-0 items-center gap-3">
               {showHistory && (
-                <IconButton label="Back to chat" onClick={() => setShowHistory(false)}>
-                  <ArrowLeft size={16} />
+                <IconButton label="Back to chat" onClick={() => setShowHistory(false)} light>
+                  <ArrowLeft size={20} />
                 </IconButton>
               )}
               <div className="min-w-0">
-                <h1 className="truncate text-[13px] font-semibold text-[#1d2327]">
+                <h1 className="truncate text-[16px] font-bold text-white tracking-wide">
                   {showHistory ? "Conversations" : config.store_name}
                 </h1>
                 {!showHistory && (
-                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#646970]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#00a32a]" aria-hidden="true" />
+                  <p className="mt-1 flex items-center gap-1.5 text-[12px] font-medium text-white/90">
+                    <span className="h-2 w-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.8)]" aria-hidden="true" />
                     Available now
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1">
               {!showHistory && (
-                <IconButton label="Conversation history" onClick={() => setShowHistory(true)}>
-                  <Clock size={16} />
+                <IconButton label="Conversation history" onClick={() => setShowHistory(true)} light>
+                  <Clock size={18} />
                 </IconButton>
               )}
-              <IconButton label="New conversation" onClick={resetChat}>
-                <Plus size={18} />
+              <IconButton label="New conversation" onClick={resetChat} light>
+                <Plus size={20} />
               </IconButton>
               <IconButton
                 onClick={() => setIsMaximized((value) => !value)}
                 label={isMaximized ? "Restore chat size" : "Maximize chat"}
+                light
               >
                 {isMaximized
-                  ? <Minimize size={16} />
-                  : <Maximize size={16} />}
+                  ? <Minimize size={18} />
+                  : <Maximize size={18} />}
               </IconButton>
-              <IconButton label="Close" onClick={() => setIsOpen(false)}>
-                <X size={17} />
+              <IconButton label="Close" onClick={() => setIsOpen(false)} light>
+                <X size={20} />
               </IconButton>
             </div>
           </header>
@@ -448,9 +452,12 @@ export default function App() {
             <HistoryList entries={history} loading={historyLoading} onSelect={openConversation} onNew={resetChat} />
           ) : config.prechat_enabled && !prechatDone ? (
             <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8 text-center">
-              <div className="mb-6">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded border border-[#c3c4c7] bg-[#f6f7f7]" style={{ color: config.primary_color }}>
-                  <MessageCircle size={26} strokeWidth={1.6} />
+              <div className="mb-8">
+                <div 
+                  className="woocs-embossed mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded text-white" 
+                  style={{ backgroundColor: config.primary_color }}
+                >
+                  <MessageCircle size={24} strokeWidth={1.5} />
                 </div>
                 <h2 className="text-lg font-semibold text-[#1d2327]">Welcome to {config.store_name}</h2>
                 <p className="mt-2 text-sm text-[#646970]">Please introduce yourself before we start.</p>
@@ -486,7 +493,7 @@ export default function App() {
                 <button
                   type="submit"
                   style={{ backgroundColor: config.primary_color }}
-                className="mt-4 w-full rounded-sm px-4 py-2.5 text-sm font-medium text-white hover:brightness-95"
+                  className="woocs-embossed-btn mt-4 w-full rounded-sm px-4 py-2 text-[13px] font-semibold text-white"
                 >
                   Start Chatting
                 </button>
@@ -542,24 +549,24 @@ export default function App() {
               </div>
 
               {/* Input */}
-              <div className="border-t border-[#dcdcde] bg-[#f6f7f7] px-3 pb-2.5 pt-3">
-                <form onSubmit={handleSubmit} className="flex items-center gap-2 rounded-sm border border-[#8c8f94] bg-white p-1 pl-3 focus-within:border-[#2271b1] focus-within:ring-1 focus-within:ring-[#2271b1]">
+              <div className="border-t border-[#e2e4e7] bg-white px-4 pb-4 pt-4 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+                <form onSubmit={handleSubmit} className="flex items-center gap-3 rounded-xl border border-[#dcdcde] bg-[#f9fafb] p-1.5 pl-4 focus-within:border-black/20 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/5 transition-all">
                   <input
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     disabled={loading}
                     placeholder="Ask anything..."
-                    className="min-w-0 flex-1 bg-transparent py-1.5 text-[13px] text-[#1d2327] placeholder:text-[#8c8f94] focus:outline-none disabled:opacity-50"
+                    className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-[#1d2327] placeholder:text-[#8c8f94] focus:outline-none disabled:opacity-50"
                   />
                   <button
                     type="submit"
                     disabled={loading || !input.trim()}
                     style={{ backgroundColor: config.primary_color }}
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sm text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="woocs-embossed-btn flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sm text-white disabled:pointer-events-none disabled:opacity-40"
                     aria-label="Send"
                   >
-                    <ArrowUp size={17} strokeWidth={1.8} />
+                    <ArrowUp size={16} strokeWidth={1.8} />
                   </button>
                 </form>
                 <p className="mt-2 text-center text-[10px] text-[#787c82]">Powered by WooCS.ai</p>
@@ -574,26 +581,30 @@ export default function App() {
         <button
           onClick={() => setIsOpen(true)}
           style={{ backgroundColor: config.primary_color }}
-          className="flex h-12 w-12 items-center justify-center rounded border border-black/10 text-white hover:brightness-95 active:brightness-90"
+          className="woocs-embossed-btn flex h-12 w-12 items-center justify-center rounded text-white"
           aria-label="Open chat"
         >
-          <MessageCircle size={22} strokeWidth={1.75} />
+          <MessageCircle size={24} strokeWidth={1.6} />
         </button>
       )}
     </div>
   );
 }
 
-function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+function IconButton({ label, onClick, children, light }: { label: string; onClick: () => void; children: ReactNode; light?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="grid h-8 w-8 place-items-center rounded-sm text-[#50575e] hover:bg-[#dcdcde] hover:text-[#1d2327] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2271b1]"
+      className={`grid h-10 w-10 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${
+        light 
+          ? "text-white/80 hover:bg-white/20 hover:text-white" 
+          : "text-[#50575e] hover:bg-[#dcdcde] hover:text-[#1d2327]"
+      }`}
       aria-label={label}
       title={label}
     >
-      <span className="[&>svg]:stroke-[1.55]">{children}</span>
+      <span className="[&>svg]:stroke-[2]">{children}</span>
     </button>
   );
 }
@@ -658,7 +669,7 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
     <div className="animate-in fade-in">
       <div className="flex max-w-[90%] flex-col gap-3">
         <div
-          className={`relative rounded border px-3 py-2.5 text-[13px] leading-5 ${
+          className={`relative rounded border px-3.5 py-3 text-[14px] leading-relaxed ${
             message.error
               ? "border-[#d63638] bg-[#fcf0f1] text-[#8a2424]"
               : "border-[#dcdcde] bg-[#f6f7f7] text-[#2c3338]"
@@ -699,18 +710,18 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
       {meta.image_url && (
         <img src={meta.image_url} alt={meta.name} className="h-28 w-full object-cover" />
       )}
-      <div className="p-3">
-        <div className="text-[13px] font-semibold leading-tight text-[#1d2327]">{meta.name}</div>
-        <div className="mt-2 flex items-center justify-between">
+      <div className="p-4">
+        <div className="text-[14px] font-semibold leading-tight text-[#1d2327]">{meta.name}</div>
+        <div className="mt-2.5 flex items-center justify-between">
           <span className="font-bold text-[#1d2327]">${meta.price}</span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${stock.cls}`}>{stock.label}</span>
+          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ${stock.cls}`}>{stock.label}</span>
         </div>
         <a
           href={meta.wc_url}
           target="_blank"
           rel="noopener noreferrer"
           style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
-          className="mt-3 block w-full rounded-sm px-3 py-1.5 text-center text-[11px] font-medium text-white hover:brightness-95"
+          className="woocs-embossed-btn mt-4 block w-full rounded-sm px-4 py-2 text-center text-[13px] font-semibold text-white"
         >
           View product
         </a>
@@ -721,16 +732,16 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
 
 function OrderCard({ meta }: { meta: OrderMeta }) {
   return (
-    <div className="rounded border border-[#c3c4c7] bg-white p-3">
-      <div className="text-[13px] font-semibold text-slate-900">Order #{meta.order_id}</div>
-      <div className="mt-2.5 space-y-2 text-[11px]">
-        <div className="flex justify-between border-b border-slate-100 pb-1.5">
+    <div className="rounded border border-[#c3c4c7] bg-white p-4">
+      <div className="text-[14px] font-semibold text-slate-900">Order #{meta.order_id}</div>
+      <div className="mt-3 space-y-2.5 text-[13px]">
+        <div className="flex justify-between border-b border-slate-100 pb-2">
           <span className="text-slate-500">Status</span>
           <span className="font-medium text-indigo-600">{meta.status}</span>
         </div>
-        <div className="border-b border-slate-100 pb-1.5">
-          <div className="mb-1 text-slate-500">Items</div>
-          <ul className="space-y-0.5 text-slate-800">
+        <div className="border-b border-slate-100 pb-2">
+          <div className="mb-1.5 text-slate-500">Items</div>
+          <ul className="space-y-1 text-slate-800">
             {meta.items.map((i, idx) => (
               <li key={idx}>{i}</li>
             ))}
@@ -749,18 +760,19 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
   const [done, setDone] = useState(false);
   if (done) return null;
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-      <div className="flex items-start gap-2">
-        <span className="text-sm text-amber-600">⚠</span>
+    <div className="rounded border border-[#c3c4c7] bg-white p-4">
+      <div className="flex items-start gap-3">
+        <span className="text-base text-amber-500">⚠</span>
         <div className="flex-1">
-          <div className="text-[12px] leading-tight text-amber-900">Want me to connect you with the team?</div>
-          <div className="mt-2.5 flex flex-wrap gap-2">
+          <div className="text-[14px] font-medium leading-tight text-[#1d2327]">Want me to connect you with the team?</div>
+          <div className="mt-3 flex flex-wrap gap-2.5">
             <button
               onClick={() => {
                 onEscalate(true);
                 setDone(true);
               }}
-              className="rounded-md bg-amber-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-amber-700"
+              style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+              className="woocs-embossed-btn rounded-sm px-4 py-2 text-[13px] font-semibold text-white"
             >
               Talk to someone
             </button>
@@ -769,7 +781,7 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
                 onEscalate(false);
                 setDone(true);
               }}
-              className="rounded-md bg-white px-2.5 py-1.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200 hover:bg-amber-50"
+              className="rounded-sm border border-[#c3c4c7] bg-white px-4 py-2 text-[13px] font-medium text-[#2c3338] transition-colors hover:bg-slate-50"
             >
               No thanks
             </button>
@@ -782,9 +794,9 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
 
 function TypingDots() {
   return (
-    <div className="flex items-center gap-2 py-1 text-[11px] text-slate-500">
+    <div className="flex items-center gap-2 py-1.5 text-[13px] text-slate-500">
       <span>Thinking</span>
-      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" />
+      <span className="h-2 w-2 animate-pulse rounded-full bg-slate-400" />
     </div>
   );
 }
