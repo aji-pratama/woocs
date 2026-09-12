@@ -17,3 +17,15 @@
 - [ ] Implement API-key rotation when production onboarding requires it.
 - [ ] Define merchant accounts only when a standalone dashboard becomes a concrete requirement.
 - [ ] Harden widget tokens, rate limiting, history access, and order verification.
+
+## API & Plugin Alignment (Discrepancies found)
+
+- [ ] Update `_docs/PRD.md` to include newly added endpoints:
+  - Billing endpoints (`/api/stores/subscription/`, `/api/stores/subscription/checkout/`, `/api/stores/subscription/portal/`, `/api/webhooks/polar/`)
+  - Knowledge endpoints (`GET /api/stores/knowledge/`, `DELETE /api/stores/knowledge/document/:id`)
+  - Chat history endpoints (`GET /api/widget/chat/history/`)
+- [ ] Implement missing endpoints in Hono API (`api/src/routes/store.ts`) called by the Plugin:
+  - `GET /api/stores/dashboard/stats/`
+  - `GET /api/stores/chat-history/` (and `GET /api/stores/chat-history/:id/`)
+- [ ] Fix endpoint mismatch in Widget (`plugin/widget/src/App.tsx`):
+  - Change `fetch('/api/widget/history/')` to match API (`/api/widget/chat/history`)
