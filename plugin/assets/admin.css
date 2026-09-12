@@ -203,6 +203,7 @@
     border: 1px solid #c3c4c7;
     border-radius: 4px;
     background: #fff;
+    overflow: visible;
 }
 
 .woocs-plan-card.is-popular {
