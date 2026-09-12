@@ -289,15 +289,44 @@ storeRouter.get('/chat-history', requireApiKey, async (c) => {
     .limit(pageSize)
     .offset(offset);
   
-  return c.json({ sessions, page, page_size: pageSize });
+  const enrichedSessions = await Promise.all(sessions.map(async (s) => {
+    const [firstMsg] = await db.select().from(chatMessages)
+      .where(eq(chatMessages.sessionId, s.id))
+      .orderBy(chatMessages.createdAt)
+      .limit(1);
+    
+    const [countResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(chatMessages).where(eq(chatMessages.sessionId, s.id));
+      
+    const [escalatedResult] = await db.select({ count: sql<number>`count(*)` })
+      .from(chatMessages)
+      .where(sql`${chatMessages.sessionId} = ${s.id} AND ${chatMessages.escalated} = true`);
+
+    return {
+      session_id: s.sessionId,
+      created_at: s.createdAt,
+      customer_name: s.customerName,
+      customer_email: s.customerEmail,
+      customer_phone: s.customerPhone,
+      first_message: firstMsg?.content || null,
+      message_count: Number(countResult?.count || 0),
+      escalated: Number(escalatedResult?.count || 0) > 0,
+    };
+  }));
+  
+  const [totalResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(chatSessions)
+    .where(eq(chatSessions.storeId, storeId));
+
+  return c.json({ sessions: enrichedSessions, total: Number(totalResult?.count || 0), page, page_size: pageSize });
 });
 
 // GET /api/stores/chat-history/:id/
 storeRouter.get('/chat-history/:id', requireApiKey, async (c) => {
   const storeId = c.get('storeId');
-  const sessionId = c.req.param('id');
+  const reqSessionId = c.req.param('id');
   
-  const session = await db.select().from(chatSessions).where(sql`${chatSessions.id} = ${sessionId} AND ${chatSessions.storeId} = ${storeId}`).limit(1);
+  const session = await db.select().from(chatSessions).where(sql`${chatSessions.sessionId} = ${reqSessionId} AND ${chatSessions.storeId} = ${storeId}`).limit(1);
   if (session.length === 0) return c.json({ error: 'Session not found' }, 404);
   
   const messages = await db.select().from(chatMessages).where(eq(chatMessages.sessionId, session[0].id)).orderBy(chatMessages.createdAt);

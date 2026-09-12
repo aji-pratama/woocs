@@ -87,6 +87,7 @@ widgetRouter.get('/chat/history', async (c) => {
       role: m.role,
       content: m.content,
       response_type: m.responseType,
+      metadata: m.metadata,
       created_at: m.createdAt,
     }))
   });

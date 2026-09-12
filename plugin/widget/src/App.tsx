@@ -657,7 +657,7 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
       <div className="flex justify-end">
         <div 
           style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
-          className="max-w-[78%] rounded px-3 py-2 text-[13px] leading-relaxed text-white animate-in fade-in"
+          className="max-w-[78%] rounded px-3.5 py-3 text-[14px] leading-relaxed text-white animate-in fade-in"
         >
           {message.text}
         </div>
