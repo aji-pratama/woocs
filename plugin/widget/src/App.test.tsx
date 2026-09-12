@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import App from './App';
 
@@ -26,7 +26,7 @@ describe('App Widget', () => {
 
     // Open chat
     const button = screen.getByLabelText(/Open chat/i);
-    button.click();
+    fireEvent.click(button);
 
     // Start a conversation is in the history view, which is opened if we click the history button,
     // actually let's just wait for the greeting message to appear

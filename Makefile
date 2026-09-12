@@ -135,3 +135,25 @@ db-dump:
 	@mkdir -p fixtures
 	podman exec woocs_backend_db pg_dump -U woocs woocs > fixtures/init.sql
 	@echo "Dumped backend DB to fixtures/init.sql"
+
+# ─── Tests ───────────────────────────────────────────────────────────────────
+test-api:
+	@echo "Running API tests..."
+	cd api && npm test
+
+test-widget:
+	@echo "Running Widget tests..."
+	cd plugin/widget && npm test
+
+test-plugin:
+	@echo "Installing Plugin dependencies via Docker..."
+	docker run --rm -v $(PWD)/plugin:/app -w /app composer install
+	@echo "Running Plugin tests via Docker..."
+	docker run --rm -v $(PWD)/plugin:/app -w /app php:8.2-cli ./vendor/bin/phpunit
+
+test-all:
+	@echo "Running all tests..."
+	$(MAKE) test-api
+	$(MAKE) test-widget
+	$(MAKE) test-plugin
+	@echo "✅ All tests passed!"

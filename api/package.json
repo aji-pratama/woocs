@@ -7,7 +7,7 @@
     "dev": "tsx watch --env-file=.env src/server.node.ts",
     "start": "node --env-file=.env dist/server.node.js",
     "build": "esbuild src/server.node.ts --bundle --platform=node --format=esm --outfile=dist/server.node.js",
-    "test": "vitest",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
