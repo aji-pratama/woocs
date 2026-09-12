@@ -12,7 +12,6 @@ class AdminMenu {
         add_action('admin_post_woocs_disconnect_store', [$this, 'handle_disconnect_store']);
         add_action('admin_post_woocs_start_checkout', [$this, 'handle_start_checkout']);
         add_action('admin_post_woocs_open_billing_portal', [$this, 'handle_open_billing_portal']);
-        add_action('admin_head', [$this, 'hide_preview_submenu']);
     }
 
     public function enqueue_assets($hook) {
@@ -76,11 +75,11 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-dashboard',
-            'WooCS Widget Preview',
-            'Widget Preview',
+            'WooCS Widget Appearance',
+            'Appearance',
             $capability,
-            'woocs-preview',
-            [$this, 'render_preview_page']
+            'woocs-appearance',
+            [$this, 'render_appearance_page']
         );
     }
 
@@ -100,12 +99,8 @@ class AdminMenu {
         require WOOCS_PLUGIN_DIR . 'src/Views/knowledge.php';
     }
 
-    public function render_preview_page() {
-        require WOOCS_PLUGIN_DIR . 'src/Views/preview.php';
-    }
-
-    public function hide_preview_submenu(): void {
-        remove_submenu_page('woocs-dashboard', 'woocs-preview');
+    public function render_appearance_page() {
+        require WOOCS_PLUGIN_DIR . 'src/Views/appearance.php';
     }
 
     public function handle_save_settings() {
@@ -117,21 +112,18 @@ class AdminMenu {
 
         $tab = sanitize_key($_POST['woocs_settings_tab'] ?? 'connection');
 
-        if ($tab === 'widget') {
-            // Widget tab
+        if ($tab === 'appearance') {
+            // Appearance page (handles both widget and prechat)
             update_option('woocs_widget_enabled', isset($_POST['woocs_widget_enabled']) ? '1' : '0');
             update_option('woocs_widget_position', sanitize_text_field($_POST['woocs_widget_position'] ?? 'bottom-right'));
             update_option('woocs_widget_primary_color', sanitize_hex_color($_POST['woocs_widget_primary_color'] ?? '#2271b1') ?: '#2271b1');
-            set_transient('woocs_admin_success', 'Widget settings saved.', 45);
-
-        } elseif ($tab === 'prechat') {
-            // Pre-chat form tab
+            
             update_option('woocs_prechat_enabled', isset($_POST['woocs_prechat_enabled']) ? '1' : '0');
             foreach (['name', 'email', 'phone'] as $field) {
                 update_option("woocs_prechat_{$field}_enabled",  isset($_POST["woocs_prechat_{$field}_enabled"])  ? '1' : '0');
                 update_option("woocs_prechat_{$field}_required", isset($_POST["woocs_prechat_{$field}_required"]) ? '1' : '0');
             }
-            set_transient('woocs_admin_success', 'Pre-chat form settings saved.', 45);
+            set_transient('woocs_admin_success', 'Appearance settings saved.', 45);
 
         } elseif ($tab === 'advanced') {
             // Advanced tab
@@ -166,8 +158,9 @@ class AdminMenu {
             }
         }
 
-        $redirect_tab = in_array($tab, ['widget', 'prechat', 'advanced']) ? $tab : 'connection';
-        wp_safe_redirect(admin_url('admin.php?page=woocs-settings&tab=' . $redirect_tab));
+        $redirect_tab = in_array($tab, ['appearance', 'advanced']) ? $tab : 'connection';
+        $redirect_page = ($tab === 'appearance') ? 'woocs-appearance' : 'woocs-settings';
+        wp_safe_redirect(admin_url('admin.php?page=' . $redirect_page . '&tab=' . $redirect_tab));
         exit;
     }
 
