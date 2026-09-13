@@ -120,7 +120,6 @@ class AdminMenu {
             update_option('woocs_enable_quick_replies', isset($_POST['woocs_enable_quick_replies']) ? '1' : '0');
             update_option('woocs_enable_cart_action', isset($_POST['woocs_enable_cart_action']) ? '1' : '0');
             update_option('woocs_enable_carousel', isset($_POST['woocs_enable_carousel']) ? '1' : '0');
-            update_option('woocs_widget_position', sanitize_text_field($_POST['woocs_widget_position'] ?? 'bottom-right'));
             update_option('woocs_widget_primary_color', sanitize_hex_color($_POST['woocs_widget_primary_color'] ?? '#2271b1') ?: '#2271b1');
             update_option('woocs_widget_icon_id', intval($_POST['woocs_widget_icon_id'] ?? 0));
             

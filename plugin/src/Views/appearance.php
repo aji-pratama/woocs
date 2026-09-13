@@ -51,15 +51,6 @@ if ($success_msg) delete_transient('woocs_admin_success');
                                     </td>
                                 </tr>
                                 <tr>
-                                    <th scope="row">Position</th>
-                                    <td>
-                                        <fieldset>
-                                            <label><input type="radio" name="woocs_widget_position" value="bottom-right" <?php checked(get_option('woocs_widget_position', 'bottom-right'), 'bottom-right'); ?>> Bottom-right</label><br>
-                                            <label><input type="radio" name="woocs_widget_position" value="bottom-left"  <?php checked(get_option('woocs_widget_position', 'bottom-right'), 'bottom-left'); ?>>  Bottom-left</label>
-                                        </fieldset>
-                                    </td>
-                                </tr>
-                                <tr>
                                     <th scope="row" style="padding-top:10px;">Quick Replies</th>
                                     <td style="padding-top:10px;">
                                         <label>

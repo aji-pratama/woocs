@@ -1,1 +1,1 @@
-{"version":1,"defects":[],"times":{"WooCS\\Tests\\StoresClientTest::testGetChatHistoryExpectsMessageCountAndEscalated":0.053}}
+{"version":1,"defects":[],"times":{"WooCS\\Tests\\StoresClientTest::testGetChatHistoryExpectsMessageCountAndEscalated":0.051}}

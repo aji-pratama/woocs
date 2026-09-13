@@ -583,7 +583,7 @@ export default function App() {
 
                   {loading && (
                     <div className="max-w-[90%]">
-                      <div className="rounded border border-[#dcdcde] bg-[#f6f7f7] px-3 py-2.5">
+                      <div className="rounded-2xl border border-[#dcdcde] bg-[#f6f7f7] px-3 py-2.5">
                         {slowHint === "timeout" ? (
                           <div className="flex flex-col gap-2">
                             <span className="text-sm text-slate-600">Taking too long — try again.</span>
@@ -653,7 +653,7 @@ export default function App() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{ backgroundColor: config.primary_color }}
-        className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_4px_16px_rgba(0,0,0,0.2)] transition-transform hover:scale-105 active:scale-95 overflow-hidden"
+        className="woocs-embossed flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_4px_16px_rgba(0,0,0,0.2)] transition-transform hover:scale-105 active:scale-95 overflow-hidden"
         aria-label={isOpen ? "Close chat" : "Open chat"}
       >
         {isOpen ? (
@@ -731,7 +731,7 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
       <div className="flex justify-end">
         <div
           style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
-          className="max-w-[78%] rounded px-3.5 py-3 text-[14px] leading-relaxed text-white animate-in fade-in"
+          className="max-w-[78%] rounded-2xl rounded-tr-sm px-3.5 py-3 text-[14px] leading-relaxed text-white animate-in fade-in"
         >
           {message.text}
         </div>
@@ -743,7 +743,7 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
     <div className="animate-in fade-in">
       <div className="flex max-w-[90%] flex-col gap-3">
         <div
-          className={`relative rounded border px-3.5 py-3 text-[14px] leading-relaxed ${message.error
+          className={`relative rounded-2xl rounded-tl-sm border px-3.5 py-3 text-[14px] leading-relaxed ${message.error
             ? "border-[#d63638] bg-[#fcf0f1] text-[#8a2424]"
             : "border-[#dcdcde] bg-[#f6f7f7] text-[#2c3338]"
             }`}
@@ -841,7 +841,7 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
 
 function ProductCarousel({ products }: { products: ProductMeta[] }) {
   return (
-    <div className="w-full rounded border border-[#dcdcde] bg-[#f6f7f7] p-3">
+    <div className="w-full rounded-2xl border border-[#dcdcde] bg-[#f6f7f7] p-3">
       <div className="flex w-full overflow-x-auto gap-3 pb-2 snap-x">
         {products.map((p, i) => (
           <div key={i} className="snap-start shrink-0">
