@@ -40,6 +40,10 @@ export class RagService {
   }
 
   private static async _query(store: Store, message: string, session: ChatSession, pageContext: any): Promise<RagResult> {
+    if (process.env.AI_MOCK_MODE === 'true') {
+      return this._getMockResponse(message);
+    }
+
     // 1. Get embedding for the message
     const { embedding } = await embed({
       model: (openai.embedding as any)('text-embedding-3-small', { dimensions: 1024 }) as any,
@@ -189,6 +193,55 @@ export class RagService {
 
   private static _productDocument(product: Product): string {
     return `Product: ${product.name}\nDescription: ${product.description || ''}\nPrice: ${product.price}\nStock: ${product.stockStatus}\nCategories: ${(product.categories as string[] || []).join(', ')}`;
+  }
+
+  private static _getMockResponse(message: string): RagResult {
+    const msg = message.toLowerCase();
+    
+    if (msg.includes('mock_error')) {
+      throw new Error('This is a simulated AI error for testing.');
+    }
+    
+    if (msg.includes('mock_escalate')) {
+      return {
+        answer: "I don't know the answer. (Low confidence mock)",
+        confidence: 0.1,
+        products: [],
+        contextUsed: "mock_retrieval",
+      };
+    }
+    
+    if (msg.includes('mock_product')) {
+      return {
+        answer: "I found this product you might like.",
+        confidence: 0.95,
+        products: [
+          { id: 9991, name: "Mocked Single Product", price: "19.99", url: "#", imageUrl: "https://placehold.co/150" } as any
+        ],
+        contextUsed: "mock_retrieval",
+      };
+    }
+    
+    if (msg.includes('mock_carousel')) {
+      return {
+        answer: "Here are some mocked products in a carousel.",
+        confidence: 0.95,
+        products: [
+          { id: 9992, name: "Mock Product 1", price: "29.99", url: "#", imageUrl: "https://placehold.co/150?text=Product+1" } as any,
+          { id: 9993, name: "Mock Product 2", price: "39.99", url: "#", imageUrl: "https://placehold.co/150?text=Product+2" } as any,
+          { id: 9994, name: "Mock Product 3", price: "49.99", url: "#", imageUrl: "https://placehold.co/150?text=Product+3" } as any,
+        ],
+        contextUsed: "mock_retrieval",
+      };
+    }
+    
+    // Default mock response
+    return {
+      answer: "This is a default mocked response. Type 'mock_carousel', 'mock_product', 'mock_escalate', or 'mock_error' for different scenarios.",
+      confidence: 0.9,
+      products: [],
+      contextUsed: "mock_retrieval",
+    };
   }
 
   private static _productData(store: Store, product: Product): Record<string, any> {

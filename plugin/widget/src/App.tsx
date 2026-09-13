@@ -755,7 +755,7 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
   const wcId = wcIdMatch ? wcIdMatch[1] : null;
 
   return (
-    <div className="overflow-hidden rounded border border-[#c3c4c7] bg-white min-w-[260px] shrink-0 snap-center">
+    <div className="overflow-hidden rounded border border-[#c3c4c7] bg-white w-[240px] shrink-0 snap-center">
       {meta.image_url && (
         <img src={meta.image_url} alt={meta.name} className="h-28 w-full object-cover" />
       )}
@@ -806,10 +806,12 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
 
 function ProductCarousel({ products }: { products: ProductMeta[] }) {
   return (
-    <div className="flex overflow-x-auto gap-3 pb-2 -mx-4 px-4 snap-x hide-scrollbar">
-      {products.map((p, idx) => (
-        <ProductCard key={idx} meta={p} />
-      ))}
+    <div className="w-full">
+      <div className="flex w-full overflow-x-auto gap-3 pb-3 snap-x">
+        {products.map((p, idx) => (
+          <ProductCard key={idx} meta={p} />
+        ))}
+      </div>
     </div>
   );
 }

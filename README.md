@@ -159,6 +159,22 @@ make db-dump               # Dump Postgres data to fixtures/init.sql
 
 ---
 
+### UI Mock Testing (AI_MOCK_MODE)
+
+To test the Widget UI scenarios without making actual requests to the AI API (saving costs and avoiding latency), you can enable the mock mode. 
+Add this to your `api/.env` file:
+```env
+AI_MOCK_MODE=true
+```
+
+Once enabled, restart the API server. You can then trigger specific UI scenarios by typing these exact keywords in the widget chat:
+- `mock_product` - Simulates an AI response returning a single product, rendering a Product Card.
+- `mock_carousel` - Simulates an AI response returning multiple products, rendering a Product Carousel.
+- `mock_escalate` - Simulates a low-confidence AI response, triggering the escalation flow.
+- `mock_error` - Simulates an internal AI service error to test error handling.
+
+---
+
 ## PoC Scope
 
 See [PRD](./_docs/PRD.md) for the full specification.
