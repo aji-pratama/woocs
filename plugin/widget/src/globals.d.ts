@@ -10,6 +10,7 @@ declare global {
       primary_color?: string;
       wc_url?: string;
       css_url?: string;
+      widget_icon?: string;
       widget_config?: {
         enable_cart_action?: boolean;
         enable_carousel?: boolean;

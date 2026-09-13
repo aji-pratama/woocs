@@ -43,7 +43,7 @@ interface Message {
 }
 
 type PrechatField = { key: string; label: string; type: string; required: boolean };
-type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string; wc_url: string; enable_cart_action: boolean; enable_carousel: boolean; enable_quick_replies: boolean; };
+type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string; widget_icon?: string; wc_url: string; enable_cart_action: boolean; enable_carousel: boolean; enable_quick_replies: boolean; };
 type HistoryEntry = { sessionId: string; title: string; updatedAt: string };
 
 const STORAGE_KEY = "woocs_chat_state_v1";
@@ -115,6 +115,7 @@ export default function App() {
   // Pre-chat state
   const [prechatDone, setPrechatDone] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ name?: string; email?: string; phone?: string }>({});
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -133,6 +134,7 @@ export default function App() {
       prechat_enabled: window.WooCS?.prechat_enabled ?? false,
       prechat_fields: window.WooCS?.prechat_fields || [],
       primary_color: window.WooCS?.primary_color || "#2271b1",
+      widget_icon: window.WooCS?.widget_icon || undefined,
       wc_url: window.WooCS?.wc_url || "",
       enable_cart_action: window.WooCS?.widget_config?.enable_cart_action ?? true,
       enable_carousel: window.WooCS?.widget_config?.enable_carousel ?? true,
@@ -388,8 +390,8 @@ export default function App() {
       {isOpen && (
         <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-200 bg-white font-sans text-slate-900 shadow-xl transition-[width,height] duration-150 ${
           isMaximized
-            ? "h-[760px] w-[720px] rounded-xl"
-            : "h-[620px] w-[400px] rounded-xl"
+            ? "h-[860px] w-[900px] rounded-xl"
+            : "h-[720px] w-[460px] rounded-xl"
         }`}>
           <header 
             style={{ backgroundColor: config.primary_color }}
@@ -401,6 +403,9 @@ export default function App() {
                   <ArrowLeft size={20} />
                 </IconButton>
               )}
+              {!showHistory && config?.widget_icon && (
+                <img src={config.widget_icon} alt="" className="h-8 w-8 rounded-full object-cover" />
+              )}
               <div className="min-w-0">
                 <h1 className="truncate text-[16px] font-bold text-white tracking-wide">
                   {showHistory ? "Conversations" : config.store_name}
@@ -408,7 +413,7 @@ export default function App() {
                 {!showHistory && (
                   <p className="mt-1 flex items-center gap-1.5 text-[12px] font-medium text-white/90">
                     <span className="h-2 w-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.8)]" aria-hidden="true" />
-                    Available now
+                    Online
                   </p>
                 )}
               </div>
@@ -492,10 +497,14 @@ export default function App() {
             <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8 text-center">
               <div className="mb-8">
                 <div 
-                  className="woocs-embossed mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded text-white" 
+                  className="woocs-embossed mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded text-white overflow-hidden" 
                   style={{ backgroundColor: config.primary_color }}
                 >
-                  <MessageCircle size={24} strokeWidth={1.5} />
+                  {config?.widget_icon ? (
+                    <img src={config.widget_icon} alt="Widget Icon" className="h-8 w-8 object-contain" />
+                  ) : (
+                    <MessageCircle size={24} strokeWidth={1.5} />
+                  )}
                 </div>
                 <h2 className="text-lg font-semibold text-[#1d2327]">Welcome to {config.store_name}</h2>
                 <p className="mt-2 text-sm text-[#646970]">Please introduce yourself before we start.</p>
@@ -504,6 +513,21 @@ export default function App() {
                 onSubmit={(e) => {
                   e.preventDefault();
                   const fd = new FormData(e.currentTarget);
+                  let hasError = false;
+                  const newErrors: Record<string, string> = {};
+                  config.prechat_fields.forEach(f => {
+                    if (f.required && !fd.get(f.key)) {
+                      hasError = true;
+                      newErrors[f.key] = "This field is required";
+                    }
+                  });
+
+                  if (hasError) {
+                    setFormErrors(newErrors);
+                    return;
+                  }
+                  
+                  setFormErrors({});
                   const info = {
                     name: (fd.get('name') as string) || undefined,
                     email: (fd.get('email') as string) || undefined,
@@ -514,6 +538,7 @@ export default function App() {
                   try { window.localStorage.setItem("woocs_prechat_v1", JSON.stringify(info)); } catch { /* ignore */ }
                 }}
                 className="w-full max-w-sm space-y-4 text-left"
+                noValidate
               >
                 {config.prechat_fields.map(f => (
                   <div key={f.key}>
@@ -523,9 +548,11 @@ export default function App() {
                     <input
                       type={f.type}
                       name={f.key}
-                      required={f.required}
-                      className="block w-full rounded-sm border border-[#8c8f94] px-3 py-2 text-sm text-[#1d2327] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
+                      className={`block w-full rounded-sm border ${formErrors[f.key] ? 'border-red-500' : 'border-[#8c8f94]'} px-3 py-2 text-sm text-[#1d2327] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]`}
                     />
+                    {formErrors[f.key] && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors[f.key]}</p>
+                    )}
                   </div>
                 ))}
                 <button
@@ -619,10 +646,14 @@ export default function App() {
         <button
           onClick={() => setIsOpen(true)}
           style={{ backgroundColor: config.primary_color }}
-          className="woocs-embossed-btn flex h-12 w-12 items-center justify-center rounded text-white"
+          className="woocs-embossed-btn flex h-12 w-12 items-center justify-center rounded text-white overflow-hidden"
           aria-label="Open chat"
         >
-          <MessageCircle size={24} strokeWidth={1.6} />
+          {config?.widget_icon ? (
+            <img src={config.widget_icon} alt="Widget Icon" className="h-8 w-8 object-contain" />
+          ) : (
+            <MessageCircle size={24} strokeWidth={1.6} />
+          )}
         </button>
       )}
     </div>

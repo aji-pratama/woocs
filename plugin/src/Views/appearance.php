@@ -89,6 +89,34 @@ if ($success_msg) delete_transient('woocs_admin_success');
                                                style="width:48px;height:32px;padding:2px;cursor:pointer;">
                                     </td>
                                 </tr>
+                                <tr>
+                                    <th scope="row">Widget Icon</th>
+                                    <td>
+                                        <?php 
+                                        $icon_id = get_option('woocs_widget_icon_id');
+                                        $icon_url = $icon_id ? wp_get_attachment_image_url($icon_id, 'woocs_widget_icon') : '';
+                                        // Fallback to original url if custom size isn't generated yet (e.g., SVG)
+                                        if ($icon_id && !$icon_url) {
+                                            $icon_url = wp_get_attachment_url($icon_id);
+                                        }
+                                        ?>
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <div id="woocs-icon-preview" style="width: 50px; height: 50px; border: 1px dashed #ccc; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fff;">
+                                                <?php if ($icon_url): ?>
+                                                    <img src="<?php echo esc_url($icon_url); ?>" style="max-width: 100%; max-height: 100%;">
+                                                <?php else: ?>
+                                                    <span style="color: #999; font-size: 12px; text-align: center;">No icon</span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <input type="hidden" name="woocs_widget_icon_id" id="woocs_widget_icon_id" value="<?php echo esc_attr($icon_id); ?>">
+                                            <div>
+                                                <button type="button" class="button" id="woocs-upload-icon-btn">Select Icon</button>
+                                                <button type="button" class="button" id="woocs-remove-icon-btn" style="color: #d63638; <?php echo !$icon_id ? 'display: none;' : ''; ?>">Remove</button>
+                                            </div>
+                                        </div>
+                                        <p class="description">Upload a custom icon (PNG or SVG). We'll optimize it to 50x50px.</p>
+                                    </td>
+                                </tr>
                             </table>
                         </div>
 
@@ -267,6 +295,45 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             window.WooCS.page_context = { type: 'general' };
         }
+    }
+
+    // Icon Uploader
+    const uploadBtn = document.getElementById('woocs-upload-icon-btn');
+    const removeBtn = document.getElementById('woocs-remove-icon-btn');
+    const iconPreview = document.getElementById('woocs-icon-preview');
+    const iconIdInput = document.getElementById('woocs_widget_icon_id');
+    let mediaFrame;
+
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (mediaFrame) {
+                mediaFrame.open();
+                return;
+            }
+            mediaFrame = wp.media({
+                title: 'Select or Upload Widget Icon',
+                button: { text: 'Use this icon' },
+                multiple: false
+            });
+            mediaFrame.on('select', function() {
+                const attachment = mediaFrame.state().get('selection').first().toJSON();
+                iconIdInput.value = attachment.id;
+                const url = attachment.sizes && attachment.sizes.thumbnail ? attachment.sizes.thumbnail.url : attachment.url;
+                iconPreview.innerHTML = '<img src="' + url + '" style="max-width: 100%; max-height: 100%;">';
+                removeBtn.style.display = 'inline-block';
+            });
+            mediaFrame.open();
+        });
+    }
+
+    if (removeBtn) {
+        removeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            iconIdInput.value = '';
+            iconPreview.innerHTML = '<span style="color: #999; font-size: 12px; text-align: center;">No icon</span>';
+            removeBtn.style.display = 'none';
+        });
     }
 });
 </script>

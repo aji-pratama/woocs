@@ -29,3 +29,8 @@
   - `GET /api/stores/chat-history/` (and `GET /api/stores/chat-history/:id/`)
 - [x] Fix endpoint mismatch in Widget (`plugin/widget/src/App.tsx`):
   - Change `fetch('/api/widget/history/')` to match API (`/api/widget/chat/history`)
+
+## Widget UI Enhancements
+
+- [x] Implement Pre-chat form validation.
+- [x] Implement Widget icon upload and rendering with 50x50 optimization constraint.

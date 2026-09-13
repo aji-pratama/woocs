@@ -46,3 +46,7 @@ if (is_admin()) {
 
 // Initialize Widget Renderer for Frontend
 WooCS\WidgetRenderer::init();
+
+add_action('init', function() {
+    add_image_size('woocs_widget_icon', 50, 50, true);
+});

@@ -19,6 +19,8 @@ class AdminMenu {
             return;
         }
 
+        wp_enqueue_media();
+
         $css_ver = file_exists(WOOCS_PLUGIN_DIR . 'assets/admin.css') ? (string) filemtime(WOOCS_PLUGIN_DIR . 'assets/admin.css') : WOOCS_VERSION;
         wp_enqueue_style('woocs-admin-css', WOOCS_PLUGIN_URL . 'assets/admin.css', [], $css_ver);
         wp_enqueue_script('woocs-admin-js', WOOCS_PLUGIN_URL . 'assets/admin.js', [], WOOCS_VERSION, true);
@@ -120,6 +122,7 @@ class AdminMenu {
             update_option('woocs_enable_carousel', isset($_POST['woocs_enable_carousel']) ? '1' : '0');
             update_option('woocs_widget_position', sanitize_text_field($_POST['woocs_widget_position'] ?? 'bottom-right'));
             update_option('woocs_widget_primary_color', sanitize_hex_color($_POST['woocs_widget_primary_color'] ?? '#2271b1') ?: '#2271b1');
+            update_option('woocs_widget_icon_id', intval($_POST['woocs_widget_icon_id'] ?? 0));
             
             update_option('woocs_prechat_enabled', isset($_POST['woocs_prechat_enabled']) ? '1' : '0');
             foreach (['name', 'email', 'phone'] as $field) {
