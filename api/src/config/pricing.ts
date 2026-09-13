@@ -1,3 +1,5 @@
+import { ENV } from '../config/env';
+
 export type PlanTier = 'free' | 'pro' | 'custom';
 
 export interface PlanFeatures {
@@ -43,7 +45,7 @@ export const PRICING_PLANS: Record<PlanTier, PlanConfig> = {
     id: 'pro',
     name: 'Pro',
     // TODO: Replace with actual Polar product ID from Polar sandbox/dashboard
-    polarProductId: process.env.POLAR_PRO_PRODUCT_ID || 'prod_placeholder',
+    polarProductId: ENV.POLAR_PRO_PRODUCT_ID,
     priceUsd: 29,
     features: {
       syncCatalog: true,

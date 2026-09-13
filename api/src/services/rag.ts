@@ -20,8 +20,10 @@ export interface RagResult {
   contextUsed: string;
 }
 
+import { PROMPTS } from '../config/constants';
+
 export class RagService {
-  static systemPrompt = "You are a concise WooCommerce store assistant. Answer only from the provided catalog context. If the context is insufficient, say so.";
+  static systemPrompt = PROMPTS.SYSTEM;
 
   static async query(store: Store, message: string, session: ChatSession, pageContext: any = null): Promise<RagResult> {
     try {

@@ -1,8 +1,9 @@
 
 import { serve } from '@hono/node-server';
 import app from './index.js';
+import { ENV } from './config/env';
 
-const port = process.env.PORT ? parseInt(process.env.PORT) : 8001;
+const port = ENV.PORT;
 
 console.log(`[Node.js] Starting Hono dev server on port ${port}...`);
 

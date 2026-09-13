@@ -3,6 +3,7 @@ import { knowledgeDocuments, knowledgeChunks } from '../../db/schema/stores';
 import { eq, sql } from 'drizzle-orm';
 import { embedMany } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { ENV } from '../../config/env';
 
 const EMBEDDING_BATCH_SIZE = 20;
 
@@ -37,7 +38,7 @@ function chunkText(text: string, maxTokens: number = 1024, overlapTokens: number
  * Mocks LlamaParse extraction. In a real app, this would upload to LlamaParse API.
  */
 async function extractTextFromPDF(source: string): Promise<string> {
-  const apiKey = process.env.LLAMAPARSE_API_KEY;
+  const apiKey = ENV.LLAMAPARSE_API_KEY;
   if (!apiKey) {
     console.warn('No LLAMAPARSE_API_KEY found, using mock PDF extraction.');
     return `# Mock PDF Extraction for ${source}\n\nThis is a mock extraction because no LlamaParse key was provided.`;

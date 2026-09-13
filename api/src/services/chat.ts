@@ -10,9 +10,9 @@ import { RouterService } from './router';
 type Store = InferSelectModel<typeof stores>;
 type ChatSession = InferSelectModel<typeof chatSessions>;
 
-export const ESCALATION_KEYWORDS = ['refund', 'damage', 'broken', 'lawsuit'];
-const CONFIDENCE_THRESHOLD = 0.65;
-const ESCALATION_MESSAGE = "I'm not sure about this. Want me to connect you with the team?";
+import { BOT_CONFIG, TEMPLATES } from '../config/constants';
+
+export const ESCALATION_KEYWORDS = BOT_CONFIG.ESCALATION_KEYWORDS;
 
 export class ChatService {
   static async getOrCreateSession(storeId: string, sessionId: string): Promise<ChatSession> {
@@ -48,16 +48,16 @@ export class ChatService {
 
     if (route.intent === 'quick_reply' && route.payload) {
       let text = '';
-      if (route.payload === 'check_order_prompt') text = "To check your order status, please provide your order number (for example: #12345).";
-      if (route.payload === 'returns_prompt') text = "I can help with that. Could you provide your order number or let me know what item you'd like to return?";
-      if (route.payload === 'browse_prompt') text = "Sure! What kind of products are you looking for today?";
+      if (route.payload === 'check_order_prompt') text = TEMPLATES.QUICK_REPLIES.CHECK_ORDER;
+      if (route.payload === 'returns_prompt') text = TEMPLATES.QUICK_REPLIES.RETURNS;
+      if (route.payload === 'browse_prompt') text = TEMPLATES.QUICK_REPLIES.BROWSE;
       
       return this._saveStaticResponse(session, sessionId, text, pageContext);
     }
 
     const result = await RagService.query(store, message, session, pageContext);
 
-    if (result.confidence < CONFIDENCE_THRESHOLD) {
+    if (result.confidence < BOT_CONFIG.CONFIDENCE_THRESHOLD) {
       return this._saveEscalation(session, sessionId, result.confidence, 'low_confidence', result.contextUsed, pageContext);
     }
 
@@ -135,7 +135,7 @@ export class ChatService {
     await db.insert(chatMessages).values({
       sessionId: session.id,
       role: 'assistant',
-      content: ESCALATION_MESSAGE,
+      content: TEMPLATES.ESCALATION_MESSAGE,
       confidenceScore: confidence ? String(confidence) : null,
       escalated: true,
       escalationReason: reason,
@@ -147,7 +147,7 @@ export class ChatService {
     });
 
     return {
-      answer: ESCALATION_MESSAGE,
+      answer: TEMPLATES.ESCALATION_MESSAGE,
       confidence,
       escalated: true,
       escalation_reason: reason,

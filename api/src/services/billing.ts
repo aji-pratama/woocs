@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { ENV } from '../config/env';
 import { db } from '../db/client';
 import { subscriptions, polarWebhookEvents } from '../db/schema/billing';
 import { stores } from '../db/schema/stores';
@@ -29,8 +30,8 @@ export class PolarCheckoutService {
       throw new Error(`Polar product not configured for plan: ${planKey}`);
     }
 
-    const polarApiUrl = process.env.POLAR_API_URL || 'https://api.polar.sh';
-    const polarAccessToken = process.env.POLAR_ACCESS_TOKEN;
+    const polarApiUrl = ENV.POLAR_API_URL;
+    const polarAccessToken = ENV.POLAR_ACCESS_TOKEN;
     if (!polarAccessToken) {
       throw new Error('POLAR_ACCESS_TOKEN is not configured');
     }
@@ -44,7 +45,7 @@ export class PolarCheckoutService {
       body: JSON.stringify({
         product_id: plan.polarProductId,
         customer_external_id: storeId,
-        success_url: process.env.POLAR_SUCCESS_URL || `${process.env.APP_URL || 'http://localhost:8080'}/wp-admin/admin.php?page=woocs-settings&checkout=success`,
+        success_url: ENV.POLAR_SUCCESS_URL,
       }),
     });
 
@@ -63,8 +64,8 @@ export class PolarCheckoutService {
       throw new Error('No Polar customer linked to this store');
     }
 
-    const polarApiUrl = process.env.POLAR_API_URL || 'https://api.polar.sh';
-    const polarAccessToken = process.env.POLAR_ACCESS_TOKEN;
+    const polarApiUrl = ENV.POLAR_API_URL;
+    const polarAccessToken = ENV.POLAR_ACCESS_TOKEN;
     if (!polarAccessToken) {
       throw new Error('POLAR_ACCESS_TOKEN is not configured');
     }
@@ -112,7 +113,7 @@ export class PolarWebhookVerifier {
       throw new Error("Polar webhook signature has expired.");
     }
 
-    const secret = process.env.POLAR_WEBHOOK_SECRET;
+    const secret = ENV.POLAR_WEBHOOK_SECRET;
     if (!secret) {
       throw new Error("POLAR_WEBHOOK_SECRET is not configured.");
     }
@@ -205,7 +206,7 @@ export class PolarWebhookService {
     }
 
     const productId = data.product_id || data.product?.id;
-    const polarProductsStr = process.env.POLAR_PRODUCTS || '{}';
+    const polarProductsStr = ENV.POLAR_PRODUCTS;
     const polarProducts = JSON.parse(polarProductsStr);
 
     let planKey = null;

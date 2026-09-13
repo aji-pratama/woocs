@@ -3,20 +3,12 @@ import { InferSelectModel } from 'drizzle-orm';
 
 type Store = InferSelectModel<typeof stores>;
 
-const WC_STATUS_MAP: Record<string, string> = {
-  pending: 'Payment pending',
-  processing: 'Processing your order',
-  'on-hold': 'On hold',
-  completed: 'Delivered',
-  cancelled: 'Cancelled',
-  refunded: 'Refunded',
-  failed: 'Payment failed',
-};
+import { TEMPLATES, WC_STATUS_MAP } from '../config/constants';
 
 export class OrderService {
   static async getOrderStatus(store: Store, orderId: string) {
     if (!store.wcUrl || !store.wcConsumerKey || !store.wcConsumerSecret) {
-      return this.errorResult(orderId, 'Store configuration is incomplete. I cannot check order status right now.');
+      return this.errorResult(orderId, TEMPLATES.ORDER.INCOMPLETE_CONFIG);
     }
 
     try {
@@ -44,7 +36,7 @@ export class OrderService {
       }
 
       if (response.status === 404) {
-        return this.errorResult(orderId, `I couldn't find order #${orderId}. Please check your order number.`);
+        return this.errorResult(orderId, TEMPLATES.ORDER.NOT_FOUND);
       }
 
       console.error(`WooCommerce returned ${response.status} for order ${orderId}`);
