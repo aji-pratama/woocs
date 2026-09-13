@@ -331,5 +331,15 @@ storeRouter.get('/chat-history/:id', requireApiKey, async (c) => {
   
   const messages = await db.select().from(chatMessages).where(eq(chatMessages.sessionId, session[0].id)).orderBy(chatMessages.createdAt);
   
-  return c.json({ session: session[0], messages });
+  const sessionData = session[0];
+  const formattedSession = {
+    ...sessionData,
+    created_at: sessionData.createdAt,
+    customer_name: sessionData.customerName,
+    customer_email: sessionData.customerEmail,
+    customer_phone: sessionData.customerPhone,
+    session_id: sessionData.sessionId,
+  };
+  
+  return c.json({ session: formattedSession, messages });
 });

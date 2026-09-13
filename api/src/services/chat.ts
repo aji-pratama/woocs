@@ -26,9 +26,19 @@ export class ChatService {
 
 
 
-  static async handleMessage(store: Store, sessionId: string, message: string, pageContext: any = null, widgetConfig: any = null) {
+  static async handleMessage(store: Store, sessionId: string, message: string, pageContext: any = null, widgetConfig: any = null, customerInfo: any = null) {
     const session = await this.getOrCreateSession(store.id, sessionId);
     
+    if (customerInfo && (customerInfo.email || customerInfo.name || customerInfo.phone)) {
+      await db.update(chatSessions)
+        .set({
+          customerEmail: customerInfo.email || null,
+          customerName: customerInfo.name || null,
+          customerPhone: customerInfo.phone || null,
+        })
+        .where(eq(chatSessions.id, session.id));
+    }
+
     // Save user message
     await db.insert(chatMessages).values({
       sessionId: session.id,

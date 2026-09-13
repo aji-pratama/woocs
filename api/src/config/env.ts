@@ -15,6 +15,11 @@ const EnvSchema = z.object({
   POLAR_PRO_PRODUCT_ID: z.string().default('prod_placeholder'),
   POLAR_PRODUCTS: z.string().default('{}'),
   POLAR_SUCCESS_URL: z.string().optional(),
+  
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.string().transform(val => val ? parseInt(val) : 587).optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
 });
 
 // Parse process.env immediately. This will throw a clear ZodError on startup if a required field is missing.

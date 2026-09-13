@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { ChatRequestInSchema, OrderStatusRequestInSchema } from '../schemas/chat';
+import { ChatRequestInSchema, OrderStatusRequestInSchema, EscalateRequestInSchema } from '../schemas/chat';
 import { ChatService } from '../services/chat';
 import { OrderService } from '../services/order';
+import { EmailService } from '../services/email';
 import { db } from '../db/client';
 import { stores } from '../db/schema/stores';
 import { subscriptions } from '../db/schema/billing';
@@ -56,7 +57,7 @@ widgetRouter.post('/chat', zValidator('json', ChatRequestInSchema), async (c) =>
     }
   }
 
-  const result = await ChatService.handleMessage(store, body.session_id, body.message, body.page_context, body.widget_config);
+  const result = await ChatService.handleMessage(store, body.session_id, body.message, body.page_context, body.widget_config, body.customer_info);
   
   return c.json(result);
 });
@@ -91,6 +92,45 @@ widgetRouter.get('/chat/history', async (c) => {
       created_at: m.createdAt,
     }))
   });
+});
+
+// POST /api/widget/chat/escalate
+widgetRouter.post('/chat/escalate', zValidator('json', EscalateRequestInSchema), async (c) => {
+  const body = c.req.valid('json');
+  
+  const [store] = await db.select().from(stores).where(eq(stores.id, body.store_id));
+  if (!store) {
+    return c.json({ error: 'Store not found' }, 404);
+  }
+
+  const session = await ChatService.getOrCreateSession(store.id, body.session_id);
+
+  // Update session with customer info
+  await db.update(chatSessions)
+    .set({ customerEmail: body.email, customerName: body.name || null })
+    .where(eq(chatSessions.id, session.id));
+
+  // Save the escalation message as a user message in history
+  await db.insert(chatMessages).values({
+    sessionId: session.id,
+    role: 'user',
+    content: body.message,
+    metadata: { is_escalation: true },
+  });
+
+  // Fire and forget email sending to not block the API response
+  EmailService.sendEscalationEmail(
+    store.name,
+    store.merchantEmail,
+    body.email,
+    body.name,
+    body.message,
+    body.session_id
+  ).catch(err => {
+    console.error('Failed to send background email:', err);
+  });
+
+  return c.json({ success: true });
 });
 
 // POST /api/widget/order-status/

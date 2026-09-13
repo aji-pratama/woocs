@@ -54,3 +54,11 @@ export const OrderStatusRequestInSchema = z.object({
   order_id: z.string(),
   billing_email: z.string().email(),
 });
+
+export const EscalateRequestInSchema = z.object({
+  store_id: z.string().uuid(),
+  session_id: z.string().uuid(),
+  email: z.string().email(),
+  name: z.string().optional(),
+  message: z.string().min(1),
+});

@@ -363,16 +363,25 @@ export default function App() {
     sendMessage(input);
   }
 
-  function handleEscalate(accept: boolean) {
-    setMessages((m) => [
-      ...m,
-      {
+  function handleEscalate(accept: boolean, message?: string) {
+    setMessages((m) => {
+      const newMessages = [...m];
+      if (accept && message) {
+        newMessages.push({
+          id: uuid(),
+          role: "user",
+          text: message,
+          response_type: "text",
+        });
+      }
+      newMessages.push({
         id: uuid(),
         role: "bot",
         text: accept ? "Got it — a team member will reach out shortly." : "No problem. Let me know if anything else comes up.",
         response_type: "text",
-      },
-    ]);
+      });
+      return newMessages;
+    });
   }
 
   function resetChat() {
@@ -469,11 +478,19 @@ export default function App() {
                       Start a new chat
                     </button>
                     <button
-                      onClick={() => setIsMenuOpen(false)}
-                      disabled
-                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-400 text-left opacity-60"
+                      onClick={() => {
+                        resetChat();
+                        setPrechatDone(false);
+                        setCustomerInfo({});
+                        setIsOpen(false);
+                        setIsMenuOpen(false);
+                        if (typeof window !== "undefined") {
+                          window.localStorage.removeItem("woocs_prechat_v1");
+                        }
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#d63638] hover:bg-red-50 text-left"
                     >
-                      <X size={16} className="text-slate-400" />
+                      <X size={16} />
                       End chat
                     </button>
                     <div className="my-1 border-t border-slate-100" />
@@ -858,9 +875,82 @@ function OrderCard({ meta }: { meta: OrderMeta }) {
   );
 }
 
-function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
-  const [done, setDone] = useState(false);
-  if (done) return null;
+function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string) => void }) {
+  const [step, setStep] = useState<'initial' | 'form' | 'submitting' | 'done'>('initial');
+  
+  if (step === 'done') return null;
+
+  if (step === 'form' || step === 'submitting') {
+    return (
+      <form 
+        className="rounded border border-[#c3c4c7] bg-white p-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setStep('submitting');
+          const fd = new FormData(e.currentTarget);
+          try {
+            const wc = typeof window !== "undefined" ? window.WooCS : undefined;
+            const apiUrl = wc?.api_url ?? "http://localhost:8001";
+            const storeId = wc?.store_id ?? "";
+            
+            let sessionId = "";
+            const raw = typeof window !== "undefined" ? window.localStorage.getItem("woocs_chat_v1") : null;
+            if (raw) sessionId = JSON.parse(raw).sessionId;
+            
+            await fetch(`${apiUrl}/api/widget/chat/escalate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                store_id: storeId,
+                session_id: sessionId || "unknown",
+                name: fd.get('name') as string,
+                email: fd.get('email') as string,
+                message: fd.get('message') as string,
+              }),
+            });
+            onEscalate(true, fd.get('message') as string);
+            setStep('done');
+          } catch (err) {
+            console.error('Failed to submit escalation', err);
+            setStep('form');
+          }
+        }}
+      >
+        <div className="text-[14px] font-medium leading-tight text-[#1d2327] mb-3">Leave a message for the team</div>
+        <div className="space-y-3">
+          <input
+            type="text"
+            name="name"
+            placeholder="Your name (optional)"
+            className="block w-full rounded-sm border border-[#c3c4c7] px-3 py-1.5 text-[13px] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
+          />
+          <input
+            type="email"
+            name="email"
+            required
+            placeholder="Your email address"
+            className="block w-full rounded-sm border border-[#c3c4c7] px-3 py-1.5 text-[13px] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
+          />
+          <textarea
+            name="message"
+            required
+            placeholder="How can we help?"
+            rows={3}
+            className="block w-full rounded-sm border border-[#c3c4c7] px-3 py-1.5 text-[13px] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
+          />
+          <button
+            type="submit"
+            disabled={step === 'submitting'}
+            style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+            className="woocs-embossed-btn w-full rounded-sm px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-70"
+          >
+            {step === 'submitting' ? 'Sending...' : 'Send Message'}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
   return (
     <div className="rounded border border-[#c3c4c7] bg-white p-4">
       <div className="flex items-start gap-3">
@@ -869,10 +959,7 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
           <div className="text-[14px] font-medium leading-tight text-[#1d2327]">Want me to connect you with the team?</div>
           <div className="mt-3 flex flex-wrap gap-2.5">
             <button
-              onClick={() => {
-                onEscalate(true);
-                setDone(true);
-              }}
+              onClick={() => setStep('form')}
               style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
               className="woocs-embossed-btn rounded-sm px-4 py-2 text-[13px] font-semibold text-white"
             >
@@ -881,7 +968,7 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
             <button
               onClick={() => {
                 onEscalate(false);
-                setDone(true);
+                setStep('done');
               }}
               className="rounded-sm border border-[#c3c4c7] bg-white px-4 py-2 text-[13px] font-medium text-[#2c3338] transition-colors hover:bg-slate-50"
             >
