@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, Clock, Maximize, MessageCircle, Minimize, Plus, X, MoreHorizontal, PenSquare, History, Ticket } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, ChevronDown, Clock, Maximize, MessageCircle, Minimize, Plus, X, MoreHorizontal, PenSquare, History, Ticket } from "lucide-react";
 
 type ResponseType = "text" | "product_card" | "product_carousel" | "order_card" | "escalation";
 
@@ -111,7 +111,7 @@ export default function App() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
+
   // Pre-chat state
   const [prechatDone, setPrechatDone] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ name?: string; email?: string; phone?: string }>({});
@@ -180,12 +180,12 @@ export default function App() {
       } catch (err) {
         console.error("Failed to load chat history", err);
       }
-      
+
       // Fallback: new chat if no history
       const greeting = cfg.page_context.type === "product"
         ? (cfg.page_context.product_name ? `Hi! Looking at the ${cfg.page_context.product_name}? Ask me about sizes, stock, or anything else!` : `Hi! Ask me anything about this product.`)
         : `Hi! I'm your ${cfg.store_name}. I can help you find products, check stock, or track your order.`;
-      
+
       setMessages([
         {
           id: uuid(),
@@ -195,7 +195,7 @@ export default function App() {
         },
       ]);
     }
-    
+
     fetchHistory();
 
     // Test helpers for A4 Preview Page
@@ -210,9 +210,9 @@ export default function App() {
           setIsOpen(true);
           // Wait for state update to finish
           setTimeout(() => {
-             // We can't directly call sendMessage from outside unless we bind it,
-             // let's create a custom event that the component listens to.
-             window.dispatchEvent(new CustomEvent('woocs_test_message', { detail: msg }));
+            // We can't directly call sendMessage from outside unless we bind it,
+            // let's create a custom event that the component listens to.
+            window.dispatchEvent(new CustomEvent('woocs_test_message', { detail: msg }));
           }, 100);
         }
       };
@@ -388,14 +388,13 @@ export default function App() {
   return (
     <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end">
       {isOpen && (
-        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-200 bg-white font-sans text-slate-900 shadow-xl transition-[width,height] duration-150 ${
-          isMaximized
-            ? "h-[860px] w-[900px] rounded-xl"
-            : "h-[720px] w-[460px] rounded-xl"
-        }`}>
-          <header 
+        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-200 bg-white font-sans text-slate-900 shadow-xl transition-[width,height] duration-150 ${isMaximized
+          ? "h-[860px] w-[900px] rounded-xl"
+          : "h-[720px] w-[460px] rounded-xl"
+          }`}>
+          <header
             style={{ backgroundColor: config.primary_color }}
-            className="woocs-embossed flex min-h-14 items-center justify-between px-3 text-white"
+            className="woocs-embossed flex min-h-12 items-center justify-between p-3 text-white"
           >
             <div className="flex min-w-0 items-center gap-3">
               {showHistory && (
@@ -419,9 +418,9 @@ export default function App() {
               </div>
             </div>
             <div className="relative flex items-center gap-1">
-              <IconButton 
-                label="More options" 
-                onClick={() => setIsMenuOpen(!isMenuOpen)} 
+              <IconButton
+                label="More options"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
                 light
               >
                 <MoreHorizontal size={20} />
@@ -429,12 +428,12 @@ export default function App() {
               <IconButton label="Close" onClick={() => setIsOpen(false)} light>
                 <X size={20} />
               </IconButton>
-              
+
               {isMenuOpen && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setIsMenuOpen(false)} 
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsMenuOpen(false)}
                   />
                   <div className="absolute right-8 top-10 z-50 w-48 rounded-md border border-slate-200 bg-white py-1 shadow-lg animate-in fade-in zoom-in-95">
                     <button
@@ -496,8 +495,8 @@ export default function App() {
           ) : config.prechat_enabled && !prechatDone ? (
             <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8 text-center">
               <div className="mb-8">
-                <div 
-                  className="woocs-embossed mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded text-white overflow-hidden" 
+                <div
+                  className="woocs-embossed mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded text-white overflow-hidden"
                   style={{ backgroundColor: config.primary_color }}
                 >
                   {config?.widget_icon ? (
@@ -509,16 +508,25 @@ export default function App() {
                 <h2 className="text-lg font-semibold text-[#1d2327]">Welcome to {config.store_name}</h2>
                 <p className="mt-2 text-sm text-[#646970]">Please introduce yourself before we start.</p>
               </div>
-              <form 
+              <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   const fd = new FormData(e.currentTarget);
                   let hasError = false;
                   const newErrors: Record<string, string> = {};
                   config.prechat_fields.forEach(f => {
-                    if (f.required && !fd.get(f.key)) {
+                    const val = (fd.get(f.key) as string) || "";
+                    if (f.required && !val.trim()) {
                       hasError = true;
                       newErrors[f.key] = "This field is required";
+                    } else if (val.trim()) {
+                      if (f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim())) {
+                        hasError = true;
+                        newErrors[f.key] = "Invalid email format";
+                      } else if (f.type === 'tel' && !/^\+?[\d\s-]{7,15}$/.test(val.trim())) {
+                        hasError = true;
+                        newErrors[f.key] = "Invalid phone format";
+                      }
                     }
                   });
 
@@ -526,7 +534,7 @@ export default function App() {
                     setFormErrors(newErrors);
                     return;
                   }
-                  
+
                   setFormErrors({});
                   const info = {
                     name: (fd.get('name') as string) || undefined,
@@ -642,20 +650,18 @@ export default function App() {
       )}
 
       {/* Toggle Button */}
-      {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          style={{ backgroundColor: config.primary_color }}
-          className="woocs-embossed-btn flex h-12 w-12 items-center justify-center rounded text-white overflow-hidden"
-          aria-label="Open chat"
-        >
-          {config?.widget_icon ? (
-            <img src={config.widget_icon} alt="Widget Icon" className="h-8 w-8 object-contain" />
-          ) : (
-            <MessageCircle size={24} strokeWidth={1.6} />
-          )}
-        </button>
-      )}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ backgroundColor: config.primary_color }}
+        className="flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_4px_16px_rgba(0,0,0,0.2)] transition-transform hover:scale-105 active:scale-95 overflow-hidden"
+        aria-label={isOpen ? "Close chat" : "Open chat"}
+      >
+        {isOpen ? (
+          <ChevronDown size={28} strokeWidth={2} />
+        ) : (
+          <MessageCircle size={28} strokeWidth={2} />
+        )}
+      </button>
     </div>
   );
 }
@@ -665,11 +671,10 @@ function IconButton({ label, onClick, children, light }: { label: string; onClic
     <button
       type="button"
       onClick={onClick}
-      className={`grid h-10 w-10 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${
-        light 
-          ? "text-white/80 hover:bg-white/20 hover:text-white" 
-          : "text-[#50575e] hover:bg-[#dcdcde] hover:text-[#1d2327]"
-      }`}
+      className={`grid h-10 w-10 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${light
+        ? "text-white/80 hover:bg-white/20 hover:text-white"
+        : "text-[#50575e] hover:bg-[#dcdcde] hover:text-[#1d2327]"
+        }`}
       aria-label={label}
       title={label}
     >
@@ -724,7 +729,7 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div 
+        <div
           style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
           className="max-w-[78%] rounded px-3.5 py-3 text-[14px] leading-relaxed text-white animate-in fade-in"
         >
@@ -738,11 +743,10 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
     <div className="animate-in fade-in">
       <div className="flex max-w-[90%] flex-col gap-3">
         <div
-          className={`relative rounded border px-3.5 py-3 text-[14px] leading-relaxed ${
-            message.error
-              ? "border-[#d63638] bg-[#fcf0f1] text-[#8a2424]"
-              : "border-[#dcdcde] bg-[#f6f7f7] text-[#2c3338]"
-          }`}
+          className={`relative rounded border px-3.5 py-3 text-[14px] leading-relaxed ${message.error
+            ? "border-[#d63638] bg-[#fcf0f1] text-[#8a2424]"
+            : "border-[#dcdcde] bg-[#f6f7f7] text-[#2c3338]"
+            }`}
         >
           {message.text}
           {/* Debug overlay (only shown if we have context info via metadata or a custom property in the future, for PoC we can just read it if passed) */}
@@ -775,12 +779,12 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
     meta.stock_status === "instock"
       ? { label: meta.stock_quantity != null ? `In stock (${meta.stock_quantity})` : "In stock", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200" }
       : meta.stock_status === "outofstock"
-      ? { label: "Out of stock", cls: "bg-red-50 text-red-700 ring-red-200" }
-      : { label: "Backorder", cls: "bg-amber-50 text-amber-700 ring-amber-200" };
-      
+        ? { label: "Out of stock", cls: "bg-red-50 text-red-700 ring-red-200" }
+        : { label: "Backorder", cls: "bg-amber-50 text-amber-700 ring-amber-200" };
+
   const enableCart = typeof window !== "undefined" ? window.WooCS?.widget_config?.enable_cart_action ?? true : true;
   const primaryColor = typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1";
-  
+
   // Basic extract ID from URL (e.g. /?p=123) for simple Add to Cart link
   const wcIdMatch = meta.wc_url?.match(/p=(\d+)/);
   const wcId = wcIdMatch ? wcIdMatch[1] : null;
@@ -796,7 +800,7 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
           <span className="font-bold text-[#1d2327]">${meta.price}</span>
           <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ${stock.cls}`}>{stock.label}</span>
         </div>
-        
+
         <div className="mt-4 flex flex-col gap-2">
           {enableCart && wcId && meta.stock_status === "instock" ? (
             <>
@@ -837,10 +841,12 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
 
 function ProductCarousel({ products }: { products: ProductMeta[] }) {
   return (
-    <div className="w-full">
-      <div className="flex w-full overflow-x-auto gap-3 pb-3 snap-x">
-        {products.map((p, idx) => (
-          <ProductCard key={idx} meta={p} />
+    <div className="w-full rounded border border-[#dcdcde] bg-[#f6f7f7] p-3">
+      <div className="flex w-full overflow-x-auto gap-3 pb-2 snap-x">
+        {products.map((p, i) => (
+          <div key={i} className="snap-start shrink-0">
+            <ProductCard meta={p} />
+          </div>
         ))}
       </div>
     </div>
@@ -875,12 +881,12 @@ function OrderCard({ meta }: { meta: OrderMeta }) {
 
 function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string) => void }) {
   const [step, setStep] = useState<'initial' | 'form' | 'submitting' | 'done'>('initial');
-  
+
   if (step === 'done') return null;
 
   if (step === 'form' || step === 'submitting') {
     return (
-      <form 
+      <form
         className="rounded border border-[#c3c4c7] bg-white p-4"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -890,11 +896,11 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string)
             const wc = typeof window !== "undefined" ? window.WooCS : undefined;
             const apiUrl = wc?.api_url ?? "http://localhost:8001";
             const storeId = wc?.store_id ?? "";
-            
+
             let sessionId = "";
             const raw = typeof window !== "undefined" ? window.localStorage.getItem("woocs_chat_v1") : null;
             if (raw) sessionId = JSON.parse(raw).sessionId;
-            
+
             await fetch(`${apiUrl}/api/widget/chat/escalate`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
