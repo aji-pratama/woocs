@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, Clock, Maximize, MessageCircle, Minimize, Plus, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, Clock, Maximize, MessageCircle, Minimize, Plus, X, MoreHorizontal, PenSquare, History, Ticket } from "lucide-react";
 
 type ResponseType = "text" | "product_card" | "order_card" | "escalation";
 
@@ -139,6 +139,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   // Pre-chat state
   const [prechatDone, setPrechatDone] = useState(false);
@@ -397,10 +398,10 @@ export default function App() {
   return (
     <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end">
       {isOpen && (
-        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-[#c3c4c7] bg-white font-sans text-[#1d2327] shadow-[0_3px_6px_rgba(0,0,0,0.1)] transition-[width,height] duration-150 ${
+        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-200 bg-white font-sans text-slate-900 shadow-xl transition-[width,height] duration-150 ${
           isMaximized
-            ? "h-[760px] w-[720px] rounded"
-            : "h-[620px] w-[400px] rounded"
+            ? "h-[760px] w-[720px] rounded-xl"
+            : "h-[620px] w-[400px] rounded-xl"
         }`}>
           <header 
             style={{ backgroundColor: config.primary_color }}
@@ -424,27 +425,68 @@ export default function App() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              {!showHistory && (
-                <IconButton label="Conversation history" onClick={() => setShowHistory(true)} light>
-                  <Clock size={18} />
-                </IconButton>
-              )}
-              <IconButton label="New conversation" onClick={resetChat} light>
-                <Plus size={20} />
-              </IconButton>
-              <IconButton
-                onClick={() => setIsMaximized((value) => !value)}
-                label={isMaximized ? "Restore chat size" : "Maximize chat"}
+            <div className="relative flex items-center gap-1">
+              <IconButton 
+                label="More options" 
+                onClick={() => setIsMenuOpen(!isMenuOpen)} 
                 light
               >
-                {isMaximized
-                  ? <Minimize size={18} />
-                  : <Maximize size={18} />}
+                <MoreHorizontal size={20} />
               </IconButton>
               <IconButton label="Close" onClick={() => setIsOpen(false)} light>
                 <X size={20} />
               </IconButton>
+              
+              {isMenuOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsMenuOpen(false)} 
+                  />
+                  <div className="absolute right-8 top-10 z-50 w-48 rounded-md border border-slate-200 bg-white py-1 shadow-lg animate-in fade-in zoom-in-95">
+                    <button
+                      onClick={() => {
+                        resetChat();
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 text-left"
+                    >
+                      <PenSquare size={16} className="text-slate-500" />
+                      Start a new chat
+                    </button>
+                    <button
+                      onClick={() => setIsMenuOpen(false)}
+                      disabled
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-400 text-left opacity-60"
+                    >
+                      <X size={16} className="text-slate-400" />
+                      End chat
+                    </button>
+                    <div className="my-1 border-t border-slate-100" />
+                    <button
+                      onClick={() => {
+                        setShowHistory(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 text-left"
+                    >
+                      <History size={16} className="text-slate-500" />
+                      View recent chats
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsMaximized(!isMaximized);
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 text-left"
+                    >
+                      {isMaximized ? <Minimize size={16} className="text-slate-500" /> : <Maximize size={16} className="text-slate-500" />}
+                      {isMaximized ? "Minimize window" : "Maximize window"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </header>
 
