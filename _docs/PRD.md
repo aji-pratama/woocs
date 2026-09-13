@@ -1,6 +1,6 @@
-# WooCS.ai — PoC PRD
+# WooCS.ai — Product Requirements Document
 
-**Version:** 0.4 (PoC)
+**Version:** 1.0 (Beta)
 **Status:** Draft
 **Scope:** Technical validation only — not production
 
@@ -34,7 +34,7 @@ Prove three technical hypotheses in 4 weeks:
 
 ---
 
-## 3. Non-goals (PoC)
+## 3. Non-goals
 
 - Merchant dashboard UI
 - OAuth connect flow
@@ -43,8 +43,8 @@ Prove three technical hypotheses in 4 weeks:
 - Analytics
 - WP Marketplace submission
 - HITL feedback loop
-- MerchantUser model and dashboard login (post-PoC — store record is the identity in PoC)
-- Rate limiting enforcement (soft limit defined but not enforced in PoC)
+- MerchantUser model and dashboard login (store record is the identity currently)
+- Rate limiting enforcement (soft limit defined)
 - API key rotation exposed to merchants
 
 ---
@@ -130,17 +130,17 @@ Two Modules, all connected through a single API surface:
 
 `POST /api/webhooks/polar/` — Polar Webhook endpoint to sync subscription states (active, cancelled, etc.).
 
-`POST /api/widget/chat/` — unauthenticated. Accepts store_id, session_id, message. Returns answer, confidence, escalated flag, escalation_reason. Rate-limited by store_id (soft: 60 req/min, unenforced in PoC).
+`POST /api/widget/chat/` — unauthenticated. Accepts store_id, session_id, message. Returns answer, confidence, escalated flag, escalation_reason. Rate-limited by store_id (soft: 60 req/min, unenforced currently).
 
 `GET /api/widget/chat/history/` — unauthenticated. Accepts store_id, session_id. Returns the message thread for the current session.
 
-`GET /api/widget/order-status/` — unauthenticated. Accepts store_id, order_id. Calls WooCommerce REST API live, returns mapped order status, line items, total. No caching — always fresh. Rate-limited by store_id (soft: 30 req/min, unenforced in PoC).
+`GET /api/widget/order-status/` — unauthenticated. Accepts store_id, order_id. Calls WooCommerce REST API live, returns mapped order status, line items, total. No caching — always fresh. Rate-limited by store_id (soft: 30 req/min, unenforced currently).
 
 #### Endpoint grouping rationale
 
 `/api/stores/*` — plugin-to-Hono calls. All require API key. Never called from browser.
 
-`/api/widget/*` — widget-to-Hono calls. No API key — widget runs in browser and cannot hold secrets. Identified by store_id only. To be rate-limited post-PoC.
+`/api/widget/*` — widget-to-Hono calls. No API key — widget runs in browser and cannot hold secrets. Identified by store_id only. To be rate-limited in a future update.
 
 #### Hybrid Routing & Confidence Scoring
 
@@ -298,8 +298,8 @@ Central anchor. One record per merchant. All other records scoped here.
 | id | UUID | Primary key |
 | api_key_hash | string | SHA-256 of raw key — raw key never stored |
 | wc_url | URL | Merchant's WooCommerce store URL |
-| wc_consumer_key | string | Encrypted at rest (Fernet). PoC: plaintext with TODO marker |
-| wc_consumer_secret | string | Encrypted at rest (Fernet). PoC: plaintext with TODO marker |
+| wc_consumer_key | string | Encrypted at rest (Fernet). TODO: encrypt before production |
+| wc_consumer_secret | string | Encrypted at rest (Fernet). TODO: encrypt before production |
 | merchant_email | email | Escalation destination, trial reminders |
 | subscription_status | string | trial / active / cancelled / expired / suspended |
 | plan | string | starter / growth / pro / null |
@@ -310,7 +310,7 @@ Central anchor. One record per merchant. All other records scoped here.
 | last_synced_at | datetime | Updated after each successful sync |
 | created_at | datetime | |
 
-> **Security note (PoC):** `wc_consumer_key` and `wc_consumer_secret` grant full WooCommerce REST API access to the merchant's store. In production these must be encrypted at rest using `Hono-encrypted-fields` (Fernet). In PoC they are stored plaintext — mark with `# TODO: encrypt before production` in the model definition.
+> **Security note:** `wc_consumer_key` and `wc_consumer_secret` grant full WooCommerce REST API access to the merchant's store. In production these must be encrypted at rest using `Hono-encrypted-fields` (Fernet).
 
 ### Product
 One record per WooCommerce product.
@@ -458,7 +458,7 @@ One record per message turn (user and assistant).
 | Default embeddings | OpenAI `text-embedding-3-small` via LlamaIndex | Configurable 1024-dimensional retrieval; Gemini is also supported |
 | Default LLM | Claude Haiku via LlamaIndex | Fast support answers; configurable through settings |
 | Hosting | VPS — Ubuntu + Nginx + Gunicorn | Full control, no platform lock-in |
-| Email | Hono SMTP (Gmail) | Zero cost for PoC |
+| Email | Hono SMTP (Gmail) | Email delivery provider |
 
 ---
 
@@ -513,7 +513,7 @@ One record per message turn (user and assistant).
 - [ ] 20-query test results documented
 - [ ] Escalation email confirmed working
 - [ ] Error handling test results documented
-- [ ] PoC findings doc: what passed, what failed, recommended next steps
+- [ ] Beta findings doc: what passed, what failed, recommended next steps
 
 ---
 
@@ -583,7 +583,7 @@ Preview is opened from Settings → Widget. It stays registered under WooCS thro
 **Features:**
 - Iframe: storefront with widget visible
 - Live chat test via real `/api/widget/chat/` endpoint
-- Debug overlay (PoC only): confidence score per response
+- Debug overlay (Dev mode only): confidence score per response
 - Escalation test button: sends "refund" keyword, verifies trigger fires
 - Response latency display in ms
 
@@ -607,7 +607,7 @@ Store list and detail. Regenerate API key, force sync, deactivate store actions.
 Product list (filter by store, stock_status), product detail with variation inline, FAQ list.
 
 #### C3. Chat sessions
-Session list (filter by store, escalated). Session detail: full message thread with role, content, confidence_score, escalation_reason. Primary PoC debug tool.
+Session list (filter by store, escalated). Session detail: full message thread with role, content, confidence_score, escalation_reason. Primary debug tool.
 
 ---
 
@@ -659,7 +659,7 @@ Always visible on storefront. Fixed position, configurable (default: bottom-righ
 **Contains:**
 - Chat icon when collapsed
 - X icon when panel is open
-- Unread badge (post-PoC)
+- Unread badge (Planned)
 
 **Behaviour:** Click → open panel. Click again or click X in panel header → collapse. Position set from A1 Settings (bottom-right / bottom-left).
 
@@ -670,9 +670,9 @@ Always visible on storefront. Fixed position, configurable (default: bottom-righ
 Top bar of panel. Always visible when panel is open.
 
 **Contains:**
-- Bot avatar (default: robot icon. Post-PoC: merchant-uploaded image)
+- Bot avatar (Merchant-uploaded image or default icon)
 - Bot name (default: "Store assistant". Configurable by merchant)
-- Online status dot (always green in PoC — no offline state)
+- Online status dot (always green — no offline state)
 - Close (×) button → collapses panel to bubble
 
 ---
@@ -725,9 +725,9 @@ Rendered inline inside a bot bubble when the query matches a product in the cata
 - "View product" CTA → opens WC product page, same tab
 
 **Rules:**
-- One card per bot message in PoC
+- One card per bot message
 - Stock count hidden if merchant has disabled stock display in WooCommerce settings
-- No add-to-cart in PoC — CTA is view only
+- Add to cart directly from widget
 
 ---
 
@@ -768,7 +768,7 @@ Rendered instead of a normal bot bubble when confidence < 0.65 or a keyword trig
 **Trigger sources:**
 - `keyword_trigger` — pre-RAG keyword match (refund, damage, broken, lawsuit)
 - `low_confidence` — post-RAG confidence score below threshold
-- `customer_request` — customer explicitly types "talk to human" or similar (post-PoC)
+- `customer_request` — customer explicitly types "talk to human" or similar (Planned)
 
 **Contains:**
 - Warning icon (⚠)
@@ -821,7 +821,7 @@ Pinned to bottom of panel at all times.
 | After order status | Any other questions? |
 | Escalation bubble visible | Continue chatting… |
 
-**Send behaviour:** Enter key or send button submits. Multiline not supported in PoC.
+**Send behaviour:** Enter key or send button submits. Multiline not supported currently.
 
 **Disabled state:** The input field and send button are fully disabled while awaiting a response (typing indicator visible) or when an escalation bubble (C-07) is visible, forcing the user to select an escalation CTA.
 
@@ -833,7 +833,7 @@ Always visible at bottom of panel, below input bar.
 
 **Contains:** "Powered by WooCS.ai" text link → woocs.ai (new tab).
 
-Removed in future white-label tier (post-PoC).
+Removed in future white-label tier (Planned).
 
 ---
 
@@ -892,7 +892,7 @@ The widget does not use the API key. It uses `store_id` only — a non-secret UU
 
 **Validation** — Hono auth middleware hashes the incoming key (SHA-256), queries Store by hash. If no match → 401. If match → attaches Store to request state for the view.
 
-**Rotation** — operator-only via Hono Admin. Generates new key, invalidates old immediately. Merchant must update manually in A1 Settings. Not exposed to merchants in PoC.
+**Rotation** — operator-only via Hono Admin. Generates new key, invalidates old immediately. Merchant must update manually in A1 Settings. Not exposed to merchants currently.
 
 **Suspension** — when subscription lapses, Hono sets `subscription_status = suspended`. Middleware returns 402 instead of processing the request. Key is not deleted — reactivating subscription restores access without re-setup.
 
@@ -918,7 +918,7 @@ The widget does not use the API key. It uses `store_id` only — a non-secret UU
 | `woocs_api_key` | hashed → `Store.api_key_hash` |
 | `woocs_api_url` | base URL of Hono API |
 
-**MerchantUser (post-PoC):** In PoC, the Store record IS the merchant identity. There is no login, no dashboard, no user account. Post-PoC, a `MerchantUser` model will be added, linked to Store, enabling dashboard login, team members, and password reset. This is explicitly a non-goal for PoC.
+**MerchantUser (Planned):** In PoC, the Store record IS the merchant identity. There is no login, no dashboard, no user account. Post-PoC, a `MerchantUser` model will be added, linked to Store, enabling dashboard login, team members, and password reset. This is explicitly a non-goal for PoC.
 
 ---
 
@@ -1003,7 +1003,7 @@ Both paths converge at step 8 of Entry point A. After `POST /api/stores/register
 
 ---
 
-### Plans (post-PoC, via Polar.sh)
+### Plans (via Polar.sh)
 
 | Plan | Price | Conversation limit |
 |---|---|---|
@@ -1167,7 +1167,7 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 │                  │  │                    ┌────────────────┐  │  │
 │                  │  │  ┌─────────────┐   │ 🤖 Store asst  │  │  │
 │                  │  │  │ conf: 0.87  │   │ ● Online    [×]│  │  │
-│                  │  │  │ (debug PoC) │   │ Hi! I can help │  │  │
+│                  │  │  │ (debug info)│   │ Hi! I can help │  │  │
 │                  │  │  └─────────────┘   │ [Ask now...]   │  │  │
 │                  │  │                    └────────────────┘  │  │
 │                  │  └────────────────────────────────────────┘  │
