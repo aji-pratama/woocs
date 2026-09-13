@@ -5,7 +5,7 @@ import App from './App';
 describe('App Widget', () => {
   beforeEach(() => {
     // Reset global fetch mock
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
     window.WooCS = {
       store_id: 'test-store',
       api_url: 'http://localhost:8001',
@@ -17,7 +17,7 @@ describe('App Widget', () => {
   });
 
   test('renders start a conversation if no history', async () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ messages: [] }),
     });
@@ -36,13 +36,14 @@ describe('App Widget', () => {
   });
 
   test('hides quick replies when disabled in config', async () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ messages: [] }),
     });
 
     window.WooCS = {
-      ...window.WooCS,
+      store_id: 'test-store',
+      api_url: 'http://localhost:8001',
       widget_config: {
         enable_quick_replies: false,
       },

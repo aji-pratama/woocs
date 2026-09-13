@@ -100,7 +100,7 @@ export async function processKnowledgeDocument(
       const batch = chunks.slice(i, i + EMBEDDING_BATCH_SIZE);
       
       const { embeddings } = await embedMany({
-        model: openai.embedding('text-embedding-3-small', { dimensions: 1024 }),
+        model: (openai.embedding as any)('text-embedding-3-small', { dimensions: 1024 }) as any,
         values: batch,
       });
 

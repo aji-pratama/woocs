@@ -57,12 +57,12 @@ storeRouter.post(
     const storeId = c.get('storeId');
 
     // Enforce product limit — truncate if over limit
-    const productLimit = c.get('productLimit') as number | undefined;
+    const productLimit = c.get('productLimit' as any) as number | undefined;
     let productsToSync = body.products;
     let truncated = false;
 
     if (productLimit !== undefined && productLimit >= 0) {
-      const currentCount = (c.get('currentProductCount') as number) || 0;
+      const currentCount = (c.get('currentProductCount' as any) as number) || 0;
       const remainingSlots = Math.max(0, productLimit - currentCount);
       if (productsToSync.length > remainingSlots) {
         productsToSync = productsToSync.slice(0, remainingSlots);
@@ -100,8 +100,7 @@ storeRouter.get('/sync/status', requireApiKey, async (c) => {
   // Get the latest task for this store
   const tasks = await db.select().from(taskRecords)
     .where(
-      // Simple approach: get latest embed_catalog task
-      // In production, filter by store_id in kwargs
+      sql`kwargs->>'store_id' = ${storeId}`
     )
     .orderBy(taskRecords.enqueuedAt)
     .limit(1);

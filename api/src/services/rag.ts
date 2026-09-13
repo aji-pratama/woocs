@@ -42,7 +42,7 @@ export class RagService {
   private static async _query(store: Store, message: string, session: ChatSession, pageContext: any): Promise<RagResult> {
     // 1. Get embedding for the message
     const { embedding } = await embed({
-      model: openai.embedding('text-embedding-3-small', { dimensions: 1024 }),
+      model: (openai.embedding as any)('text-embedding-3-small', { dimensions: 1024 }) as any,
       value: message,
     });
 
@@ -53,6 +53,7 @@ export class RagService {
 
     let retrievedProducts: Product[] = [];
     let retrievedFaqs: FAQ[] = [];
+    let retrievedKnowledge: { chunk: any, source: string }[] = [];
     let allDistances: number[] = [];
     let confidence = 0.0;
     let contextUsed = 'retrieval';
@@ -96,7 +97,7 @@ export class RagService {
 
       retrievedProducts = pResults.map(r => r.product);
       retrievedFaqs = fResults.map(r => r.faq);
-      const retrievedKnowledge = kResults.map(r => ({ chunk: r.chunk, source: r.doc.source }));
+      retrievedKnowledge = kResults.map(r => ({ chunk: r.chunk, source: r.doc.source }));
       
       allDistances = [...pResults.map(r => r.distance), ...fResults.map(r => r.distance), ...kResults.map(r => r.distance)];
       confidence = this._topConfidence(allDistances);
@@ -120,10 +121,10 @@ export class RagService {
     // Reverse to chronological
     history.reverse();
 
-    const prompt = this._buildPrompt(message, retrievedProducts, retrievedFaqs, typeof kResults !== 'undefined' ? kResults.map(r => ({ chunk: r.chunk, source: r.doc.source })) : [], history, contextUsed === 'page_context' ? primaryProduct : null);
+    const prompt = this._buildPrompt(message, retrievedProducts, retrievedFaqs, retrievedKnowledge, history, contextUsed === 'page_context' ? primaryProduct : null);
 
     const response = await generateText({
-      model: openai('gpt-3.5-turbo'),
+      model: openai('gpt-3.5-turbo') as any,
       system: this.systemPrompt,
       prompt,
     });

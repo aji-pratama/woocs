@@ -93,7 +93,7 @@ export async function embedCatalog(storeId: string): Promise<{ productsEmbedded:
 
     // Batch embed
     const { embeddings } = await embedMany({
-      model: openai.embedding('text-embedding-3-small', { dimensions: 1024 }),
+      model: (openai.embedding as any)('text-embedding-3-small', { dimensions: 1024 }) as any,
       values: documents,
     });
 
@@ -117,7 +117,7 @@ export async function embedCatalog(storeId: string): Promise<{ productsEmbedded:
     const documents = batch.map(buildFaqDocument);
 
     const { embeddings } = await embedMany({
-      model: openai.embedding('text-embedding-3-small', { dimensions: 1024 }),
+      model: (openai.embedding as any)('text-embedding-3-small', { dimensions: 1024 }) as any,
       values: documents,
     });
 

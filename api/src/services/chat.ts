@@ -124,7 +124,7 @@ export class ChatService {
       sessionId: session.id,
       role: 'assistant',
       content: answer,
-      confidenceScore: found ? '1.0' : null,
+      confidenceScore: found ? 1.0 : null,
       responseType: found ? 'order_card' : 'text',
       metadata,
     });
@@ -173,7 +173,7 @@ export class ChatService {
       sessionId: session.id,
       role: 'assistant',
       content: answer,
-      confidenceScore: '1.0',
+      confidenceScore: 1.0,
       responseType: 'text',
       metadata: {
         page_context: pageContext,

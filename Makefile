@@ -148,7 +148,7 @@ lint-widget:
 
 lint-plugin:
 	@echo "Linting Plugin (PHP syntax check) via Docker..."
-	docker run --rm -v $$(pwd)/plugin:/app -w /app php:8.2-cli bash -c 'for f in $$(find src/ woocs-ai.php -name "*.php"); do php -l $$f > /dev/null || exit 1; done'
+	docker run --rm -v $$(pwd)/plugin:/app -w /app php:8.2-cli bash -c 'for f in $$(find src/ woocs.php -name "*.php"); do php -l $$f > /dev/null || exit 1; done'
 
 lint: lint-api lint-widget lint-plugin
 	@echo "✅ All linting checks passed!"
