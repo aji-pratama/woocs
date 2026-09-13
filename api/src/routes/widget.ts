@@ -120,7 +120,7 @@ widgetRouter.post('/chat/escalate', zValidator('json', EscalateRequestInSchema),
 
   // Fire and forget email sending to not block the API response
   EmailService.sendEscalationEmail(
-    store.name,
+    store.wcUrl || store.id,
     store.merchantEmail,
     body.email,
     body.name,

@@ -2,7 +2,8 @@
         infra-up infra-down infra-logs \
         api-install api-dev api-worker api-test api-db-generate api-db-migrate api-db-studio \
         widget-install dev-widget wp-build wp-dev-setup \
-        dev dev-setup dev-clean dev-hard-clean db-dump
+        dev dev-setup dev-clean dev-hard-clean db-dump \
+        lint lint-api lint-widget lint-plugin
 
 # Use Podman socket if podman.sock does not exist
 PODMAN_SOCK := $(shell podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}' 2>/dev/null)
@@ -136,7 +137,22 @@ db-dump:
 	podman exec woocs_backend_db pg_dump -U woocs woocs > fixtures/init.sql
 	@echo "Dumped backend DB to fixtures/init.sql"
 
-# ─── Tests ───────────────────────────────────────────────────────────────────
+# ─── Tests & Linting ─────────────────────────────────────────────────────────
+lint-api:
+	@echo "Linting API (TypeScript)..."
+	cd api && npx tsc --noEmit
+
+lint-widget:
+	@echo "Linting Widget (TypeScript)..."
+	cd plugin/widget && npx tsc --noEmit
+
+lint-plugin:
+	@echo "Linting Plugin (PHP syntax check) via Docker..."
+	docker run --rm -v $$(pwd)/plugin:/app -w /app php:8.2-cli bash -c 'for f in $$(find src/ woocs-ai.php -name "*.php"); do php -l $$f > /dev/null || exit 1; done'
+
+lint: lint-api lint-widget lint-plugin
+	@echo "✅ All linting checks passed!"
+
 test-api:
 	@echo "Running API tests..."
 	cd api && npm test

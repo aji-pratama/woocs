@@ -92,7 +92,7 @@ export class ChatService {
       sessionId: session.id,
       role: 'assistant',
       content: result.answer,
-      confidenceScore: String(result.confidence),
+      confidenceScore: result.confidence,
       responseType,
       metadata,
     });
@@ -146,7 +146,7 @@ export class ChatService {
       sessionId: session.id,
       role: 'assistant',
       content: TEMPLATES.ESCALATION_MESSAGE,
-      confidenceScore: confidence ? String(confidence) : null,
+      confidenceScore: confidence,
       escalated: true,
       escalationReason: reason,
       responseType: 'escalation',
