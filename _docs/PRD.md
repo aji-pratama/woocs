@@ -1065,10 +1065,11 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 │                  │                                              │
 │                  │  ┌─ Widget ───────────────────────────────┐  │
 │                  │  │  Enable widget   [x] On storefront     │  │
-│                  │  │  Position        (●) Bottom-right      │  │
-│  │  Features        [x] Add to Cart       │  │
-│  │                  [x] Product Carousel  │  │
-│                  │  │                  ( ) Bottom-left       │  │
+│                  │  │  Pre-chat Form   [x] Ask for Name      │  │
+│                  │  │                  [ ] Ask for Email     │  │
+│                  │  │  Features        [x] Quick Replies     │  │
+│                  │  │                  [x] Add to Cart       │  │
+│                  │  │                  [x] Product Carousel  │  │
 │                  │  └────────────────────────────────────────┘  │
 │                  │                                              │
 │                  │  [Save settings]   [Disconnect store]        │
@@ -1194,8 +1195,7 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 ```
 │  [store header]                                             │
 │  [product grid]        ┌────────────────────────────────┐  │
-│                        │ C-02                        [×] │  │
-│                        │ 🤖 Store assistant  ● Online    │  │
+│                        │ 🤖 Store assistant  ● Online   │  │
 │                        │────────────────────────────────│  │
 │                        │ C-03                           │  │
 │                        │  Hi! I can help you find       │  │
@@ -1209,6 +1209,8 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 │                        │────────────────────────────────│  │
 │                        │ C-10 Powered by WooCS.ai       │  │
 │                        └────────────────────────────────┘  │
+│                                                     [▼]    │
+│  [footer]                                                  │
 ```
 
 ---
