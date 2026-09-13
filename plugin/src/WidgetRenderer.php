@@ -90,14 +90,20 @@ class WidgetRenderer {
 
         echo '<script>
             window.WooCS = ' . wp_json_encode([
-            'store_id'        => $store_id,
-            'api_url'         => $api_url,
-            'store_name'      => $store_name,
-            'css_url'         => $css_url,
-            'page_context'    => self::get_page_context(),
-            'prechat_enabled' => $prechat_enabled,
-            'prechat_fields'  => $prechat_fields,
-            'primary_color'   => $primary_color,
+            'store_id'           => $store_id,
+            'api_url'            => $api_url,
+            'store_name'         => $store_name,
+            'css_url'            => $css_url,
+            'page_context'       => self::get_page_context(),
+            'prechat_enabled'    => $prechat_enabled,
+            'prechat_fields'     => $prechat_fields,
+            'primary_color'      => $primary_color,
+            'wc_url'             => get_option('woocs_wc_url', get_site_url()),
+            'widget_config'      => [
+                'enable_cart_action' => get_option('woocs_enable_cart_action', '1') === '1',
+                'enable_carousel'    => get_option('woocs_enable_carousel', '1') === '1',
+                'enable_quick_replies' => get_option('woocs_enable_quick_replies', '1') === '1',
+            ],
         ]) . ';
         </script>';
 

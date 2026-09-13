@@ -34,4 +34,31 @@ describe('App Widget', () => {
       expect(screen.getByText(/Hi! I'm your/i)).toBeInTheDocument();
     });
   });
+
+  test('hides quick replies when disabled in config', async () => {
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ messages: [] }),
+    });
+
+    window.WooCS = {
+      ...window.WooCS,
+      widget_config: {
+        enable_quick_replies: false,
+      },
+    };
+
+    render(<App />);
+
+    // Open chat
+    const button = screen.getByLabelText(/Open chat/i);
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Hi! I'm your/i)).toBeInTheDocument();
+    });
+
+    // Quick reply text should not be in document
+    expect(screen.queryByText(/Check my order/i)).not.toBeInTheDocument();
+  });
 });

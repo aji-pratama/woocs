@@ -62,6 +62,26 @@ describe('Widget API', () => {
     expect(data.escalation_reason).toBe('keyword_trigger');
   });
 
+  it('should handle quick reply intent', async () => {
+    const res = await app.request('/api/widget/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        store_id: storeId,
+        session_id: sessionId,
+        message: 'check my order',
+        widget_config: {
+          enable_quick_replies: true
+        }
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.response_type).toBe('text');
+    expect(data.answer).toContain('To check your order status');
+  });
+
   it('should query rag service for normal questions', async () => {
     const res = await app.request('/api/widget/chat', {
       method: 'POST',

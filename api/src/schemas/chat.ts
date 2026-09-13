@@ -12,12 +12,19 @@ export const PageContextSchema = z.object({
   product_name: z.string().optional(),
 });
 
+export const WidgetConfigSchema = z.object({
+  enable_cart_action: z.boolean().optional(),
+  enable_carousel: z.boolean().optional(),
+  enable_quick_replies: z.boolean().optional(),
+});
+
 export const ChatRequestInSchema = z.object({
   store_id: z.string().uuid(),
   session_id: z.string().uuid(),
   message: z.string().min(1),
   page_context: PageContextSchema.optional(),
   customer_info: CustomerInfoSchema.optional(),
+  widget_config: WidgetConfigSchema.optional(),
 });
 
 export const ChatResponseOutSchema = z.object({

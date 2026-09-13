@@ -142,11 +142,39 @@ Two Modules, all connected through a single API surface:
 
 `/api/widget/*` — widget-to-Hono calls. No API key — widget runs in browser and cannot hold secrets. Identified by store_id only. To be rate-limited post-PoC.
 
-#### Confidence scoring and escalation
+#### Hybrid Routing & Confidence Scoring
+
+The backend uses a **Hybrid Routing** architecture to minimize LLM calls and maximize response speed. Routing is performed in a waterfall manner:
+
+```text
+[Incoming Message]
+       │
+       ▼
+ 1. Pre-Routing (Regex/Rules)  ──(Match keyword)──> Return 'escalation'
+       │                       ──(Match order #)──> Return 'order_card'
+   (No match)
+       │
+       ▼
+ 2. RAG Pipeline (LLM)
+       ├─ Embed message (1x LLM call)
+       ├─ Vector search (Products, FAQs, Docs)
+       └─ Generate answer (1x LLM call)
+       │
+       ▼
+ 3. UI Decision (Post-RAG)
+       ├─ 0 Products found ─────────> Return 'text'
+       ├─ 1 Product found  ─────────> Return 'product_card'
+       └─ >1 Products found
+             ├─ Carousel Enabled ───> Return 'product_carousel'
+             └─ Carousel Disabled ──> Return 'product_card' (1st product)
+```
+
+**Escalation Rules (Bypass RAG entirely):**
+Hardcoded keyword triggers: `refund`, `damage`, `broken`, `lawsuit`. Any match → immediate escalation, no LLM call made.
+
+**Confidence Threshold:**
 
 Confidence score = cosine similarity of the top-1 retrieved node from pgvector. Threshold: score below 0.65 triggers escalation.
-
-Hardcoded keyword triggers (bypass RAG entirely): refund, damage, broken, lawsuit. Any match → immediate escalation, no LLM call made.
 
 Escalation action: save ChatMessage with escalated=True and escalation_reason, dispatch background job to email Store.merchant_email with conversation transcript and Hono Admin link.
 
@@ -1038,6 +1066,8 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 │                  │  ┌─ Widget ───────────────────────────────┐  │
 │                  │  │  Enable widget   [x] On storefront     │  │
 │                  │  │  Position        (●) Bottom-right      │  │
+│  │  Features        [x] Add to Cart       │  │
+│  │                  [x] Product Carousel  │  │
 │                  │  │                  ( ) Bottom-left       │  │
 │                  │  └────────────────────────────────────────┘  │
 │                  │                                              │

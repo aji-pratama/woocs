@@ -153,6 +153,7 @@ $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
                 </table>
             </div>
         </div>
+
         <p class="submit"><button type="submit" class="button button-primary">Save Advanced Settings</button></p>
     </form>
     <?php endif; ?>

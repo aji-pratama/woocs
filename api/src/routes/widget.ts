@@ -56,7 +56,7 @@ widgetRouter.post('/chat', zValidator('json', ChatRequestInSchema), async (c) =>
     }
   }
 
-  const result = await ChatService.handleMessage(store, body.session_id, body.message, body.page_context);
+  const result = await ChatService.handleMessage(store, body.session_id, body.message, body.page_context, body.widget_config);
   
   return c.json(result);
 });

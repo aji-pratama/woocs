@@ -16,7 +16,7 @@ type ChatSession = InferSelectModel<typeof chatSessions>;
 export interface RagResult {
   answer: string;
   confidence: number;
-  productData: Record<string, any> | null;
+  products: Record<string, any>[];
   contextUsed: string;
 }
 
@@ -31,7 +31,7 @@ export class RagService {
       return {
         answer: "Sorry, I'm having trouble searching the catalog right now.",
         confidence: 0.0,
-        productData: null,
+        products: [],
         contextUsed: "error",
       };
     }
@@ -51,6 +51,7 @@ export class RagService {
 
     let retrievedProducts: Product[] = [];
     let retrievedFaqs: FAQ[] = [];
+    let allDistances: number[] = [];
     let confidence = 0.0;
     let contextUsed = 'retrieval';
 
@@ -95,7 +96,7 @@ export class RagService {
       retrievedFaqs = fResults.map(r => r.faq);
       const retrievedKnowledge = kResults.map(r => ({ chunk: r.chunk, source: r.doc.source }));
       
-      const allDistances = [...pResults.map(r => r.distance), ...fResults.map(r => r.distance), ...kResults.map(r => r.distance)];
+      allDistances = [...pResults.map(r => r.distance), ...fResults.map(r => r.distance), ...kResults.map(r => r.distance)];
       confidence = this._topConfidence(allDistances);
     }
 
@@ -103,7 +104,7 @@ export class RagService {
       return {
         answer: "I couldn't find relevant information in the store catalog.",
         confidence: 0.0,
-        productData: null,
+        products: [],
         contextUsed,
       };
     }
@@ -126,12 +127,14 @@ export class RagService {
     });
 
     const answer = response.text || '';
-    const productData = retrievedProducts.length > 0 ? this._productData(store, retrievedProducts[0]) : null;
+    
+    // We return up to 3 products for the carousel
+    const returnedProducts = retrievedProducts.slice(0, 3).map(p => this._productData(store, p));
 
     return {
       answer,
       confidence,
-      productData,
+      products: returnedProducts,
       contextUsed,
     };
   }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, Clock, Maximize, MessageCircle, Minimize, Plus, X, MoreHorizontal, PenSquare, History, Ticket } from "lucide-react";
 
-type ResponseType = "text" | "product_card" | "order_card" | "escalation";
+type ResponseType = "text" | "product_card" | "product_carousel" | "order_card" | "escalation";
 
 interface ProductMeta {
   name: string;
@@ -43,7 +43,7 @@ interface Message {
 }
 
 type PrechatField = { key: string; label: string; type: string; required: boolean };
-type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string };
+type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string; wc_url: string; enable_cart_action: boolean; enable_carousel: boolean; enable_quick_replies: boolean; };
 type HistoryEntry = { sessionId: string; title: string; updatedAt: string };
 
 const STORAGE_KEY = "woocs_chat_state_v1";
@@ -117,6 +117,12 @@ declare global {
       prechat_enabled?: boolean;
       prechat_fields?: Array<{ key: string; label: string; type: string; required: boolean }>;
       primary_color?: string;
+      wc_url?: string;
+      widget_config?: {
+        enable_cart_action?: boolean;
+        enable_carousel?: boolean;
+        enable_quick_replies?: boolean;
+      };
     };
     WooCS_Test?: {
       resetWidget?: () => void;
@@ -153,16 +159,19 @@ export default function App() {
     if (!wc?.store_id) {
       console.warn("WooCS widget requires window.WooCS.store_id to be set.");
     }
-    const pageContext = wc?.page_context ?? { type: "general" };
     const primaryColor = wc?.primary_color || "#2271b1";
     const cfg: Config = {
       store_id: wc?.store_id ?? "",
       api_url: wc?.api_url ?? "http://localhost:8001",
       store_name: wc?.store_name ?? "Store assistant",
-      page_context: pageContext,
-      prechat_enabled: wc?.prechat_enabled ?? false,
-      prechat_fields: wc?.prechat_fields ?? [],
-      primary_color: primaryColor,
+      page_context: window.WooCS?.page_context || { type: "general" },
+      prechat_enabled: window.WooCS?.prechat_enabled ?? false,
+      prechat_fields: window.WooCS?.prechat_fields || [],
+      primary_color: window.WooCS?.primary_color || "#2271b1",
+      wc_url: window.WooCS?.wc_url || "",
+      enable_cart_action: window.WooCS?.widget_config?.enable_cart_action ?? true,
+      enable_carousel: window.WooCS?.widget_config?.enable_carousel ?? true,
+      enable_quick_replies: window.WooCS?.widget_config?.enable_quick_replies ?? true,
     };
     setConfig(cfg);
 
@@ -308,6 +317,11 @@ export default function App() {
             ? { type: "product", product_id: config.page_context.product_id, product_name: config.page_context.product_name }
             : { type: "general" },
           customer_info: Object.keys(customerInfo).length > 0 ? customerInfo : undefined,
+          widget_config: {
+            enable_cart_action: config.enable_cart_action,
+            enable_carousel: config.enable_carousel,
+            enable_quick_replies: config.enable_quick_replies,
+          }
         }),
         signal: controller.signal,
       });
@@ -573,9 +587,9 @@ export default function App() {
                     </div>
                   )}
 
-                  {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && (
+                  {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && config?.enable_quick_replies && (
                     <div className="divide-y divide-[#dcdcde] border-y border-[#dcdcde]">
-                      {(config?.page_context?.type === "product" ? ["Is this in stock?", "What sizes are available?", "Check my order"] : QUICK_REPLIES).map((q) => (
+                      {(config?.page_context?.type === "product" ? ["Is this in stock?", "What are the shipping options?", "Check my order"] : QUICK_REPLIES).map((q) => (
                         <button
                           key={q}
                           onClick={() => sendMessage(q)}
@@ -729,6 +743,9 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
         {message.response_type === "product_card" && message.metadata && (
           <ProductCard meta={message.metadata as ProductMeta} />
         )}
+        {message.response_type === "product_carousel" && (message.metadata as any)?.products && (
+          <ProductCarousel products={(message.metadata as any).products as ProductMeta[]} />
+        )}
         {message.response_type === "order_card" && message.metadata && (
           <OrderCard meta={message.metadata as OrderMeta} />
         )}
@@ -747,27 +764,70 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
       : meta.stock_status === "outofstock"
       ? { label: "Out of stock", cls: "bg-red-50 text-red-700 ring-red-200" }
       : { label: "Backorder", cls: "bg-amber-50 text-amber-700 ring-amber-200" };
+      
+  const enableCart = typeof window !== "undefined" ? window.WooCS?.widget_config?.enable_cart_action ?? true : true;
+  const primaryColor = typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1";
+  
+  // Basic extract ID from URL (e.g. /?p=123) for simple Add to Cart link
+  const wcIdMatch = meta.wc_url?.match(/p=(\d+)/);
+  const wcId = wcIdMatch ? wcIdMatch[1] : null;
+
   return (
-    <div className="overflow-hidden rounded border border-[#c3c4c7] bg-white">
+    <div className="overflow-hidden rounded border border-[#c3c4c7] bg-white min-w-[260px] shrink-0 snap-center">
       {meta.image_url && (
         <img src={meta.image_url} alt={meta.name} className="h-28 w-full object-cover" />
       )}
-      <div className="p-4">
-        <div className="text-[14px] font-semibold leading-tight text-[#1d2327]">{meta.name}</div>
+      <div className="p-4 flex flex-col h-full">
+        <div className="text-[14px] font-semibold leading-tight text-[#1d2327] line-clamp-2 flex-1">{meta.name}</div>
         <div className="mt-2.5 flex items-center justify-between">
           <span className="font-bold text-[#1d2327]">${meta.price}</span>
           <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ${stock.cls}`}>{stock.label}</span>
         </div>
-        <a
-          href={meta.wc_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
-          className="woocs-embossed-btn mt-4 block w-full rounded-sm px-4 py-2 text-center text-[13px] font-semibold text-white"
-        >
-          View product
-        </a>
+        
+        <div className="mt-4 flex flex-col gap-2">
+          {enableCart && wcId && meta.stock_status === "instock" ? (
+            <>
+              <a
+                href={`${meta.wc_url}&add-to-cart=${wcId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ backgroundColor: primaryColor }}
+                className="woocs-embossed-btn block w-full rounded-sm px-4 py-2 text-center text-[13px] font-semibold text-white"
+              >
+                Add to cart
+              </a>
+              <a
+                href={meta.wc_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full rounded-sm border border-[#c3c4c7] bg-white px-4 py-2 text-center text-[13px] font-medium text-[#2c3338] hover:bg-slate-50 transition-colors"
+              >
+                View details
+              </a>
+            </>
+          ) : (
+            <a
+              href={meta.wc_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ backgroundColor: primaryColor }}
+              className="woocs-embossed-btn block w-full rounded-sm px-4 py-2 text-center text-[13px] font-semibold text-white"
+            >
+              View product
+            </a>
+          )}
+        </div>
       </div>
+    </div>
+  );
+}
+
+function ProductCarousel({ products }: { products: ProductMeta[] }) {
+  return (
+    <div className="flex overflow-x-auto gap-3 pb-2 -mx-4 px-4 snap-x hide-scrollbar">
+      {products.map((p, idx) => (
+        <ProductCard key={idx} meta={p} />
+      ))}
     </div>
   );
 }

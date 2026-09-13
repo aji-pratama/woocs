@@ -60,6 +60,28 @@ if ($success_msg) delete_transient('woocs_admin_success');
                                     </td>
                                 </tr>
                                 <tr>
+                                    <th scope="row" style="padding-top:10px;">Quick Replies</th>
+                                    <td style="padding-top:10px;">
+                                        <label>
+                                            <input type="checkbox" name="woocs_enable_quick_replies" value="1" <?php checked(get_option('woocs_enable_quick_replies', '1'), '1'); ?>>
+                                            Enable Chat Templates
+                                        </label>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" style="padding-top:10px;">Commerce Actions</th>
+                                    <td style="padding-top:10px;">
+                                        <label style="display:block; margin-bottom: 8px;">
+                                            <input type="checkbox" name="woocs_enable_cart_action" value="1" <?php checked(get_option('woocs_enable_cart_action', '1'), '1'); ?>>
+                                            Enable "Add to Cart" button in chat
+                                        </label>
+                                        <label>
+                                            <input type="checkbox" name="woocs_enable_carousel" value="1" <?php checked(get_option('woocs_enable_carousel', '1'), '1'); ?>>
+                                            Enable Product Carousel (multi-product recommendations)
+                                        </label>
+                                    </td>
+                                </tr>
+                                <tr>
                                     <th scope="row">Primary Color</th>
                                     <td>
                                         <input type="color" name="woocs_widget_primary_color"

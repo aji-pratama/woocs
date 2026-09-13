@@ -5,11 +5,12 @@ import { eq } from 'drizzle-orm';
 import { InferSelectModel } from 'drizzle-orm';
 import { OrderService } from './order';
 import { RagService } from './rag';
+import { RouterService } from './router';
 
 type Store = InferSelectModel<typeof stores>;
 type ChatSession = InferSelectModel<typeof chatSessions>;
 
-const ESCALATION_KEYWORDS = ['refund', 'damage', 'broken', 'lawsuit'];
+export const ESCALATION_KEYWORDS = ['refund', 'damage', 'broken', 'lawsuit'];
 const CONFIDENCE_THRESHOLD = 0.65;
 const ESCALATION_MESSAGE = "I'm not sure about this. Want me to connect you with the team?";
 
@@ -23,20 +24,9 @@ export class ChatService {
     return newSession;
   }
 
-  static checkKeywords(message: string): boolean {
-    const lower = message.toLowerCase();
-    return ESCALATION_KEYWORDS.some(keyword => lower.includes(keyword));
-  }
 
-  static detectOrderIntent(message: string): string | null {
-    const hashMatch = message.match(/#(\d+)/);
-    if (hashMatch) return hashMatch[1];
-    const orderMatch = message.match(/order\s+(\d+)/i);
-    if (orderMatch) return orderMatch[1];
-    return null;
-  }
 
-  static async handleMessage(store: Store, sessionId: string, message: string, pageContext: any = null) {
+  static async handleMessage(store: Store, sessionId: string, message: string, pageContext: any = null, widgetConfig: any = null) {
     const session = await this.getOrCreateSession(store.id, sessionId);
     
     // Save user message
@@ -46,13 +36,23 @@ export class ChatService {
       content: message,
     });
 
-    if (this.checkKeywords(message)) {
-      return this._saveEscalation(session, sessionId, null, 'keyword_trigger', 'keyword_trigger', pageContext);
+    const route = RouterService.routeMessage(message);
+
+    if (route.intent === 'escalation') {
+      return this._saveEscalation(session, sessionId, null, route.reason || 'keyword_trigger', 'keyword_trigger', pageContext);
     }
 
-    const orderId = this.detectOrderIntent(message);
-    if (orderId) {
-      return this._handleOrder(session, sessionId, store, orderId, pageContext);
+    if (route.intent === 'order_status' && route.payload) {
+      return this._handleOrder(session, sessionId, store, route.payload, pageContext);
+    }
+
+    if (route.intent === 'quick_reply' && route.payload) {
+      let text = '';
+      if (route.payload === 'check_order_prompt') text = "To check your order status, please provide your order number (for example: #12345).";
+      if (route.payload === 'returns_prompt') text = "I can help with that. Could you provide your order number or let me know what item you'd like to return?";
+      if (route.payload === 'browse_prompt') text = "Sure! What kind of products are you looking for today?";
+      
+      return this._saveStaticResponse(session, sessionId, text, pageContext);
     }
 
     const result = await RagService.query(store, message, session, pageContext);
@@ -61,12 +61,22 @@ export class ChatService {
       return this._saveEscalation(session, sessionId, result.confidence, 'low_confidence', result.contextUsed, pageContext);
     }
 
-    const responseType = result.productData ? 'product_card' : 'text';
-    const metadata = {
-      ...(result.productData || {}),
+    let responseType = 'text';
+    let metadata: any = {
       page_context: pageContext,
       context_used: result.contextUsed,
     };
+
+    if (result.products.length > 0) {
+      if (widgetConfig?.enable_carousel && result.products.length > 1) {
+        responseType = 'product_carousel';
+        metadata.products = result.products;
+      } else {
+        responseType = 'product_card';
+        // For backwards compatibility or single product, we just merge it into metadata root
+        Object.assign(metadata, result.products[0]);
+      }
+    }
 
     await db.insert(chatMessages).values({
       sessionId: session.id,
@@ -84,7 +94,7 @@ export class ChatService {
       escalation_reason: null,
       session_id: sessionId,
       response_type: responseType,
-      metadata: result.productData,
+      metadata: responseType !== 'text' ? metadata : null,
       context_used: result.contextUsed,
     };
   }
@@ -145,6 +155,31 @@ export class ChatService {
       response_type: 'escalation',
       metadata: null,
       context_used: contextUsed,
+    };
+  }
+
+  private static async _saveStaticResponse(session: ChatSession, sessionId: string, answer: string, pageContext: any) {
+    await db.insert(chatMessages).values({
+      sessionId: session.id,
+      role: 'assistant',
+      content: answer,
+      confidenceScore: '1.0',
+      responseType: 'text',
+      metadata: {
+        page_context: pageContext,
+        context_used: 'quick_reply_rule',
+      },
+    });
+
+    return {
+      answer,
+      confidence: 1.0,
+      escalated: false,
+      escalation_reason: null,
+      session_id: sessionId,
+      response_type: 'text',
+      metadata: null,
+      context_used: 'quick_reply_rule',
     };
   }
 }
