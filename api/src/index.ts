@@ -113,7 +113,6 @@ app.onError((err, c) => {
   return c.json({
     error: err.message || 'Internal Server Error',
     type: err.name || 'Error',
-    stack: err.stack,
   }, 500);
 });
 
