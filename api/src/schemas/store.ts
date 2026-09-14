@@ -16,6 +16,12 @@ export const StoreRegisterInSchema = z.object({
 
 export type StoreRegisterIn = z.infer<typeof StoreRegisterInSchema>;
 
+export const StoreSettingsInSchema = z.object({
+  powered_by_enabled: z.boolean(),
+}).strict();
+
+export type StoreSettingsIn = z.infer<typeof StoreSettingsInSchema>;
+
 export const StoreRegisterOutSchema = z.object({
   store_id: z.string().uuid(),
   store_name: z.string(),

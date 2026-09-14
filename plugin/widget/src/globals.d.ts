@@ -15,6 +15,7 @@ declare global {
         enable_cart_action?: boolean;
         enable_carousel?: boolean;
         enable_quick_replies?: boolean;
+        enable_powered_by?: boolean;
       };
     };
     WooCS_Test?: {

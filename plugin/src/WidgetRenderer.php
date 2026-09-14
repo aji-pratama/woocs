@@ -113,6 +113,7 @@ class WidgetRenderer {
                 'enable_cart_action' => get_option('woocs_enable_cart_action', '1') === '1',
                 'enable_carousel'    => get_option('woocs_enable_carousel', '1') === '1',
                 'enable_quick_replies' => get_option('woocs_enable_quick_replies', '1') === '1',
+                'enable_powered_by'  => get_option('woocs_enable_powered_by', '0') === '1',
             ],
         ]) . ';
         </script>';

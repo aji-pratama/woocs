@@ -153,6 +153,22 @@ class ApiClient {
         return $this->handle_response($response);
     }
 
+    public function update_settings(array $settings): array|\WP_Error {
+        $url = $this->base_url . '/api/stores/settings/';
+
+        $response = wp_remote_request($url, [
+            'method' => 'PUT',
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-API-Key' => $this->api_key,
+            ],
+            'body' => wp_json_encode($settings),
+            'timeout' => 10,
+        ]);
+
+        return $this->handle_response($response, true);
+    }
+
     public function get_subscription(): array|\WP_Error {
         return $this->billing_request('GET', '/api/stores/subscription/');
     }

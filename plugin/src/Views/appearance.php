@@ -73,6 +73,15 @@ if ($success_msg) delete_transient('woocs_admin_success');
                                     </td>
                                 </tr>
                                 <tr>
+                                    <th scope="row" style="padding-top:10px;">Branding</th>
+                                    <td style="padding-top:10px;">
+                                        <label>
+                                            <input type="checkbox" name="woocs_enable_powered_by" value="1" <?php checked(get_option('woocs_enable_powered_by', '0'), '1'); ?>>
+                                            Show "Powered by WooCS.ai" badge <strong>(Enable to get +50 free chats/month!)</strong>
+                                        </label>
+                                    </td>
+                                </tr>
+                                <tr>
                                     <th scope="row">Primary Color</th>
                                     <td>
                                         <input type="color" name="woocs_widget_primary_color"

@@ -43,7 +43,7 @@ interface Message {
 }
 
 type PrechatField = { key: string; label: string; type: string; required: boolean };
-type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string; widget_icon?: string; wc_url: string; enable_cart_action: boolean; enable_carousel: boolean; enable_quick_replies: boolean; };
+type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string; widget_icon?: string; wc_url: string; enable_cart_action: boolean; enable_carousel: boolean; enable_quick_replies: boolean; enable_powered_by: boolean; };
 type HistoryEntry = { sessionId: string; title: string; updatedAt: string };
 
 const STORAGE_KEY = "woocs_chat_state_v1";
@@ -139,6 +139,7 @@ export default function App() {
       enable_cart_action: window.WooCS?.widget_config?.enable_cart_action ?? true,
       enable_carousel: window.WooCS?.widget_config?.enable_carousel ?? true,
       enable_quick_replies: window.WooCS?.widget_config?.enable_quick_replies ?? true,
+      enable_powered_by: window.WooCS?.widget_config?.enable_powered_by ?? false,
     };
     setConfig(cfg);
 
@@ -642,7 +643,9 @@ export default function App() {
                     <ArrowUp size={16} strokeWidth={1.8} />
                   </button>
                 </form>
-                <p className="mt-2 text-center text-[10px] text-[#787c82]">Powered by WooCS.ai</p>
+                {config?.enable_powered_by && (
+                  <p className="mt-2 text-center text-[10px] text-[#787c82]">Powered by WooCS.ai</p>
+                )}
               </div>
             </>
           )}

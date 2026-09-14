@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { StoreRegisterInSchema, SyncRequestInSchema } from '../schemas/store';
+import { StoreRegisterInSchema, SyncRequestInSchema, StoreSettingsInSchema } from '../schemas/store';
 import { CheckoutInSchema } from '../schemas/billing';
 import { StoreService, SyncService } from '../services/store';
 import { BillingService, PolarCheckoutService } from '../services/billing';
@@ -42,6 +42,18 @@ storeRouter.post('/register', zValidator('json', StoreRegisterInSchema), async (
     valid: true,
     api_key: rawApiKey, // Only returned once on initial registration
   });
+});
+
+// PUT /api/stores/settings
+storeRouter.put('/settings', requireApiKey, zValidator('json', StoreSettingsInSchema), async (c) => {
+  const body = c.req.valid('json');
+  const storeId = c.get('storeId');
+
+  await db.update(stores).set({
+    poweredByEnabled: body.powered_by_enabled,
+  }).where(eq(stores.id, storeId));
+
+  return c.json({ success: true });
 });
 
 // POST /api/stores/sync/

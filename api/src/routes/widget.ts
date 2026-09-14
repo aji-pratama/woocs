@@ -26,7 +26,10 @@ widgetRouter.post('/chat', zValidator('json', ChatRequestInSchema), async (c) =>
   const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, store.id));
   if (sub) {
     const plan = getPlanConfig(sub.planKey);
-    const limit = plan.features.monthlyConversationsLimit;
+    let limit = plan.features.monthlyConversationsLimit;
+    if (limit !== -1 && store.poweredByEnabled) {
+      limit += 50;
+    }
 
     if (limit !== -1) {
       const startOfMonth = new Date();

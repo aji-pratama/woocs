@@ -120,6 +120,7 @@ class AdminMenu {
             update_option('woocs_enable_quick_replies', isset($_POST['woocs_enable_quick_replies']) ? '1' : '0');
             update_option('woocs_enable_cart_action', isset($_POST['woocs_enable_cart_action']) ? '1' : '0');
             update_option('woocs_enable_carousel', isset($_POST['woocs_enable_carousel']) ? '1' : '0');
+            update_option('woocs_enable_powered_by', isset($_POST['woocs_enable_powered_by']) ? '1' : '0');
             update_option('woocs_widget_primary_color', sanitize_hex_color($_POST['woocs_widget_primary_color'] ?? '#2271b1') ?: '#2271b1');
             update_option('woocs_widget_icon_id', intval($_POST['woocs_widget_icon_id'] ?? 0));
             
@@ -128,6 +129,13 @@ class AdminMenu {
                 update_option("woocs_prechat_{$field}_enabled",  isset($_POST["woocs_prechat_{$field}_enabled"])  ? '1' : '0');
                 update_option("woocs_prechat_{$field}_required", isset($_POST["woocs_prechat_{$field}_required"]) ? '1' : '0');
             }
+
+            // Sync settings to Hono API
+            $api_client = new ApiClient();
+            $api_client->update_settings([
+                'powered_by_enabled' => isset($_POST['woocs_enable_powered_by'])
+            ]);
+
             set_transient('woocs_admin_success', 'Appearance settings saved.', 45);
 
         } elseif ($tab === 'advanced') {

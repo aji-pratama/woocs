@@ -11,6 +11,7 @@ import {
   vector,
   index,
   unique,
+  boolean,
 } from 'drizzle-orm/pg-core';
 
 export const stores = pgTable('store_store', {
@@ -21,6 +22,7 @@ export const stores = pgTable('store_store', {
   wcConsumerSecret: varchar('wc_consumer_secret', { length: 255 }),
   merchantEmail: varchar('merchant_email', { length: 255 }),
   knowledgeSyncsThisMonth: integer('knowledge_syncs_this_month').default(0).notNull(),
+  poweredByEnabled: boolean('powered_by_enabled').default(false).notNull(),
   lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
 });
