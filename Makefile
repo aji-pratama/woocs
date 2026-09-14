@@ -1,18 +1,18 @@
 .PHONY: help \
         infra-up infra-down infra-logs \
-        backend-install backend-migrate backend-createsuperuser backend-format \
-        dev-api dev-celery dev-widget widget-install \
-        dev wp-build db-dump
-
-PYTHON  = backend/.venv/bin/python
-PIP     = backend/.venv/bin/pip
+        api-install api-dev api-worker api-test api-db-generate api-db-migrate api-db-studio \
+        cf-dev cf-deploy \
+        widget-install dev-widget wp-build wp-dev-setup \
+        dev dev-setup dev-clean dev-hard-clean db-dump db-init \
+        lint lint-api lint-widget lint-plugin
 
 # Use Podman socket if podman.sock does not exist
 PODMAN_SOCK := $(shell podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}' 2>/dev/null)
 export podman_HOST := $(if $(PODMAN_SOCK),unix://$(PODMAN_SOCK),unix:///var/run/podman.sock)
 
-# ─── Help ────────────────────────────────────────────────────────────────────
+CONTAINER ?= podman
 
+# ─── Help ────────────────────────────────────────────────────────────────────
 help:
 	@echo ""
 	@echo "WooCS.ai — Development Commands"
@@ -20,39 +20,38 @@ help:
 	@echo ""
 	@echo "  Infrastructure (podman)"
 	@echo "  ─────────────────────────────"
-	@echo "  infra-up              Start all containers (postgres, mysql, wp, redis)"
+	@echo "  infra-up              Start all containers"
 	@echo "  infra-down            Stop and remove containers"
 	@echo "  infra-logs            Tail container logs"
 	@echo ""
-	@echo "  Backend (Django — runs on host)"
+	@echo "  Hono API (TypeScript — runs on host)"
 	@echo "  ─────────────────────────────"
-	@echo "  backend-install       Create .venv and pip install"
-	@echo "  backend-migrate       Run Django migrations"
-	@echo "  backend-createsuperuser  Create Django admin user"
-	@echo "  backend-format        Format Python code (PEP8)"
-	@echo "  dev-api               Start Django dev server (port 8000)"
-	@echo "  dev-worker            Start Django DB task worker"
+	@echo "  api-install           npm install in api/"
+	@echo "  api-dev               Start Hono dev server"
+	@echo "  api-worker            Start Hono task worker"
+	@echo "  api-test              Run Vitest test suite"
+	@echo "  api-db-generate       Generate Drizzle SQL migrations"
+	@echo "  api-db-migrate        Apply Drizzle migrations"
+	@echo "  api-db-studio         Launch Drizzle Studio"
+	@echo "  db-init               Initialize database (pgvector, migrate, and verify)"
+	@echo "  cf-dev                Start Cloudflare Workers local simulator (wrangler dev)"
+	@echo "  cf-deploy             Deploy Hono backend to Cloudflare Workers"
 	@echo ""
 	@echo "  Widget (React/Vite — runs on host)"
 	@echo "  ─────────────────────────────"
 	@echo "  widget-install        npm install in widget/"
-	@echo "  dev-widget            Start Vite dev server (port 5173)"
+	@echo "  dev-widget            Start Vite dev server"
 	@echo "  wp-build              Build widget bundle and package plugin zip"
 	@echo ""
 	@echo "  All-in-one"
 	@echo "  ─────────────────────────────"
 	@echo "  dev                   Start everything (infra + api + worker + widget)"
 	@echo ""
-	@echo "  Database"
-	@echo "  ─────────────────────────────"
-	@echo "  db-dump               Dump backend_db to fixtures/init.sql"
-	@echo ""
 
-COMPOSE_ENV := $(if $(wildcard backend/.env),--env-file backend/.env,)
-COMPOSE     := podman compose -f compose.dev.yml $(COMPOSE_ENV)
+COMPOSE_ENV := $(if $(wildcard api/.env),--env-file api/.env,)
+COMPOSE := $(CONTAINER) compose -f compose.dev.yml $(COMPOSE_ENV)
 
 # ─── Infrastructure ──────────────────────────────────────────────────────────
-
 infra-up:
 	$(COMPOSE) up -d
 
@@ -62,31 +61,38 @@ infra-down:
 infra-logs:
 	$(COMPOSE) logs -f
 
-# ─── Backend ─────────────────────────────────────────────────────────────────
+# ─── Hono API (TypeScript) ───────────────────────────────────────────────────
+api-install:
+	cd api && npm install
 
-backend-install:
-	@test -d backend/.venv || python3 -m venv backend/.venv
-	$(PIP) install --upgrade pip -q
-	$(PIP) install -r backend/requirements.txt
+api-dev:
+	cd api && npm run dev
 
-backend-migrate:
-	cd backend && $(abspath $(PYTHON)) manage.py migrate
+api-worker:
+	cd api && npm run worker
 
-backend-createsuperuser:
-	cd backend && $(abspath $(PYTHON)) manage.py createsuperuser
+api-test:
+	cd api && npm test
 
-backend-format:
-	@chmod +x backend/scripts/formatter.sh
-	@./backend/scripts/formatter.sh
+api-db-generate:
+	cd api && npx drizzle-kit generate
 
-dev-api:
-	cd backend && $(abspath $(PYTHON)) manage.py runserver
+api-db-migrate:
+	cd api && npx drizzle-kit migrate
 
-dev-worker:
-	cd backend && $(abspath $(PYTHON)) manage.py db_worker
+api-db-studio:
+	cd api && npx drizzle-kit studio
+
+db-init:
+	cd api && npm run db:init
+
+cf-dev:
+	cd api && npm run cf:dev
+
+cf-deploy:
+	cd api && npm run cf:deploy
 
 # ─── Widget ──────────────────────────────────────────────────────────────────
-
 widget-install:
 	cd plugin/widget && npm install
 
@@ -108,12 +114,11 @@ wp-dev-setup:
 	@./plugin/scripts/dev.sh
 
 # ─── All-in-one ──────────────────────────────────────────────────────────────
-
 dev: infra-up
 	@echo "Infrastructure started. Launching host services..."
 	@trap 'kill 0' EXIT; \
-	$(MAKE) dev-api & \
-	$(MAKE) dev-worker & \
+	$(MAKE) api-dev & \
+	$(MAKE) api-worker & \
 	$(MAKE) dev-widget & \
 	wait
 
@@ -133,17 +138,53 @@ dev-clean:
 dev-setup:
 	@echo "Setting up development environment..."
 	$(MAKE) widget-install
-	$(MAKE) backend-install
+	$(MAKE) api-install
 	$(MAKE) infra-up
 	@echo "Waiting for databases to be ready..."
 	@sleep 5
-	$(MAKE) backend-migrate
+	$(MAKE) api-db-migrate
 	$(MAKE) wp-dev-setup
 	@echo "✅ Setup complete! You can now run 'make dev' to start all services."
 
 # ─── Database ────────────────────────────────────────────────────────────────
-
 db-dump:
 	@mkdir -p fixtures
 	podman exec woocs_backend_db pg_dump -U woocs woocs > fixtures/init.sql
 	@echo "Dumped backend DB to fixtures/init.sql"
+
+# ─── Tests & Linting ─────────────────────────────────────────────────────────
+lint-api:
+	@echo "Linting API (TypeScript)..."
+	cd api && npx tsc --noEmit
+
+lint-widget:
+	@echo "Linting Widget (TypeScript)..."
+	cd plugin/widget && npx tsc --noEmit
+
+lint-plugin:
+	@echo "Linting Plugin (PHP syntax check) via Podman..."
+	$(CONTAINER) run --rm -v $$(pwd)/plugin:/app -w /app php:8.2-cli bash -c 'for f in $$(find src/ woocs.php -name "*.php"); do php -l $$f > /dev/null || exit 1; done'
+
+lint: lint-api lint-widget lint-plugin
+	@echo "✅ All linting checks passed!"
+
+test-api:
+	@echo "Running API tests..."
+	cd api && npm test
+
+test-widget:
+	@echo "Running Widget tests..."
+	cd plugin/widget && npm test
+
+test-plugin:
+	@echo "Installing Plugin dependencies via Podman..."
+	$(CONTAINER) run --rm -v $(PWD)/plugin:/app -w /app composer install
+	@echo "Running Plugin tests via Podman..."
+	$(CONTAINER) run --rm -v $(PWD)/plugin:/app -w /app php:8.3-cli ./vendor/bin/phpunit
+
+test-all:
+	@echo "Running all tests..."
+	$(MAKE) test-api
+	$(MAKE) test-widget
+	$(MAKE) test-plugin
+	@echo "✅ All tests passed!"

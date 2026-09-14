@@ -224,3 +224,8 @@
 - [x] Returned successful checkout and Customer Portal navigation to the authenticated Store's WordPress Admin.
 - [x] Centralized access in the Store-owned Subscription projection, including end-of-period cancellation behavior.
 - [x] Registered every backend domain model in Django Admin and made webhook audit records read-only.
+
+### Product Carousel & Add to Cart
+- [x] Implemented Add to Cart functionality in Widget product cards
+- [x] Implemented multi-product response support (Carousel) in RAG engine
+- [x] Added plugin settings to toggle Commerce actions

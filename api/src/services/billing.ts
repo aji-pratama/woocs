@@ -1,0 +1,253 @@
+import crypto from 'crypto';
+import { ENV } from '../config/env';
+import { db } from '../db/client';
+import { subscriptions, polarWebhookEvents } from '../db/schema/billing';
+import { stores } from '../db/schema/stores';
+import { eq } from 'drizzle-orm';
+import { InferSelectModel } from 'drizzle-orm';
+
+type Store = InferSelectModel<typeof stores>;
+type Subscription = InferSelectModel<typeof subscriptions>;
+
+export class BillingService {
+  static storeHasAccess(subscription: Subscription | null): boolean {
+    if (!subscription) return false;
+    return subscription.status === 'active' || subscription.status === 'trialing';
+  }
+
+  static async getSubscription(storeId: string): Promise<Subscription | null> {
+    const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, storeId));
+    return sub || null;
+  }
+}
+
+export class PolarCheckoutService {
+  static async createCheckout(storeId: string, planKey: string): Promise<string> {
+    const { getPlanConfig } = await import('../config/pricing');
+    const plan = getPlanConfig(planKey);
+
+    if (!plan.polarProductId || plan.polarProductId === 'prod_placeholder') {
+      throw new Error(`Polar product not configured for plan: ${planKey}`);
+    }
+
+    const polarApiUrl = ENV.POLAR_API_URL;
+    const polarAccessToken = ENV.POLAR_ACCESS_TOKEN;
+    if (!polarAccessToken) {
+      throw new Error('POLAR_ACCESS_TOKEN is not configured');
+    }
+
+    const response = await fetch(`${polarApiUrl}/v1/checkouts/custom/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${polarAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        product_id: plan.polarProductId,
+        customer_external_id: storeId,
+        success_url: ENV.POLAR_SUCCESS_URL,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Polar checkout creation failed: ${error}`);
+    }
+
+    const data = await response.json() as { url: string };
+    return data.url;
+  }
+
+  static async createPortalSession(storeId: string): Promise<string> {
+    const sub = await BillingService.getSubscription(storeId);
+    if (!sub?.polarCustomerId) {
+      throw new Error('No Polar customer linked to this store');
+    }
+
+    const polarApiUrl = ENV.POLAR_API_URL;
+    const polarAccessToken = ENV.POLAR_ACCESS_TOKEN;
+    if (!polarAccessToken) {
+      throw new Error('POLAR_ACCESS_TOKEN is not configured');
+    }
+
+    const response = await fetch(`${polarApiUrl}/v1/customer-sessions/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${polarAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        customer_id: sub.polarCustomerId,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Polar portal session creation failed: ${error}`);
+    }
+
+    const data = await response.json() as { customer_portal_url: string };
+    return data.customer_portal_url;
+  }
+}
+
+export class PolarWebhookVerifier {
+  static TOLERANCE_SECONDS = 300;
+
+  static verify(body: string, headers: Record<string, string>): string {
+    const eventId = headers['webhook-id'] || '';
+    const timestamp = headers['webhook-timestamp'] || '';
+    const signatures = headers['webhook-signature'] || '';
+
+    if (!eventId || !timestamp || !signatures) {
+      throw new Error("Missing Polar webhook signature headers.");
+    }
+
+    const timestampValue = parseInt(timestamp, 10);
+    if (isNaN(timestampValue)) {
+      throw new Error("Invalid Polar webhook timestamp.");
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (Math.abs(now - timestampValue) > this.TOLERANCE_SECONDS) {
+      throw new Error("Polar webhook signature has expired.");
+    }
+
+    const secret = ENV.POLAR_WEBHOOK_SECRET;
+    if (!secret) {
+      throw new Error("POLAR_WEBHOOK_SECRET is not configured.");
+    }
+
+    const encodedSecret = secret.startsWith('whsec_') ? secret.slice(6) : secret;
+    const secretBytes = Buffer.from(encodedSecret, 'base64');
+
+    const signedPayload = Buffer.concat([
+      Buffer.from(`${eventId}.${timestamp}.`, 'utf8'),
+      Buffer.from(body, 'utf8')
+    ]);
+
+    const expected = crypto
+      .createHmac('sha256', secretBytes)
+      .update(signedPayload)
+      .digest('base64');
+
+    const candidates = signatures
+      .split(',')
+      .filter((item: string) => item.startsWith('v1,'))
+      .map((item: string) => item.split(',')[1]);
+
+    if (!candidates.some((candidate: string) => crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(candidate)))) {
+      throw new Error("Invalid Polar webhook signature.");
+    }
+
+    return eventId;
+  }
+}
+
+export class PolarWebhookService {
+  static SUBSCRIPTION_EVENTS = new Set([
+    "subscription.created",
+    "subscription.updated",
+    "subscription.active",
+    "subscription.canceled",
+    "subscription.uncanceled",
+    "subscription.revoked",
+    "subscription.past_due",
+  ]);
+
+  static async process(body: string, headers: Record<string, string>): Promise<boolean> {
+    const normalizedHeaders = Object.fromEntries(
+      Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value])
+    );
+
+    const eventId = PolarWebhookVerifier.verify(body, normalizedHeaders);
+    const payload = JSON.parse(body);
+    const eventType = payload.type || '';
+
+    const existingEvents = await db.select().from(polarWebhookEvents).where(eq(polarWebhookEvents.eventId, eventId));
+    if (existingEvents.length > 0) {
+      return false; // Already processed
+    }
+
+    const [event] = await db.insert(polarWebhookEvents).values({
+      eventId,
+      eventType,
+      payload,
+    }).returning();
+
+    try {
+      if (this.SUBSCRIPTION_EVENTS.has(eventType)) {
+        await this._applySubscription(payload.data || {}, eventType);
+      }
+
+      await db.update(polarWebhookEvents)
+        .set({ status: 'processed', processedAt: new Date() })
+        .where(eq(polarWebhookEvents.id, event.id));
+        
+    } catch (exc: any) {
+      await db.update(polarWebhookEvents)
+        .set({ status: 'failed', error: String(exc) })
+        .where(eq(polarWebhookEvents.id, event.id));
+      throw exc;
+    }
+
+    return true;
+  }
+
+  private static async _applySubscription(data: any, eventType: string) {
+    const externalId = data.customer?.external_id;
+    if (!externalId) {
+      throw new Error("Polar customer external_id is required.");
+    }
+
+    const [store] = await db.select().from(stores).where(eq(stores.id, externalId));
+    if (!store) {
+      throw new Error("Store not found for external_id.");
+    }
+
+    const productId = data.product_id || data.product?.id;
+    const polarProductsStr = ENV.POLAR_PRODUCTS;
+    const polarProducts = JSON.parse(polarProductsStr);
+
+    let planKey = null;
+    for (const [key, configuredId] of Object.entries(polarProducts)) {
+      if (configuredId === productId) {
+        planKey = key;
+        break;
+      }
+    }
+
+    if (!planKey) {
+      throw new Error("Polar product is not mapped to a WooCS plan.");
+    }
+
+    const periodEnd = data.current_period_end;
+    const parsedPeriodEnd = periodEnd ? new Date(periodEnd) : null;
+
+    const status = eventType === "subscription.revoked" ? "revoked" : (data.status || "active");
+
+    const existingSubs = await db.select().from(subscriptions).where(eq(subscriptions.storeId, store.id));
+    
+    if (existingSubs.length > 0) {
+      await db.update(subscriptions).set({
+        polarCustomerId: data.customer_id || data.customer?.id,
+        polarSubscriptionId: data.id,
+        planKey,
+        status,
+        cancelAtPeriodEnd: data.cancel_at_period_end || false,
+        currentPeriodEnd: parsedPeriodEnd,
+        updatedAt: new Date(),
+      }).where(eq(subscriptions.storeId, store.id));
+    } else {
+      await db.insert(subscriptions).values({
+        storeId: store.id,
+        polarCustomerId: data.customer_id || data.customer?.id,
+        polarSubscriptionId: data.id,
+        planKey,
+        status,
+        cancelAtPeriodEnd: data.cancel_at_period_end || false,
+        currentPeriodEnd: parsedPeriodEnd,
+      });
+    }
+  }
+}

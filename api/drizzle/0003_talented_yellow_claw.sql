@@ -1,0 +1,1 @@
+ALTER TABLE "store_store" ADD COLUMN "powered_by_enabled" boolean DEFAULT false NOT NULL;

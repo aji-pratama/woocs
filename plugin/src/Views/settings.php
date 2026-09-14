@@ -12,8 +12,6 @@ if ($success_msg) delete_transient('woocs_admin_success');
 
 $tabs = [
     'connection' => 'Connection',
-    'widget'     => 'Widget',
-    'prechat'    => 'Pre-chat Form',
     'billing'    => 'Billing',
     'advanced'   => 'Advanced',
 ];
@@ -21,7 +19,10 @@ $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'connection';
 $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
 ?>
 <div class="wrap woocs-wrap">
-    <h1>Settings</h1>
+    <div class="woocs-page-header">
+        <h1 class="wp-heading-inline">Settings</h1>
+    </div>
+    <hr class="wp-header-end">
 
     <?php if ($error_msg): ?>
         <div class="notice notice-error is-dismissible"><p><?php echo esc_html($error_msg); ?></p></div>
@@ -30,8 +31,12 @@ $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
         <div class="notice notice-success is-dismissible"><p><?php echo esc_html($success_msg); ?></p></div>
     <?php endif; ?>
 
+    <div class="woocs-page-toolbar">
+        <p class="description">Configure your store connection, subscription plan, and integration settings.</p>
+    </div>
+
     <!-- Tabs -->
-    <nav class="nav-tab-wrapper" style="margin-bottom:0;">
+    <nav class="nav-tab-wrapper woocs-nav-tab-wrapper">
         <?php foreach ($tabs as $slug => $label): ?>
             <a href="<?php echo esc_url(add_query_arg('tab', $slug, admin_url('admin.php?page=woocs-settings'))); ?>"
                class="nav-tab <?php echo $active_tab === $slug ? 'nav-tab-active' : ''; ?>">
@@ -102,115 +107,7 @@ $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
         </form>
     <?php endif; ?>
 
-    <?php elseif ($active_tab === 'widget'): ?>
-    <!-- ===== WIDGET TAB ===== -->
-    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-        <?php wp_nonce_field('woocs_save_settings'); ?>
-        <input type="hidden" name="action" value="woocs_save_settings">
-        <input type="hidden" name="woocs_settings_tab" value="widget">
 
-        <div class="woocs-card">
-            <div class="woocs-card-header"><h2>Widget Appearance</h2></div>
-            <div class="woocs-card-body">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">Enable Widget</th>
-                        <td>
-                            <label>
-                                <input type="checkbox" name="woocs_widget_enabled" value="1" <?php checked(get_option('woocs_widget_enabled', '1'), '1'); ?>>
-                                Show chat widget on storefront
-                            </label>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Position</th>
-                        <td>
-                            <fieldset>
-                                <label><input type="radio" name="woocs_widget_position" value="bottom-right" <?php checked(get_option('woocs_widget_position', 'bottom-right'), 'bottom-right'); ?>> Bottom-right</label><br>
-                                <label><input type="radio" name="woocs_widget_position" value="bottom-left"  <?php checked(get_option('woocs_widget_position', 'bottom-right'), 'bottom-left'); ?>>  Bottom-left</label>
-                            </fieldset>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Primary Color</th>
-                        <td>
-                            <input type="color" name="woocs_widget_primary_color"
-                                   value="<?php echo esc_attr(get_option('woocs_widget_primary_color', '#2271b1')); ?>"
-                                   style="width:48px;height:32px;padding:2px;cursor:pointer;">
-                            <p class="description">Sets the color of the chat button and message bubbles.</p>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-        </div>
-        <p class="submit">
-            <button type="submit" class="button button-primary">Save Widget Settings</button>
-            <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=woocs-preview')); ?>">Open widget preview</a>
-        </p>
-    </form>
-
-    <?php elseif ($active_tab === 'prechat'): ?>
-    <!-- ===== PRE-CHAT FORM TAB ===== -->
-    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-        <?php wp_nonce_field('woocs_save_settings'); ?>
-        <input type="hidden" name="action" value="woocs_save_settings">
-        <input type="hidden" name="woocs_settings_tab" value="prechat">
-
-        <div class="woocs-card">
-            <div class="woocs-card-header"><h2>Pre-chat Form</h2></div>
-            <div class="woocs-card-body">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">Enable Form</th>
-                        <td>
-                            <label>
-                                <input type="checkbox" name="woocs_prechat_enabled" value="1" id="woocs-prechat-toggle"
-                                       <?php checked(get_option('woocs_prechat_enabled', '0'), '1'); ?>>
-                                Show a form before the first message to collect customer info
-                            </label>
-                        </td>
-                    </tr>
-                </table>
-                <hr class="woocs-divider">
-                <div id="woocs-prechat-fields-section">
-                    <h3 style="margin-top:0;">Fields</h3>
-                    <table class="wp-list-table widefat fixed striped" style="max-width:600px;">
-                        <thead>
-                            <tr>
-                                <th style="width:140px;">Field</th>
-                                <th style="width:100px;text-align:center;">Enabled</th>
-                                <th style="width:100px;text-align:center;">Required</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php
-                            $fields = [
-                                'name'  => 'Name',
-                                'email' => 'Email',
-                                'phone' => 'Phone',
-                            ];
-                            foreach ($fields as $key => $label):
-                                $enabled  = get_option("woocs_prechat_{$key}_enabled",  $key === 'email' ? '1' : '0');
-                                $required = get_option("woocs_prechat_{$key}_required", $key === 'email' ? '1' : '0');
-                            ?>
-                            <tr>
-                                <td><strong><?php echo esc_html($label); ?></strong></td>
-                                <td style="text-align:center;">
-                                    <input type="checkbox" name="woocs_prechat_<?php echo esc_attr($key); ?>_enabled" value="1" <?php checked($enabled, '1'); ?>>
-                                </td>
-                                <td style="text-align:center;">
-                                    <input type="checkbox" name="woocs_prechat_<?php echo esc_attr($key); ?>_required" value="1" <?php checked($required, '1'); ?>>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                    <p class="description" style="margin-top:8px;">Fields that are enabled but not required will show as optional in the form.</p>
-                </div>
-            </div>
-        </div>
-        <p class="submit"><button type="submit" class="button button-primary">Save Pre-chat Settings</button></p>
-    </form>
 
     <?php elseif ($active_tab === 'billing'): ?>
         <?php require WOOCS_PLUGIN_DIR . 'src/Views/billing.php'; ?>
@@ -263,6 +160,7 @@ $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
                 </table>
             </div>
         </div>
+
         <p class="submit"><button type="submit" class="button button-primary">Save Advanced Settings</button></p>
     </form>
     <?php endif; ?>

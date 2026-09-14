@@ -1,0 +1,41 @@
+{
+  "name": "woocs-api",
+  "version": "1.0.0",
+  "description": "WooCS.ai Hono JS Backend",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/server.node.ts",
+    "start": "node --env-file=.env dist/server.node.js",
+    "build": "esbuild src/server.node.ts --bundle --platform=node --format=esm --outfile=dist/server.node.js",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:init": "tsx --env-file=.env src/scripts/db-init.ts",
+    "db:studio": "drizzle-kit studio",
+    "worker": "tsx watch --env-file=.env src/worker/index.ts",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.51",
+    "@hono/node-server": "^1.13.7",
+    "@hono/zod-validator": "^0.4.1",
+    "@polar-sh/sdk": "^0.11.0",
+    "ai": "^3.4.32",
+    "drizzle-orm": "^0.36.1",
+    "hono": "^4.6.10",
+    "nodemailer": "^10.0.9",
+    "pg-boss": "^10.1.3",
+    "postgres": "^3.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "@types/nodemailer": "^8.0.1",
+    "drizzle-kit": "^0.28.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4",
+    "wrangler": "^4.131.2"
+  }
+}

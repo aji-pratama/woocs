@@ -12,28 +12,42 @@ if (is_wp_error($subscription)) {
 }
 
 $plans = [
-    'starter' => [
-        'name' => 'Starter',
-        'price' => '$19',
-        'description' => 'For stores getting started with AI support.',
+    'free' => [
+        'name' => 'Basic (Free)',
+        'price' => '$0',
+        'description' => 'FAQ-only support with 50 conversations/month.',
+        'features' => ['10 Custom FAQs', '50 Conversations/month'],
         'popular' => false,
-    ],
-    'growth' => [
-        'name' => 'Growth',
-        'price' => '$49',
-        'description' => 'For growing stores with more conversations.',
-        'popular' => true,
+        'is_current' => false,
+        'cta' => 'Current Plan',
     ],
     'pro' => [
         'name' => 'Pro',
-        'price' => '$99',
-        'description' => 'For established stores with higher volume.',
+        'price' => '$29',
+        'description' => 'Full product catalog sync with AI-powered support.',
+        'features' => ['30 Products synced', '200 FAQs', '1,000 Conversations/month', 'Order status lookup'],
+        'popular' => true,
+        'is_current' => false,
+        'cta' => 'Upgrade to Pro',
+    ],
+    'custom' => [
+        'name' => 'Custom',
+        'price' => 'Contact Us',
+        'description' => 'Unlimited products and conversations for large stores.',
+        'features' => ['Unlimited products', 'Unlimited FAQs', 'Unlimited conversations', 'Priority support'],
         'popular' => false,
+        'is_current' => false,
+        'cta' => 'Contact Us',
     ],
 ];
 $status = $subscription['status'] ?? '';
-$is_paid = !empty($subscription) && ($subscription['plan_key'] ?? 'trial') !== 'trial';
+$current_plan = $subscription['plan_key'] ?? 'free';
+$is_paid = !empty($subscription) && !in_array($current_plan, ['free', 'trial'], true);
 $has_access = !empty($subscription['active']);
+if (isset($plans[$current_plan])) {
+    $plans[$current_plan]['is_current'] = true;
+    $plans[$current_plan]['cta'] = 'Current Plan';
+}
 $show_plans = !$is_paid || in_array($status, ['revoked', 'unpaid'], true);
 $period_end = !empty($subscription['current_period_end'])
     ? wp_date(get_option('date_format'), strtotime($subscription['current_period_end']))
@@ -89,7 +103,7 @@ $period_end = !empty($subscription['current_period_end'])
                 <h2 class="woocs-plans-title">Choose a Plan</h2>
                 <div class="woocs-plan-grid">
                     <?php foreach ($plans as $key => $plan): ?>
-                        <div class="woocs-card woocs-plan-card <?php echo !empty($plan['popular']) ? 'is-popular' : ''; ?>">
+                        <div class="woocs-card woocs-plan-card <?php echo !empty($plan['popular']) ? 'is-popular' : ''; ?> <?php echo !empty($plan['is_current']) ? 'is-current' : ''; ?>">
                             <?php if (!empty($plan['popular'])): ?>
                                 <div class="woocs-popular-badge">Most Popular</div>
                             <?php endif; ?>
@@ -98,16 +112,33 @@ $period_end = !empty($subscription['current_period_end'])
                                     <h3><?php echo esc_html($plan['name']); ?></h3>
                                     <div class="woocs-plan-pricing">
                                         <span class="woocs-plan-price"><?php echo esc_html($plan['price']); ?></span>
-                                        <span class="woocs-plan-period">/ month</span>
+                                        <?php if ($key !== 'custom' && $key !== 'free'): ?>
+                                            <span class="woocs-plan-period">/ month</span>
+                                        <?php endif; ?>
                                     </div>
                                     <p class="woocs-plan-desc"><?php echo esc_html($plan['description']); ?></p>
                                 </div>
-                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                                    <?php wp_nonce_field('woocs_start_checkout'); ?>
-                                    <input type="hidden" name="action" value="woocs_start_checkout">
-                                    <input type="hidden" name="plan_key" value="<?php echo esc_attr($key); ?>">
-                                    <button class="button <?php echo !empty($plan['popular']) ? 'button-primary' : ''; ?> woocs-plan-btn">Choose <?php echo esc_html($plan['name']); ?></button>
-                                </form>
+                                <?php if (!empty($plan['features'])): ?>
+                                    <ul class="woocs-plan-features">
+                                        <?php foreach ($plan['features'] as $feature): ?>
+                                            <li>✓ <?php echo esc_html($feature); ?></li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php endif; ?>
+                                <?php if (!empty($plan['is_current'])): ?>
+                                    <button class="button woocs-plan-btn" disabled>Current Plan</button>
+                                <?php elseif ($key === 'free'): ?>
+                                    <!-- Free tier — no checkout needed -->
+                                <?php elseif ($key === 'custom'): ?>
+                                    <a class="button woocs-plan-btn" href="mailto:support@woocs.ai?subject=Custom%20Plan%20Inquiry" target="_blank">Contact Us</a>
+                                <?php else: ?>
+                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                        <?php wp_nonce_field('woocs_start_checkout'); ?>
+                                        <input type="hidden" name="action" value="woocs_start_checkout">
+                                        <input type="hidden" name="plan_key" value="<?php echo esc_attr($key); ?>">
+                                        <button class="button <?php echo !empty($plan['popular']) ? 'button-primary' : ''; ?> woocs-plan-btn"><?php echo esc_html($plan['cta']); ?></button>
+                                    </form>
+                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>

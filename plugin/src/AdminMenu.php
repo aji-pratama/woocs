@@ -12,13 +12,15 @@ class AdminMenu {
         add_action('admin_post_woocs_disconnect_store', [$this, 'handle_disconnect_store']);
         add_action('admin_post_woocs_start_checkout', [$this, 'handle_start_checkout']);
         add_action('admin_post_woocs_open_billing_portal', [$this, 'handle_open_billing_portal']);
-        add_action('admin_head', [$this, 'hide_preview_submenu']);
+        add_action('admin_post_woocs_export_chat', [$this, 'handle_export_chat']);
     }
 
     public function enqueue_assets($hook) {
         if (strpos($hook, 'woocs') === false) {
             return;
         }
+
+        wp_enqueue_media();
 
         $css_ver = file_exists(WOOCS_PLUGIN_DIR . 'assets/admin.css') ? (string) filemtime(WOOCS_PLUGIN_DIR . 'assets/admin.css') : WOOCS_VERSION;
         wp_enqueue_style('woocs-admin-css', WOOCS_PLUGIN_URL . 'assets/admin.css', [], $css_ver);
@@ -76,11 +78,11 @@ class AdminMenu {
 
         add_submenu_page(
             'woocs-dashboard',
-            'WooCS Widget Preview',
-            'Widget Preview',
+            'WooCS Widget Appearance',
+            'Appearance',
             $capability,
-            'woocs-preview',
-            [$this, 'render_preview_page']
+            'woocs-appearance',
+            [$this, 'render_appearance_page']
         );
     }
 
@@ -100,12 +102,8 @@ class AdminMenu {
         require WOOCS_PLUGIN_DIR . 'src/Views/knowledge.php';
     }
 
-    public function render_preview_page() {
-        require WOOCS_PLUGIN_DIR . 'src/Views/preview.php';
-    }
-
-    public function hide_preview_submenu(): void {
-        remove_submenu_page('woocs-dashboard', 'woocs-preview');
+    public function render_appearance_page() {
+        require WOOCS_PLUGIN_DIR . 'src/Views/appearance.php';
     }
 
     public function handle_save_settings() {
@@ -117,21 +115,29 @@ class AdminMenu {
 
         $tab = sanitize_key($_POST['woocs_settings_tab'] ?? 'connection');
 
-        if ($tab === 'widget') {
-            // Widget tab
+        if ($tab === 'appearance') {
+            // Appearance page (handles both widget and prechat)
             update_option('woocs_widget_enabled', isset($_POST['woocs_widget_enabled']) ? '1' : '0');
-            update_option('woocs_widget_position', sanitize_text_field($_POST['woocs_widget_position'] ?? 'bottom-right'));
+            update_option('woocs_enable_quick_replies', isset($_POST['woocs_enable_quick_replies']) ? '1' : '0');
+            update_option('woocs_enable_cart_action', isset($_POST['woocs_enable_cart_action']) ? '1' : '0');
+            update_option('woocs_enable_carousel', isset($_POST['woocs_enable_carousel']) ? '1' : '0');
+            update_option('woocs_enable_powered_by', isset($_POST['woocs_enable_powered_by']) ? '1' : '0');
             update_option('woocs_widget_primary_color', sanitize_hex_color($_POST['woocs_widget_primary_color'] ?? '#2271b1') ?: '#2271b1');
-            set_transient('woocs_admin_success', 'Widget settings saved.', 45);
-
-        } elseif ($tab === 'prechat') {
-            // Pre-chat form tab
+            update_option('woocs_widget_icon_id', intval($_POST['woocs_widget_icon_id'] ?? 0));
+            
             update_option('woocs_prechat_enabled', isset($_POST['woocs_prechat_enabled']) ? '1' : '0');
             foreach (['name', 'email', 'phone'] as $field) {
                 update_option("woocs_prechat_{$field}_enabled",  isset($_POST["woocs_prechat_{$field}_enabled"])  ? '1' : '0');
                 update_option("woocs_prechat_{$field}_required", isset($_POST["woocs_prechat_{$field}_required"]) ? '1' : '0');
             }
-            set_transient('woocs_admin_success', 'Pre-chat form settings saved.', 45);
+
+            // Sync settings to Hono API
+            $api_client = new ApiClient();
+            $api_client->update_settings([
+                'powered_by_enabled' => isset($_POST['woocs_enable_powered_by'])
+            ]);
+
+            set_transient('woocs_admin_success', 'Appearance settings saved.', 45);
 
         } elseif ($tab === 'advanced') {
             // Advanced tab
@@ -166,8 +172,9 @@ class AdminMenu {
             }
         }
 
-        $redirect_tab = in_array($tab, ['widget', 'prechat', 'advanced']) ? $tab : 'connection';
-        wp_safe_redirect(admin_url('admin.php?page=woocs-settings&tab=' . $redirect_tab));
+        $redirect_tab = in_array($tab, ['appearance', 'advanced']) ? $tab : 'connection';
+        $redirect_page = ($tab === 'appearance') ? 'woocs-appearance' : 'woocs-settings';
+        wp_safe_redirect(admin_url('admin.php?page=' . $redirect_page . '&tab=' . $redirect_tab));
         exit;
     }
 
@@ -190,7 +197,7 @@ class AdminMenu {
         $this->guard_billing_action('woocs_start_checkout');
 
         $plan_key = sanitize_key($_POST['plan_key'] ?? '');
-        if (!in_array($plan_key, ['starter', 'growth', 'pro'], true)) {
+        if (!in_array($plan_key, ['pro'], true)) {
             $this->redirect_billing_error('Please choose a valid plan.');
         }
 
@@ -232,6 +239,35 @@ class AdminMenu {
     private function redirect_billing_error(string $message): never {
         set_transient('woocs_billing_error', sanitize_text_field($message), 45);
         wp_safe_redirect(admin_url('admin.php?page=woocs-settings&tab=billing'));
+        exit;
+    }
+
+    public function handle_export_chat() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die('Unauthorized');
+        }
+        check_admin_referer('woocs_export_chat');
+
+        $type = sanitize_key($_GET['type'] ?? 'full');
+        if (!in_array($type, ['full', 'leads'], true)) {
+            $type = 'full';
+        }
+
+        $client = new ApiClient();
+        $csv_data = $client->export_chat_history($type);
+
+        if (is_wp_error($csv_data)) {
+            wp_die(esc_html($csv_data->get_error_message()));
+        }
+
+        $filename = 'woocs-' . ($type === 'leads' ? 'leads' : 'conversations') . '-' . gmdate('Y-m-d') . '.csv';
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        echo $csv_data;
         exit;
     }
 }

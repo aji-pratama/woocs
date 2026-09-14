@@ -3,12 +3,6 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 import App from "./App";
 
-declare global {
-  interface Window {
-    WooCS?: { store_id: string; api_url: string; store_name?: string; css_url?: string };
-  }
-}
-
 const rootElement = document.getElementById("woocs-widget-root");
 if (rootElement) {
   // Use Shadow DOM for perfect style isolation

@@ -34,6 +34,7 @@ backend/staticfiles/
 .pytest_cache/
 .coverage
 htmlcov/
+node_modules
 
 # Build artifacts
 woocs.zip
@@ -52,3 +53,13 @@ mysql_data/
 *.swp
 *.swo
 *.pyc
+
+# Hono API Backend
+api/node_modules/
+api/dist/
+api/.env
+api/.wrangler/
+vendor
+.phpunit.result.cache
+*.phpunit.result.cache
+

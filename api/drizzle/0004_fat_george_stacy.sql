@@ -1,0 +1,1 @@
+ALTER TABLE "chat_chatsession" ADD COLUMN IF NOT EXISTS "lead_label" varchar(50) DEFAULT 'lead';

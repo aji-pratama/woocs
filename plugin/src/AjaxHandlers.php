@@ -14,6 +14,11 @@ class AjaxHandlers {
         add_action('wp_ajax_woocs_save_sync_log', [self::class, 'handle_save_sync_log']);
         add_action('wp_ajax_woocs_chat_history', [self::class, 'handle_chat_history']);
         add_action('wp_ajax_woocs_chat_session_detail', [self::class, 'handle_chat_session_detail']);
+        add_action('wp_ajax_woocs_update_session_label', [self::class, 'handle_update_session_label']);
+        add_action('wp_ajax_woocs_add_knowledge_url', [self::class, 'handle_add_knowledge_url']);
+        add_action('wp_ajax_woocs_add_knowledge_text', [self::class, 'handle_add_knowledge_text']);
+        add_action('wp_ajax_woocs_add_knowledge_pdf', [self::class, 'handle_add_knowledge_pdf']);
+        add_action('wp_ajax_woocs_delete_knowledge_doc', [self::class, 'handle_delete_knowledge_doc']);
     }
 
     public static function handle_sync_now() {
@@ -193,6 +198,148 @@ class AjaxHandlers {
 
         $client = new ApiClient();
         $response = $client->get_chat_session($session_id);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => $response->get_error_message()], 500);
+        }
+
+        wp_send_json_success($response);
+    }
+
+    public static function handle_update_session_label() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+        check_ajax_referer('woocs_chat_history_nonce', 'nonce');
+
+        $session_id = sanitize_text_field($_POST['session_id'] ?? '');
+        $lead_label = sanitize_key($_POST['lead_label'] ?? '');
+
+        if (empty($session_id) || empty($lead_label)) {
+            wp_send_json_error(['message' => 'session_id and lead_label are required.']);
+        }
+
+        $client = new ApiClient();
+        $response = $client->update_chat_session_label($session_id, $lead_label);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => $response->get_error_message()], 500);
+        }
+
+        wp_send_json_success($response);
+    }
+
+    public static function handle_add_knowledge_url() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+        check_ajax_referer('woocs_knowledge_nonce', 'nonce');
+
+        $url = sanitize_url($_POST['url'] ?? '');
+        if (empty($url)) {
+            wp_send_json_error(['message' => 'URL is required.']);
+        }
+
+        $client = new ApiClient();
+        $response = $client->sync_knowledge_url($url);
+
+        if (is_wp_error($response)) {
+            $error_data = $response->get_error_data();
+            wp_send_json_error([
+                'message' => $response->get_error_message(),
+                'upgrade_required' => $error_data['upgrade_required'] ?? false
+            ], 400);
+        }
+
+        wp_send_json_success($response);
+    }
+
+    public static function handle_add_knowledge_text() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+        check_ajax_referer('woocs_knowledge_nonce', 'nonce');
+
+        $title = sanitize_text_field($_POST['title'] ?? '');
+        $content = isset($_POST['content']) ? trim((string) wp_unslash($_POST['content'])) : '';
+
+        if (empty($title)) {
+            wp_send_json_error(['message' => 'Document title is required.']);
+        }
+        if (empty($content)) {
+            wp_send_json_error(['message' => 'Document content is required.']);
+        }
+
+        $client = new ApiClient();
+        $response = $client->add_knowledge_text($title, $content);
+
+        if (is_wp_error($response)) {
+            $error_data = $response->get_error_data();
+            wp_send_json_error([
+                'message' => $response->get_error_message(),
+                'upgrade_required' => $error_data['upgrade_required'] ?? false
+            ], 400);
+        }
+
+        wp_send_json_success($response);
+    }
+
+    public static function handle_add_knowledge_pdf() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+        check_ajax_referer('woocs_knowledge_nonce', 'nonce');
+
+        if (empty($_FILES['pdf'])) {
+            wp_send_json_error(['message' => 'PDF file is required.']);
+        }
+
+        // For PoC we just send the file name to the backend as a 'url' to simulate processing,
+        // because forwarding multipart/form-data from PHP to Node.js is complex and out of scope.
+        // In a real plugin we would use curl with CURLFile.
+        $filename = sanitize_file_name($_FILES['pdf']['name']);
+
+        $client = new ApiClient();
+        
+        // Use sync_knowledge_pdf if implemented, or mock it.
+        $url = rtrim(get_option('woocs_api_url', 'http://host.docker.internal:8001'), '/') . '/api/stores/knowledge/document';
+        $response = wp_remote_post($url, [
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-API-Key' => get_option('woocs_api_key', ''),
+            ],
+            // Simulate the backend identifying this as a pdf
+            'body' => wp_json_encode(['pdf' => ['name' => $filename]]),
+            'timeout' => 30,
+        ]);
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        $status_code = wp_remote_retrieve_response_code($response);
+
+        if ($status_code >= 400) {
+            wp_send_json_error([
+                'message' => $data['error'] ?? 'API Error',
+                'upgrade_required' => $data['upgrade_required'] ?? false
+            ], 400);
+        }
+
+        wp_send_json_success($data);
+    }
+
+    public static function handle_delete_knowledge_doc() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+        check_ajax_referer('woocs_knowledge_nonce', 'nonce');
+
+        $id = sanitize_text_field($_POST['id'] ?? '');
+        if (empty($id)) {
+            wp_send_json_error(['message' => 'ID is required.']);
+        }
+
+        $client = new ApiClient();
+        $response = $client->delete_knowledge_document($id);
 
         if (is_wp_error($response)) {
             wp_send_json_error(['message' => $response->get_error_message()], 500);

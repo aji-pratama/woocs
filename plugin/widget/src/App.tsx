@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, Clock, Maximize, MessageCircle, Minimize, Plus, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, ChevronDown, Clock, Maximize, MessageCircle, Minimize, Plus, X, MoreHorizontal, PenSquare, History, Ticket } from "lucide-react";
 
-type ResponseType = "text" | "product_card" | "order_card" | "escalation";
+type ResponseType = "text" | "product_card" | "product_carousel" | "order_card" | "escalation";
 
 interface ProductMeta {
   name: string;
@@ -43,7 +43,7 @@ interface Message {
 }
 
 type PrechatField = { key: string; label: string; type: string; required: boolean };
-type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string };
+type Config = { store_id: string; api_url: string; store_name: string; page_context: any; prechat_enabled: boolean; prechat_fields: PrechatField[]; primary_color: string; widget_icon?: string; wc_url: string; enable_cart_action: boolean; enable_carousel: boolean; enable_quick_replies: boolean; enable_powered_by: boolean; };
 type HistoryEntry = { sessionId: string; title: string; updatedAt: string };
 
 const STORAGE_KEY = "woocs_chat_state_v1";
@@ -82,21 +82,10 @@ function mapMessages(messages: any[]): Message[] {
 async function fetchConversation(config: Config, sessionId: string) {
   const baseUrl = config.api_url.replace(/\/$/, "");
   const params = new URLSearchParams({ store_id: config.store_id, session_id: sessionId });
-  const response = await fetch(`${baseUrl}/api/widget/history/?${params}`);
+  const response = await fetch(`${baseUrl}/api/widget/chat/history/?${params}`);
   if (!response.ok) return [];
   const data = await response.json();
   return mapMessages(data.messages || []);
-}
-
-declare global {
-  interface Window {
-    WooCS?: {
-      store_id: string;
-      api_url: string;
-      store_name?: string;
-      page_context?: { type: string; product_id?: number; product_name?: string };
-    };
-  }
 }
 
 function uuid() {
@@ -105,24 +94,6 @@ function uuid() {
     const r = (Math.random() * 16) | 0;
     return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
   });
-}
-
-declare global {
-  interface Window {
-    WooCS?: {
-      store_id: string;
-      api_url: string;
-      store_name?: string;
-      page_context?: { type: string; product_id?: number; product_name?: string };
-      prechat_enabled?: boolean;
-      prechat_fields?: Array<{ key: string; label: string; type: string; required: boolean }>;
-      primary_color?: string;
-    };
-    WooCS_Test?: {
-      resetWidget?: () => void;
-      triggerMessage?: (msg: string) => void;
-    };
-  }
 }
 
 
@@ -139,10 +110,12 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   // Pre-chat state
   const [prechatDone, setPrechatDone] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ name?: string; email?: string; phone?: string }>({});
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -152,16 +125,21 @@ export default function App() {
     if (!wc?.store_id) {
       console.warn("WooCS widget requires window.WooCS.store_id to be set.");
     }
-    const pageContext = wc?.page_context ?? { type: "general" };
     const primaryColor = wc?.primary_color || "#2271b1";
     const cfg: Config = {
       store_id: wc?.store_id ?? "",
-      api_url: wc?.api_url ?? "http://localhost:8000",
+      api_url: wc?.api_url ?? "http://localhost:8001",
       store_name: wc?.store_name ?? "Store assistant",
-      page_context: pageContext,
-      prechat_enabled: wc?.prechat_enabled ?? false,
-      prechat_fields: wc?.prechat_fields ?? [],
-      primary_color: primaryColor,
+      page_context: window.WooCS?.page_context || { type: "general" },
+      prechat_enabled: window.WooCS?.prechat_enabled ?? false,
+      prechat_fields: window.WooCS?.prechat_fields || [],
+      primary_color: window.WooCS?.primary_color || "#2271b1",
+      widget_icon: window.WooCS?.widget_icon || undefined,
+      wc_url: window.WooCS?.wc_url || "",
+      enable_cart_action: window.WooCS?.widget_config?.enable_cart_action ?? true,
+      enable_carousel: window.WooCS?.widget_config?.enable_carousel ?? true,
+      enable_quick_replies: window.WooCS?.widget_config?.enable_quick_replies ?? true,
+      enable_powered_by: window.WooCS?.widget_config?.enable_powered_by ?? false,
     };
     setConfig(cfg);
 
@@ -203,12 +181,12 @@ export default function App() {
       } catch (err) {
         console.error("Failed to load chat history", err);
       }
-      
+
       // Fallback: new chat if no history
       const greeting = cfg.page_context.type === "product"
         ? (cfg.page_context.product_name ? `Hi! Looking at the ${cfg.page_context.product_name}? Ask me about sizes, stock, or anything else!` : `Hi! Ask me anything about this product.`)
         : `Hi! I'm your ${cfg.store_name}. I can help you find products, check stock, or track your order.`;
-      
+
       setMessages([
         {
           id: uuid(),
@@ -218,7 +196,7 @@ export default function App() {
         },
       ]);
     }
-    
+
     fetchHistory();
 
     // Test helpers for A4 Preview Page
@@ -233,9 +211,9 @@ export default function App() {
           setIsOpen(true);
           // Wait for state update to finish
           setTimeout(() => {
-             // We can't directly call sendMessage from outside unless we bind it,
-             // let's create a custom event that the component listens to.
-             window.dispatchEvent(new CustomEvent('woocs_test_message', { detail: msg }));
+            // We can't directly call sendMessage from outside unless we bind it,
+            // let's create a custom event that the component listens to.
+            window.dispatchEvent(new CustomEvent('woocs_test_message', { detail: msg }));
           }, 100);
         }
       };
@@ -307,6 +285,11 @@ export default function App() {
             ? { type: "product", product_id: config.page_context.product_id, product_name: config.page_context.product_name }
             : { type: "general" },
           customer_info: Object.keys(customerInfo).length > 0 ? customerInfo : undefined,
+          widget_config: {
+            enable_cart_action: config.enable_cart_action,
+            enable_carousel: config.enable_carousel,
+            enable_quick_replies: config.enable_quick_replies,
+          }
         }),
         signal: controller.signal,
       });
@@ -348,16 +331,25 @@ export default function App() {
     sendMessage(input);
   }
 
-  function handleEscalate(accept: boolean) {
-    setMessages((m) => [
-      ...m,
-      {
+  function handleEscalate(accept: boolean, message?: string) {
+    setMessages((m) => {
+      const newMessages = [...m];
+      if (accept && message) {
+        newMessages.push({
+          id: uuid(),
+          role: "user",
+          text: message,
+          response_type: "text",
+        });
+      }
+      newMessages.push({
         id: uuid(),
         role: "bot",
         text: accept ? "Got it — a team member will reach out shortly." : "No problem. Let me know if anything else comes up.",
         response_type: "text",
-      },
-    ]);
+      });
+      return newMessages;
+    });
   }
 
   function resetChat() {
@@ -395,52 +387,107 @@ export default function App() {
 
   // Render as a floating widget
   return (
-    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end">
+    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end">
       {isOpen && (
-        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-[#c3c4c7] bg-white font-sans text-[#1d2327] transition-[width,height] duration-150 ${
-          isMaximized
-            ? "h-[760px] w-[720px] rounded"
-            : "h-[620px] w-[400px] rounded"
-        }`}>
-          <header className="flex min-h-14 items-center justify-between border-b border-[#dcdcde] bg-[#f6f7f7] px-3">
-            <div className="flex min-w-0 items-center gap-2">
+        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-200 bg-white font-sans text-slate-900 shadow-xl transition-[width,height] duration-150 ${isMaximized
+          ? "h-[860px] w-[900px] rounded-xl"
+          : "h-[720px] w-[460px] rounded-xl"
+          }`}>
+          <header
+            style={{ backgroundColor: config.primary_color }}
+            className="woocs-embossed flex min-h-12 items-center justify-between p-3 text-white"
+          >
+            <div className="flex min-w-0 items-center gap-3">
               {showHistory && (
-                <IconButton label="Back to chat" onClick={() => setShowHistory(false)}>
-                  <ArrowLeft size={16} />
+                <IconButton label="Back to chat" onClick={() => setShowHistory(false)} light>
+                  <ArrowLeft size={20} />
                 </IconButton>
               )}
+              {!showHistory && config?.widget_icon && (
+                <img src={config.widget_icon} alt="" className="h-8 w-8 rounded-full object-cover" />
+              )}
               <div className="min-w-0">
-                <h1 className="truncate text-[13px] font-semibold text-[#1d2327]">
+                <h1 className="truncate text-[16px] font-bold text-white tracking-wide">
                   {showHistory ? "Conversations" : config.store_name}
                 </h1>
                 {!showHistory && (
-                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#646970]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#00a32a]" aria-hidden="true" />
-                    Available now
+                  <p className="mt-1 flex items-center gap-1.5 text-[12px] font-medium text-white/90">
+                    <span className="h-2 w-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.8)]" aria-hidden="true" />
+                    Online
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-0.5">
-              {!showHistory && (
-                <IconButton label="Conversation history" onClick={() => setShowHistory(true)}>
-                  <Clock size={16} />
-                </IconButton>
-              )}
-              <IconButton label="New conversation" onClick={resetChat}>
-                <Plus size={18} />
-              </IconButton>
+            <div className="relative flex items-center gap-1">
               <IconButton
-                onClick={() => setIsMaximized((value) => !value)}
-                label={isMaximized ? "Restore chat size" : "Maximize chat"}
+                label="More options"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                light
               >
-                {isMaximized
-                  ? <Minimize size={16} />
-                  : <Maximize size={16} />}
+                <MoreHorizontal size={20} />
               </IconButton>
-              <IconButton label="Close" onClick={() => setIsOpen(false)}>
-                <X size={17} />
+              <IconButton label="Close" onClick={() => setIsOpen(false)} light>
+                <X size={20} />
               </IconButton>
+
+              {isMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsMenuOpen(false)}
+                  />
+                  <div className="absolute right-8 top-10 z-50 w-48 rounded-md border border-slate-200 bg-white py-1 shadow-lg animate-in fade-in zoom-in-95">
+                    <button
+                      onClick={() => {
+                        resetChat();
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 text-left"
+                    >
+                      <PenSquare size={16} className="text-slate-500" />
+                      Start a new chat
+                    </button>
+                    <button
+                      onClick={() => {
+                        resetChat();
+                        setPrechatDone(false);
+                        setCustomerInfo({});
+                        setIsOpen(false);
+                        setIsMenuOpen(false);
+                        if (typeof window !== "undefined") {
+                          window.localStorage.removeItem("woocs_prechat_v1");
+                        }
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-[#d63638] hover:bg-red-50 text-left"
+                    >
+                      <X size={16} />
+                      End chat
+                    </button>
+                    <div className="my-1 border-t border-slate-100" />
+                    <button
+                      onClick={() => {
+                        setShowHistory(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 text-left"
+                    >
+                      <History size={16} className="text-slate-500" />
+                      View recent chats
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsMaximized(!isMaximized);
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 text-left"
+                    >
+                      {isMaximized ? <Minimize size={16} className="text-slate-500" /> : <Maximize size={16} className="text-slate-500" />}
+                      {isMaximized ? "Minimize window" : "Maximize window"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </header>
 
@@ -448,17 +495,48 @@ export default function App() {
             <HistoryList entries={history} loading={historyLoading} onSelect={openConversation} onNew={resetChat} />
           ) : config.prechat_enabled && !prechatDone ? (
             <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8 text-center">
-              <div className="mb-6">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded border border-[#c3c4c7] bg-[#f6f7f7]" style={{ color: config.primary_color }}>
-                  <MessageCircle size={26} strokeWidth={1.6} />
+              <div className="mb-8">
+                <div
+                  className="woocs-embossed mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded text-white overflow-hidden"
+                  style={{ backgroundColor: config.primary_color }}
+                >
+                  {config?.widget_icon ? (
+                    <img src={config.widget_icon} alt="Widget Icon" className="h-8 w-8 object-contain" />
+                  ) : (
+                    <MessageCircle size={24} strokeWidth={1.5} />
+                  )}
                 </div>
                 <h2 className="text-lg font-semibold text-[#1d2327]">Welcome to {config.store_name}</h2>
                 <p className="mt-2 text-sm text-[#646970]">Please introduce yourself before we start.</p>
               </div>
-              <form 
+              <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   const fd = new FormData(e.currentTarget);
+                  let hasError = false;
+                  const newErrors: Record<string, string> = {};
+                  config.prechat_fields.forEach(f => {
+                    const val = (fd.get(f.key) as string) || "";
+                    if (f.required && !val.trim()) {
+                      hasError = true;
+                      newErrors[f.key] = "This field is required";
+                    } else if (val.trim()) {
+                      if (f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim())) {
+                        hasError = true;
+                        newErrors[f.key] = "Invalid email format";
+                      } else if (f.type === 'tel' && !/^\+?[\d\s-]{7,15}$/.test(val.trim())) {
+                        hasError = true;
+                        newErrors[f.key] = "Invalid phone format";
+                      }
+                    }
+                  });
+
+                  if (hasError) {
+                    setFormErrors(newErrors);
+                    return;
+                  }
+
+                  setFormErrors({});
                   const info = {
                     name: (fd.get('name') as string) || undefined,
                     email: (fd.get('email') as string) || undefined,
@@ -469,6 +547,7 @@ export default function App() {
                   try { window.localStorage.setItem("woocs_prechat_v1", JSON.stringify(info)); } catch { /* ignore */ }
                 }}
                 className="w-full max-w-sm space-y-4 text-left"
+                noValidate
               >
                 {config.prechat_fields.map(f => (
                   <div key={f.key}>
@@ -478,15 +557,17 @@ export default function App() {
                     <input
                       type={f.type}
                       name={f.key}
-                      required={f.required}
-                      className="block w-full rounded-sm border border-[#8c8f94] px-3 py-2 text-sm text-[#1d2327] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
+                      className={`block w-full rounded-sm border ${formErrors[f.key] ? 'border-red-500' : 'border-[#8c8f94]'} px-3 py-2 text-sm text-[#1d2327] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]`}
                     />
+                    {formErrors[f.key] && (
+                      <p className="mt-1 text-xs text-red-500">{formErrors[f.key]}</p>
+                    )}
                   </div>
                 ))}
                 <button
                   type="submit"
                   style={{ backgroundColor: config.primary_color }}
-                className="mt-4 w-full rounded-sm px-4 py-2.5 text-sm font-medium text-white hover:brightness-95"
+                  className="woocs-embossed-btn mt-4 w-full rounded-sm px-4 py-2 text-[13px] font-semibold text-white"
                 >
                   Start Chatting
                 </button>
@@ -503,7 +584,7 @@ export default function App() {
 
                   {loading && (
                     <div className="max-w-[90%]">
-                      <div className="rounded border border-[#dcdcde] bg-[#f6f7f7] px-3 py-2.5">
+                      <div className="rounded-2xl border border-[#dcdcde] bg-[#f6f7f7] px-3 py-2.5">
                         {slowHint === "timeout" ? (
                           <div className="flex flex-col gap-2">
                             <span className="text-sm text-slate-600">Taking too long — try again.</span>
@@ -524,9 +605,9 @@ export default function App() {
                     </div>
                   )}
 
-                  {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && (
+                  {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && config?.enable_quick_replies && (
                     <div className="divide-y divide-[#dcdcde] border-y border-[#dcdcde]">
-                      {(config?.page_context?.type === "product" ? ["Is this in stock?", "What sizes are available?", "Check my order"] : QUICK_REPLIES).map((q) => (
+                      {(config?.page_context?.type === "product" ? ["Is this in stock?", "What are the shipping options?", "Check my order"] : QUICK_REPLIES).map((q) => (
                         <button
                           key={q}
                           onClick={() => sendMessage(q)}
@@ -542,27 +623,29 @@ export default function App() {
               </div>
 
               {/* Input */}
-              <div className="border-t border-[#dcdcde] bg-[#f6f7f7] px-3 pb-2.5 pt-3">
-                <form onSubmit={handleSubmit} className="flex items-center gap-2 rounded-sm border border-[#8c8f94] bg-white p-1 pl-3 focus-within:border-[#2271b1] focus-within:ring-1 focus-within:ring-[#2271b1]">
+              <div className="border-t border-[#e2e4e7] bg-white px-4 pb-4 pt-4 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+                <form onSubmit={handleSubmit} className="flex items-center gap-3 rounded-xl border border-[#dcdcde] bg-[#f9fafb] p-1.5 pl-4 focus-within:border-black/20 focus-within:bg-white focus-within:ring-2 focus-within:ring-black/5 transition-all">
                   <input
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     disabled={loading}
                     placeholder="Ask anything..."
-                    className="min-w-0 flex-1 bg-transparent py-1.5 text-[13px] text-[#1d2327] placeholder:text-[#8c8f94] focus:outline-none disabled:opacity-50"
+                    className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-[#1d2327] placeholder:text-[#8c8f94] focus:outline-none disabled:opacity-50"
                   />
                   <button
                     type="submit"
                     disabled={loading || !input.trim()}
                     style={{ backgroundColor: config.primary_color }}
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sm text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="woocs-embossed-btn flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sm text-white disabled:pointer-events-none disabled:opacity-40"
                     aria-label="Send"
                   >
-                    <ArrowUp size={17} strokeWidth={1.8} />
+                    <ArrowUp size={16} strokeWidth={1.8} />
                   </button>
                 </form>
-                <p className="mt-2 text-center text-[10px] text-[#787c82]">Powered by WooCS.ai</p>
+                {config?.enable_powered_by && (
+                  <p className="mt-2 text-center text-[10px] text-[#787c82]">Powered by WooCS.ai</p>
+                )}
               </div>
             </>
           )}
@@ -570,30 +653,35 @@ export default function App() {
       )}
 
       {/* Toggle Button */}
-      {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          style={{ backgroundColor: config.primary_color }}
-          className="flex h-12 w-12 items-center justify-center rounded border border-black/10 text-white hover:brightness-95 active:brightness-90"
-          aria-label="Open chat"
-        >
-          <MessageCircle size={22} strokeWidth={1.75} />
-        </button>
-      )}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ backgroundColor: config.primary_color }}
+        className="woocs-embossed flex h-14 w-14 items-center justify-center rounded-full text-white shadow-[0_4px_16px_rgba(0,0,0,0.2)] transition-transform hover:scale-105 active:scale-95 overflow-hidden"
+        aria-label={isOpen ? "Close chat" : "Open chat"}
+      >
+        {isOpen ? (
+          <ChevronDown size={28} strokeWidth={2} />
+        ) : (
+          <MessageCircle size={28} strokeWidth={2} />
+        )}
+      </button>
     </div>
   );
 }
 
-function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+function IconButton({ label, onClick, children, light }: { label: string; onClick: () => void; children: ReactNode; light?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="grid h-8 w-8 place-items-center rounded-sm text-[#50575e] hover:bg-[#dcdcde] hover:text-[#1d2327] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2271b1]"
+      className={`grid h-10 w-10 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${light
+        ? "text-white/80 hover:bg-white/20 hover:text-white"
+        : "text-[#50575e] hover:bg-[#dcdcde] hover:text-[#1d2327]"
+        }`}
       aria-label={label}
       title={label}
     >
-      <span className="[&>svg]:stroke-[1.55]">{children}</span>
+      <span className="[&>svg]:stroke-[2]">{children}</span>
     </button>
   );
 }
@@ -644,9 +732,9 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <div 
+        <div
           style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
-          className="max-w-[78%] rounded px-3 py-2 text-[13px] leading-relaxed text-white animate-in fade-in"
+          className="max-w-[78%] rounded-2xl rounded-tr-sm px-3.5 py-3 text-[14px] leading-relaxed text-white animate-in fade-in"
         >
           {message.text}
         </div>
@@ -658,11 +746,10 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
     <div className="animate-in fade-in">
       <div className="flex max-w-[90%] flex-col gap-3">
         <div
-          className={`relative rounded border px-3 py-2.5 text-[13px] leading-5 ${
-            message.error
-              ? "border-[#d63638] bg-[#fcf0f1] text-[#8a2424]"
-              : "border-[#dcdcde] bg-[#f6f7f7] text-[#2c3338]"
-          }`}
+          className={`relative rounded-2xl rounded-tl-sm border px-3.5 py-3 text-[14px] leading-relaxed ${message.error
+            ? "border-[#d63638] bg-[#fcf0f1] text-[#8a2424]"
+            : "border-[#dcdcde] bg-[#f6f7f7] text-[#2c3338]"
+            }`}
         >
           {message.text}
           {/* Debug overlay (only shown if we have context info via metadata or a custom property in the future, for PoC we can just read it if passed) */}
@@ -675,6 +762,9 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
         </div>
         {message.response_type === "product_card" && message.metadata && (
           <ProductCard meta={message.metadata as ProductMeta} />
+        )}
+        {message.response_type === "product_carousel" && (message.metadata as any)?.products && (
+          <ProductCarousel products={(message.metadata as any).products as ProductMeta[]} />
         )}
         {message.response_type === "order_card" && message.metadata && (
           <OrderCard meta={message.metadata as OrderMeta} />
@@ -692,28 +782,75 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
     meta.stock_status === "instock"
       ? { label: meta.stock_quantity != null ? `In stock (${meta.stock_quantity})` : "In stock", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200" }
       : meta.stock_status === "outofstock"
-      ? { label: "Out of stock", cls: "bg-red-50 text-red-700 ring-red-200" }
-      : { label: "Backorder", cls: "bg-amber-50 text-amber-700 ring-amber-200" };
+        ? { label: "Out of stock", cls: "bg-red-50 text-red-700 ring-red-200" }
+        : { label: "Backorder", cls: "bg-amber-50 text-amber-700 ring-amber-200" };
+
+  const enableCart = typeof window !== "undefined" ? window.WooCS?.widget_config?.enable_cart_action ?? true : true;
+  const primaryColor = typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1";
+
+  // Basic extract ID from URL (e.g. /?p=123) for simple Add to Cart link
+  const wcIdMatch = meta.wc_url?.match(/p=(\d+)/);
+  const wcId = wcIdMatch ? wcIdMatch[1] : null;
+
   return (
-    <div className="overflow-hidden rounded border border-[#c3c4c7] bg-white">
+    <div className="overflow-hidden rounded border border-[#c3c4c7] bg-white w-[240px] shrink-0 snap-center">
       {meta.image_url && (
         <img src={meta.image_url} alt={meta.name} className="h-28 w-full object-cover" />
       )}
-      <div className="p-3">
-        <div className="text-[13px] font-semibold leading-tight text-[#1d2327]">{meta.name}</div>
-        <div className="mt-2 flex items-center justify-between">
+      <div className="p-4 flex flex-col h-full">
+        <div className="text-[14px] font-semibold leading-tight text-[#1d2327] line-clamp-2 flex-1">{meta.name}</div>
+        <div className="mt-2.5 flex items-center justify-between">
           <span className="font-bold text-[#1d2327]">${meta.price}</span>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${stock.cls}`}>{stock.label}</span>
+          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ${stock.cls}`}>{stock.label}</span>
         </div>
-        <a
-          href={meta.wc_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
-          className="mt-3 block w-full rounded-sm px-3 py-1.5 text-center text-[11px] font-medium text-white hover:brightness-95"
-        >
-          View product
-        </a>
+
+        <div className="mt-4 flex flex-col gap-2">
+          {enableCart && wcId && meta.stock_status === "instock" ? (
+            <>
+              <a
+                href={`${meta.wc_url}&add-to-cart=${wcId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ backgroundColor: primaryColor }}
+                className="woocs-embossed-btn block w-full rounded-sm px-4 py-2 text-center text-[13px] font-semibold text-white"
+              >
+                Add to cart
+              </a>
+              <a
+                href={meta.wc_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full rounded-sm border border-[#c3c4c7] bg-white px-4 py-2 text-center text-[13px] font-medium text-[#2c3338] hover:bg-slate-50 transition-colors"
+              >
+                View details
+              </a>
+            </>
+          ) : (
+            <a
+              href={meta.wc_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ backgroundColor: primaryColor }}
+              className="woocs-embossed-btn block w-full rounded-sm px-4 py-2 text-center text-[13px] font-semibold text-white"
+            >
+              View product
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductCarousel({ products }: { products: ProductMeta[] }) {
+  return (
+    <div className="w-full rounded-2xl border border-[#dcdcde] bg-[#f6f7f7] p-3">
+      <div className="flex w-full overflow-x-auto gap-3 pb-2 snap-x">
+        {products.map((p, i) => (
+          <div key={i} className="snap-start shrink-0">
+            <ProductCard meta={p} />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -721,16 +858,16 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
 
 function OrderCard({ meta }: { meta: OrderMeta }) {
   return (
-    <div className="rounded border border-[#c3c4c7] bg-white p-3">
-      <div className="text-[13px] font-semibold text-slate-900">Order #{meta.order_id}</div>
-      <div className="mt-2.5 space-y-2 text-[11px]">
-        <div className="flex justify-between border-b border-slate-100 pb-1.5">
+    <div className="rounded border border-[#c3c4c7] bg-white p-4">
+      <div className="text-[14px] font-semibold text-slate-900">Order #{meta.order_id}</div>
+      <div className="mt-3 space-y-2.5 text-[13px]">
+        <div className="flex justify-between border-b border-slate-100 pb-2">
           <span className="text-slate-500">Status</span>
           <span className="font-medium text-indigo-600">{meta.status}</span>
         </div>
-        <div className="border-b border-slate-100 pb-1.5">
-          <div className="mb-1 text-slate-500">Items</div>
-          <ul className="space-y-0.5 text-slate-800">
+        <div className="border-b border-slate-100 pb-2">
+          <div className="mb-1.5 text-slate-500">Items</div>
+          <ul className="space-y-1 text-slate-800">
             {meta.items.map((i, idx) => (
               <li key={idx}>{i}</li>
             ))}
@@ -745,31 +882,102 @@ function OrderCard({ meta }: { meta: OrderMeta }) {
   );
 }
 
-function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
-  const [done, setDone] = useState(false);
-  if (done) return null;
+function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string) => void }) {
+  const [step, setStep] = useState<'initial' | 'form' | 'submitting' | 'done'>('initial');
+
+  if (step === 'done') return null;
+
+  if (step === 'form' || step === 'submitting') {
+    return (
+      <form
+        className="rounded border border-[#c3c4c7] bg-white p-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setStep('submitting');
+          const fd = new FormData(e.currentTarget);
+          try {
+            const wc = typeof window !== "undefined" ? window.WooCS : undefined;
+            const apiUrl = wc?.api_url ?? "http://localhost:8001";
+            const storeId = wc?.store_id ?? "";
+
+            let sessionId = "";
+            const raw = typeof window !== "undefined" ? window.localStorage.getItem("woocs_chat_v1") : null;
+            if (raw) sessionId = JSON.parse(raw).sessionId;
+
+            await fetch(`${apiUrl}/api/widget/chat/escalate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                store_id: storeId,
+                session_id: sessionId || "unknown",
+                name: fd.get('name') as string,
+                email: fd.get('email') as string,
+                message: fd.get('message') as string,
+              }),
+            });
+            onEscalate(true, fd.get('message') as string);
+            setStep('done');
+          } catch (err) {
+            console.error('Failed to submit escalation', err);
+            setStep('form');
+          }
+        }}
+      >
+        <div className="text-[14px] font-medium leading-tight text-[#1d2327] mb-3">Leave a message for the team</div>
+        <div className="space-y-3">
+          <input
+            type="text"
+            name="name"
+            placeholder="Your name (optional)"
+            className="block w-full rounded-sm border border-[#c3c4c7] px-3 py-1.5 text-[13px] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
+          />
+          <input
+            type="email"
+            name="email"
+            required
+            placeholder="Your email address"
+            className="block w-full rounded-sm border border-[#c3c4c7] px-3 py-1.5 text-[13px] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
+          />
+          <textarea
+            name="message"
+            required
+            placeholder="How can we help?"
+            rows={3}
+            className="block w-full rounded-sm border border-[#c3c4c7] px-3 py-1.5 text-[13px] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
+          />
+          <button
+            type="submit"
+            disabled={step === 'submitting'}
+            style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+            className="woocs-embossed-btn w-full rounded-sm px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-70"
+          >
+            {step === 'submitting' ? 'Sending...' : 'Send Message'}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-      <div className="flex items-start gap-2">
-        <span className="text-sm text-amber-600">⚠</span>
+    <div className="rounded border border-[#c3c4c7] bg-white p-4">
+      <div className="flex items-start gap-3">
+        <span className="text-base text-amber-500">⚠</span>
         <div className="flex-1">
-          <div className="text-[12px] leading-tight text-amber-900">Want me to connect you with the team?</div>
-          <div className="mt-2.5 flex flex-wrap gap-2">
+          <div className="text-[14px] font-medium leading-tight text-[#1d2327]">Want me to connect you with the team?</div>
+          <div className="mt-3 flex flex-wrap gap-2.5">
             <button
-              onClick={() => {
-                onEscalate(true);
-                setDone(true);
-              }}
-              className="rounded-md bg-amber-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-amber-700"
+              onClick={() => setStep('form')}
+              style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+              className="woocs-embossed-btn rounded-sm px-4 py-2 text-[13px] font-semibold text-white"
             >
               Talk to someone
             </button>
             <button
               onClick={() => {
                 onEscalate(false);
-                setDone(true);
+                setStep('done');
               }}
-              className="rounded-md bg-white px-2.5 py-1.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200 hover:bg-amber-50"
+              className="rounded-sm border border-[#c3c4c7] bg-white px-4 py-2 text-[13px] font-medium text-[#2c3338] transition-colors hover:bg-slate-50"
             >
               No thanks
             </button>
@@ -782,9 +990,9 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean) => void }) {
 
 function TypingDots() {
   return (
-    <div className="flex items-center gap-2 py-1 text-[11px] text-slate-500">
+    <div className="flex items-center gap-2 py-1.5 text-[13px] text-slate-500">
       <span>Thinking</span>
-      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" />
+      <span className="h-2 w-2 animate-pulse rounded-full bg-slate-400" />
     </div>
   );
 }

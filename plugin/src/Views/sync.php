@@ -9,53 +9,66 @@ if (!is_array($logs)) $logs = [];
     <input type="hidden" id="woocs_sync_nonce" value="<?php echo esc_attr(wp_create_nonce('woocs_sync_nonce')); ?>">
     <input type="hidden" id="woocs_ajax_url" value="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">
 
-    <div class="woocs-card">
-        <div class="woocs-card-header">
-            <h2>Catalog Summary</h2>
-            <button type="button" class="button button-primary" id="woocs-sync-now-btn">
-                <span class="dashicons dashicons-update" style="margin-top:3px;"></span>
-                Sync now
-            </button>
-        </div>
-        <div class="woocs-card-body">
-            <div class="woocs-sync-grid">
-                <div class="woocs-sync-item">
-                    <span class="woocs-sync-label">Products</span>
-                    <span class="woocs-sync-value" id="count-products">—</span>
-                </div>
-                <div class="woocs-sync-item">
-                    <span class="woocs-sync-label">Variations</span>
-                    <span class="woocs-sync-value" id="count-variations">—</span>
-                </div>
-                <div class="woocs-sync-item">
-                    <span class="woocs-sync-label">FAQs</span>
-                    <span class="woocs-sync-value" id="count-faqs">—</span>
+    <div class="woocs-paywall-wrapper">
+        <?php if (!empty($is_free_plan)): ?>
+            <div class="woocs-paywall-overlay">
+                <div class="woocs-paywall-card">
+                    <span class="dashicons dashicons-lock"></span>
+                    <h3>Upgrade to Pro</h3>
+                    <p>Automatic catalog syncing is a Pro feature. Upgrade to enable seamless product updates, real-time inventory sync, and multi-channel support.</p>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings&tab=billing')); ?>" class="button button-primary">View Pricing Plans</a>
                 </div>
             </div>
-            <p class="woocs-sync-time">
-                <span class="dashicons dashicons-clock" style="font-size:16px;width:16px;height:16px;color:#646970;"></span>
-                Last sync: <strong><span id="last-sync-time"><?php echo !empty($logs) ? esc_html(date('M j, Y H:i', strtotime($logs[0]['time']))) : 'Never'; ?></span></strong>
-            </p>
-        </div>
-    </div>
+        <?php endif; ?>
+
+        <div class="woocs-paywall-content <?php echo !empty($is_free_plan) ? 'is-locked' : ''; ?>">
+            <div class="woocs-card">
+                <div class="woocs-card-header">
+                    <h2>Catalog Summary</h2>
+                    <button type="button" class="button button-primary" id="woocs-sync-now-btn" <?php echo !empty($is_free_plan) ? 'disabled' : ''; ?>>
+                        <span class="dashicons dashicons-update woocs-btn-icon"></span>
+                        Sync now
+                    </button>
+                </div>
+                <div class="woocs-card-body">
+                    <div class="woocs-sync-grid">
+                        <div class="woocs-sync-item">
+                            <span class="woocs-sync-label">Products</span>
+                            <span class="woocs-sync-value" id="count-products">—</span>
+                        </div>
+                        <div class="woocs-sync-item">
+                            <span class="woocs-sync-label">Variations</span>
+                            <span class="woocs-sync-value" id="count-variations">—</span>
+                        </div>
+                        <div class="woocs-sync-item">
+                            <span class="woocs-sync-label">FAQs</span>
+                            <span class="woocs-sync-value" id="count-faqs">—</span>
+                        </div>
+                    </div>
+                    <p class="woocs-sync-time">
+                        <span class="dashicons dashicons-clock woocs-icon-clock"></span>
+                        Last sync: <strong><span id="last-sync-time"><?php echo !empty($logs) ? esc_html(date('M j, Y H:i', strtotime($logs[0]['time']))) : 'Never'; ?></span></strong>
+                    </p>
+                </div>
+            </div>
 
     <div class="woocs-card">
         <div class="woocs-card-header">
-            <h2>Sync Log <span style="font-size:12px;font-weight:400;color:#646970;">(last <?php echo count($logs); ?> entries)</span></h2>
+            <h2>Sync Log <span class="woocs-card-header-desc">(last <?php echo count($logs); ?> entries)</span></h2>
         </div>
         <div class="woocs-card-body p-0">
             <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
-                        <th style="width:170px;">Time</th>
+                        <th class="woocs-col-time">Time</th>
                         <th>Message</th>
-                        <th style="width:110px;">Status</th>
+                        <th class="woocs-col-status">Status</th>
                     </tr>
                 </thead>
                 <tbody id="woocs-sync-log">
                     <?php if (empty($logs)): ?>
                         <tr>
-                            <td colspan="3" class="woocs-text-muted" style="padding:16px;">No sync activity recorded yet.</td>
+                            <td colspan="3" class="woocs-text-muted woocs-p-16">No sync activity recorded yet.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($logs as $log): ?>
@@ -65,7 +78,7 @@ if (!is_array($logs)) $logs = [];
                                 <td>
                                     <?php if ($log['status'] === 'success'): ?>
                                         <span class="woocs-badge woocs-badge-success">
-                                            <span class="dashicons dashicons-yes-alt" style="font-size:13px;width:13px;height:13px;"></span>
+                                            <span class="dashicons dashicons-yes-alt woocs-icon-small"></span>
                                             Success
                                         </span>
                                     <?php elseif ($log['status'] === 'processing'): ?>
@@ -73,7 +86,7 @@ if (!is_array($logs)) $logs = [];
                                             Processing&hellip;
                                         </span>
                                     <?php else: ?>
-                                        <span style="color:#d63638;font-weight:600;">&#10007; Failed</span>
+                                        <span class="woocs-text-error">&#10007; Failed</span>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -83,6 +96,8 @@ if (!is_array($logs)) $logs = [];
             </table>
         </div>
     </div>
+    </div> <!-- .woocs-paywall-content -->
+    </div> <!-- .woocs-paywall-wrapper -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var syncBtn = document.getElementById('woocs-sync-now-btn');
@@ -110,12 +125,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (data.status === 'processing') {
             syncBtn.disabled = true;
-            syncBtn.innerHTML = '<span class="dashicons dashicons-update" style="margin-top:3px;"></span> Syncing&hellip;';
+            syncBtn.innerHTML = '<span class="dashicons dashicons-update woocs-btn-icon"></span> Syncing&hellip;';
             currentStatus = 'processing';
             setTimeout(fetchStatus, 3000);
         } else {
             syncBtn.disabled = false;
-            syncBtn.innerHTML = '<span class="dashicons dashicons-update" style="margin-top:3px;"></span> Sync now';
+            syncBtn.innerHTML = '<span class="dashicons dashicons-update woocs-btn-icon"></span> Sync now';
             if (currentStatus === 'processing') {
                 currentStatus = 'success';
                 pushLog('success', 'Catalog synced successfully');
@@ -153,7 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     syncBtn.addEventListener('click', function() {
         syncBtn.disabled = true;
-        syncBtn.innerHTML = '<span class="dashicons dashicons-update" style="margin-top:3px;"></span> Syncing&hellip;';
+        syncBtn.innerHTML = '<span class="dashicons dashicons-update woocs-btn-icon"></span> Syncing&hellip;';
 
         var fd = new FormData();
         fd.append('action', 'woocs_sync_now');
@@ -167,14 +182,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     pushLog('failed', 'Sync Failed');
                     syncBtn.disabled = false;
-                    syncBtn.innerHTML = '<span class="dashicons dashicons-update" style="margin-top:3px;"></span> Sync now';
+                    syncBtn.innerHTML = '<span class="dashicons dashicons-update woocs-btn-icon"></span> Sync now';
                 }
             })
             .catch(function(err) {
                 console.error(err);
                 pushLog('failed', 'Network Error');
                 syncBtn.disabled = false;
-                syncBtn.innerHTML = '<span class="dashicons dashicons-update" style="margin-top:3px;"></span> Sync now';
+                syncBtn.innerHTML = '<span class="dashicons dashicons-update woocs-btn-icon"></span> Sync now';
             });
     });
 

@@ -1,6 +1,6 @@
-# WooCS.ai — PoC PRD
+# WooCS.ai — Product Requirements Document
 
-**Version:** 0.4 (PoC)
+**Version:** 1.0 (Beta)
 **Status:** Draft
 **Scope:** Technical validation only — not production
 
@@ -34,7 +34,7 @@ Prove three technical hypotheses in 4 weeks:
 
 ---
 
-## 3. Non-goals (PoC)
+## 3. Non-goals
 
 - Merchant dashboard UI
 - OAuth connect flow
@@ -43,23 +43,23 @@ Prove three technical hypotheses in 4 weeks:
 - Analytics
 - WP Marketplace submission
 - HITL feedback loop
-- MerchantUser model and dashboard login (post-PoC — store record is the identity in PoC)
-- Rate limiting enforcement (soft limit defined but not enforced in PoC)
+- MerchantUser model and dashboard login (store record is the identity currently)
+- Rate limiting enforcement (soft limit defined)
 - API key rotation exposed to merchants
 
 ---
 
 ## 4. Architecture overview
 
-Two Django apps, all connected through a single API surface:
+Two Modules, all connected through a single API surface:
 
-**WordPress layer** — WP plugin (PHP) is the bridge between the merchant's store and Django. It pulls catalog data from WooCommerce REST API, forwards it to Django, and injects the widget into the storefront.
+**WordPress layer** — WP plugin (PHP) is the bridge between the merchant's store and Hono. It pulls catalog data from WooCommerce REST API, forwards it to Hono, and injects the widget into the storefront.
 
-**Django backend** — two apps: `stores` (tenant management, catalog ingestion, embedding pipeline) and `chat` (sessions, RAG, escalation). Exposed via Django Ninja API. Hosted on VPS with Nginx + Gunicorn.
+**Hono JS backend** — API for tenant management, catalog ingestion, and RAG chat. Hosted on a VPS.
 
-**External services** — PostgreSQL + pgvector for data, vector storage, and background tasks (`django.tasks` framework). LlamaIndex provides one lean interface over configurable chat providers (Anthropic, OpenAI, or Gemini) and embedding providers (OpenAI or Gemini). Django retains tenant-scoped retrieval and business policies.
+**External services** — PostgreSQL + pgvector for data and vectors. BullMQ for background tasks. LlamaIndex handles AI models (Anthropic/OpenAI/Gemini).
 
-**Widget** — a React bundle injected by the WP plugin into the storefront. It is the only customer-facing surface. All widget communication goes to Django Ninja API — no direct WooCommerce calls.
+**Widget** — React bundle injected via WP plugin. Communicates exclusively with the Hono API.
 
 ---
 
@@ -69,9 +69,11 @@ Two Django apps, all connected through a single API surface:
 
 **Responsibilities:**
 - Pull catalog from WooCommerce REST API (products, variations, FAQs)
-- POST catalog payload to Django `/api/stores/sync/`
+- Accept merchant-provided General Knowledge (URLs and PDF uploads)
+- POST catalog payload to Hono `/api/stores/sync/`
+- POST knowledge documents to Hono `/api/stores/knowledge/document`
 - Inject widget JS bundle into storefront footer
-- Admin pages: Settings, Sync status, FAQ manager, Widget preview
+- Admin pages: Settings, Sync status, FAQ manager, General Knowledge manager, Widget preview
 
 **Sync strategy:** Pull (not webhook). Plugin initiates on-demand from settings page, or cron triggers every 6 hours using stored WooCommerce credentials.
 
@@ -81,46 +83,100 @@ Two Django apps, all connected through a single API surface:
 
 ---
 
-### 5.2 Django Backend
+### 5.2 Hono JS backend
 
 #### Apps and responsibilities
 
 **stores** — one record per merchant. Responsible for:
 - Tenant identity: holds WooCommerce credentials, API key hash, merchant email, subscription state
 - Catalog ingestion: receives sync payload, persists Product, ProductVariation, and FAQ records
-- Embedding pipeline: Django task that builds text documents, calls the selected LlamaIndex embedding model, and saves vectors to pgvector
+- Knowledge ingestion: receives URLs and PDFs, queues LlamaParse extraction task
+- Embedding pipeline: background job that builds text documents (and chunks for PDFs/URLs), calls LlamaIndex embedding model, and saves vectors to pgvector
 - Sync status tracking: last_synced_at, per-entity counts, task status
 
 **chat** — handles all widget-facing interactions:
 - Creates and manages ChatSession and ChatMessage records
-- On each incoming message: runs keyword check → embed query through LlamaIndex → tenant-scoped pgvector similarity search → build prompt → call the selected LlamaIndex LLM → evaluate confidence → return answer or escalation signal
-- Dispatches escalation email via async Django task
+- On each incoming message: runs keyword check → embed query through LlamaIndex → tenant-scoped pgvector similarity search (across Products, FAQs, and KnowledgeChunks) → build prompt → call the selected LlamaIndex LLM → evaluate confidence → return answer or escalation signal
+- Dispatches escalation email via background job
 
-#### Django Ninja endpoints
+#### Hono endpoints
 
 `POST /api/stores/register/` — public endpoint. Creates Store record, generates and returns raw api_key. Called once during onboarding (web-first or plugin-first). No auth required.
 
-`POST /api/stores/sync/` — authenticated (X-API-Key). Accepts catalog payload, persists records, queues Django embedding task, returns task_id.
+`POST /api/stores/sync/` — authenticated (X-API-Key). Accepts catalog payload, persists records, queues Hono embedding task, returns task_id.
 
-`GET /api/stores/sync/status/` — authenticated (X-API-Key). Returns products_count, faqs_count, variations_count, last_synced_at, task status.
+`POST /api/stores/knowledge/document` — authenticated (X-API-Key). Accepts URL string or PDF file upload. Queues LlamaParse extraction and embedding task.
+*Limitations:* 
+- Free plan: Max 1 URL (up to 3 pages), No PDFs. Max 3 document syncs/crawls per month.
+- Pro plan: Max 5 URLs (up to 50 pages each), Max 5 PDFs (up to 10MB/50 pages each). Max 20 document syncs/crawls per month.
 
-`POST /api/widget/chat/` — unauthenticated. Accepts store_id, session_id, message. Returns answer, confidence, escalated flag, escalation_reason. Rate-limited by store_id (soft: 60 req/min, unenforced in PoC).
+`GET /api/stores/sync/status/` — authenticated (X-API-Key). Returns products_count, faqs_count, variations_count, knowledge_docs_count, last_synced_at, task status.
 
-`GET /api/widget/order-status/` — unauthenticated. Accepts store_id, order_id. Calls WooCommerce REST API live, returns mapped order status, line items, total. No caching — always fresh. Rate-limited by store_id (soft: 30 req/min, unenforced in PoC).
+`GET /api/stores/knowledge/` — authenticated (X-API-Key). Lists all knowledge documents and their status.
+
+`DELETE /api/stores/knowledge/document/:id` — authenticated (X-API-Key). Deletes a knowledge document and its chunks.
+
+`GET /api/stores/dashboard/stats/` — authenticated (X-API-Key). Returns overall stats: chat_sessions, total_messages, products_synced, escalations.
+
+`GET /api/stores/chat-history/` — authenticated (X-API-Key). Lists all chat sessions for the store.
+
+`GET /api/stores/chat-history/:id/` — authenticated (X-API-Key). Returns the message thread for a specific session.
+
+`GET /api/stores/subscription/` — authenticated (X-API-Key). Returns current Polar subscription status and plan info.
+
+`POST /api/stores/subscription/checkout/` — authenticated (X-API-Key). Generates a Polar checkout URL for upgrading.
+
+`POST /api/stores/subscription/portal/` — authenticated (X-API-Key). Generates a Polar customer portal session URL.
+
+`POST /api/webhooks/polar/` — Polar Webhook endpoint to sync subscription states (active, cancelled, etc.).
+
+`POST /api/widget/chat/` — unauthenticated. Accepts store_id, session_id, message. Returns answer, confidence, escalated flag, escalation_reason. Rate-limited by store_id (soft: 60 req/min, unenforced currently).
+
+`GET /api/widget/chat/history/` — unauthenticated. Accepts store_id, session_id. Returns the message thread for the current session.
+
+`GET /api/widget/order-status/` — unauthenticated. Accepts store_id, order_id. Calls WooCommerce REST API live, returns mapped order status, line items, total. No caching — always fresh. Rate-limited by store_id (soft: 30 req/min, unenforced currently).
 
 #### Endpoint grouping rationale
 
-`/api/stores/*` — plugin-to-Django calls. All require API key. Never called from browser.
+`/api/stores/*` — plugin-to-Hono calls. All require API key. Never called from browser.
 
-`/api/widget/*` — widget-to-Django calls. No API key — widget runs in browser and cannot hold secrets. Identified by store_id only. To be rate-limited post-PoC.
+`/api/widget/*` — widget-to-Hono calls. No API key — widget runs in browser and cannot hold secrets. Identified by store_id only. To be rate-limited in a future update.
 
-#### Confidence scoring and escalation
+#### Hybrid Routing & Confidence Scoring
+
+The backend uses a **Hybrid Routing** architecture to minimize LLM calls and maximize response speed. Routing is performed in a waterfall manner:
+
+```text
+[Incoming Message]
+       │
+       ▼
+ 1. Pre-Routing (Regex/Rules)  ──(Match keyword)──> Return 'escalation'
+       │                       ──(Match order #)──> Return 'order_card'
+   (No match)
+       │
+       ▼
+ 2. RAG Pipeline (LLM)
+       ├─ Embed message (1x LLM call)
+       ├─ Vector search (Products, FAQs, Docs)
+       └─ Generate answer (1x LLM call)
+       │
+       ▼
+ 3. UI Decision (Post-RAG)
+       ├─ 0 Products found ─────────> Return 'text'
+       ├─ 1 Product found  ─────────> Return 'product_card'
+       └─ >1 Products found
+             ├─ Carousel Enabled ───> Return 'product_carousel'
+             └─ Carousel Disabled ──> Return 'product_card' (1st product)
+```
+
+**Escalation Rules (Bypass RAG entirely):**
+Hardcoded keyword triggers: `refund`, `damage`, `broken`, `lawsuit`. Any match → immediate escalation, no LLM call made.
+
+**Confidence Threshold:**
 
 Confidence score = cosine similarity of the top-1 retrieved node from pgvector. Threshold: score below 0.65 triggers escalation.
 
-Hardcoded keyword triggers (bypass RAG entirely): refund, damage, broken, lawsuit. Any match → immediate escalation, no LLM call made.
-
-Escalation action: save ChatMessage with escalated=True and escalation_reason, dispatch async Django task to email Store.merchant_email with conversation transcript and Django Admin link.
+Escalation action: save ChatMessage with escalated=True and escalation_reason, dispatch background job to email Store.merchant_email with conversation transcript and Hono Admin link.
 
 ---
 
@@ -189,11 +245,28 @@ erDiagram
         datetime updated_at
     }
     
+    KnowledgeDocument {
+        UUID id PK
+        UUID store_id FK
+        string type
+        string source
+        string status
+        datetime updated_at
+    }
+    
+    KnowledgeChunk {
+        UUID id PK
+        UUID document_id FK
+        text content
+        vector embedding
+    }
+    
     ChatSession {
         UUID id PK
         UUID store_id FK
         UUID session_id
         email customer_email
+        string label
         datetime created_at
     }
     
@@ -210,8 +283,10 @@ erDiagram
 
     Store ||--o{ Product : "has"
     Store ||--o{ FAQ : "has"
+    Store ||--o{ KnowledgeDocument : "has"
     Store ||--o{ ChatSession : "has"
     Product ||--o{ ProductVariation : "has"
+    KnowledgeDocument ||--o{ KnowledgeChunk : "contains"
     ChatSession ||--o{ ChatMessage : "contains"
 ```
 
@@ -223,18 +298,19 @@ Central anchor. One record per merchant. All other records scoped here.
 | id | UUID | Primary key |
 | api_key_hash | string | SHA-256 of raw key — raw key never stored |
 | wc_url | URL | Merchant's WooCommerce store URL |
-| wc_consumer_key | string | Encrypted at rest (Fernet). PoC: plaintext with TODO marker |
-| wc_consumer_secret | string | Encrypted at rest (Fernet). PoC: plaintext with TODO marker |
+| wc_consumer_key | string | Encrypted at rest (Fernet). TODO: encrypt before production |
+| wc_consumer_secret | string | Encrypted at rest (Fernet). TODO: encrypt before production |
 | merchant_email | email | Escalation destination, trial reminders |
 | subscription_status | string | trial / active / cancelled / expired / suspended |
 | plan | string | starter / growth / pro / null |
 | trial_ends_at | datetime | Set at registration |
 | billing_cycle_end | datetime | Updated on Polar.sh webhook |
 | conversation_count | integer | Incremented per ChatSession, reset monthly |
+| knowledge_syncs_this_month | integer | Tracks manual document syncs/re-crawls, reset monthly |
 | last_synced_at | datetime | Updated after each successful sync |
 | created_at | datetime | |
 
-> **Security note (PoC):** `wc_consumer_key` and `wc_consumer_secret` grant full WooCommerce REST API access to the merchant's store. In production these must be encrypted at rest using `django-encrypted-fields` (Fernet). In PoC they are stored plaintext — mark with `# TODO: encrypt before production` in the model definition.
+> **Security note:** `wc_consumer_key` and `wc_consumer_secret` grant full WooCommerce REST API access to the merchant's store. In production these must be encrypted at rest using `Hono-encrypted-fields` (Fernet).
 
 ### Product
 One record per WooCommerce product.
@@ -278,6 +354,28 @@ Merchant-authored Q&A pairs. Embedded and indexed alongside products.
 | embedding | vector(1024) | pgvector field — null until embedding pipeline runs |
 | updated_at | datetime | |
 
+### KnowledgeDocument
+Tracks the uploaded file or URL source for General Knowledge.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| store | FK → Store | |
+| type | string | `url` or `pdf` |
+| source | string | e.g. `https://example.com/about` or `shipping_policy.pdf` |
+| status | string | `pending`, `processing`, `completed`, `error` |
+| updated_at | datetime | |
+
+### KnowledgeChunk
+Stores the parsed text chunks for a KnowledgeDocument.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | UUID | Primary key |
+| document | FK → KnowledgeDocument | |
+| content | text | Extracted and chunked text |
+| embedding | vector(1024) | pgvector field |
+
 ### ChatSession
 One record per widget session.
 
@@ -286,7 +384,8 @@ One record per widget session.
 | id | UUID | Internal primary key |
 | store | FK → Store | |
 | session_id | UUID | Client-side identifier generated by the widget, passed in every request |
-| customer_email | email | nullable — not collected in PoC |
+| customer_email | email | nullable — captured via support form escalation |
+| label | string | nullable — auto-categorized by LLM for Pro users (e.g. Sales, Support, General, Order Status, Urgent) |
 | created_at | datetime | |
 
 ### ChatMessage
@@ -305,79 +404,9 @@ One record per message turn (user and assistant).
 
 ---
 
-## 7. build_document spec
+## 7. Error handling
 
-The quality of RAG retrieval depends entirely on how catalog records are converted to text before embedding. This is the `build_document()` function called by the Django embedding task.
-
-### Product document format
-
-Fields are joined in this order, separated by newlines:
-
-```
-Product: {name}
-Category: {categories joined by ", "}
-Tags: {tags joined by ", "}
-Price: ${price}
-Stock: {stock_status} ({stock_quantity} units if not null)
-Description: {description}
-Variations:
-  - {variation.attributes as "key: value" pairs} | Price: ${variation.price} | Stock: {variation.stock_quantity}
-  - (one line per variation)
-```
-
-**Rules:**
-- If description is empty, omit the Description line entirely — do not embed "Description: "
-- If stock_quantity is null, emit only the stock_status (e.g. "Stock: instock")
-- Each variation is embedded inline in the parent product document — variations are not separate nodes
-- Maximum document length: 1500 tokens. If exceeded, truncate description first, then tags
-
-### FAQ document format
-
-```
-Question: {question}
-Answer: {answer}
-```
-
-FAQs are stored as separate nodes from products — they are retrieved independently by similarity search.
-
-### Why variations inline (not separate nodes)
-
-Embedding each variation as a separate node would generate 1000+ nodes for a store with 100 products × 10 variations. The parent product document with all variations inline gives the LLM enough context to answer variation-specific questions (e.g. "do you have this in M?") while keeping the index size manageable. Post-PoC: if a store has >500 variations, split into separate nodes with parent product metadata.
-
----
-
-## 8. Prompt template
-
-Sent to Claude Haiku on every widget chat turn (non-order, non-keyword path):
-
-```
-You are a customer support assistant for {store_name}.
-Answer questions using ONLY the context below.
-If the answer is not in the context, say you will connect the customer with the team.
-Never invent product details, prices, or stock levels.
-
-CONTEXT:
-{retrieved_chunks}
-
-ORDER STATUS (if queried):
-{order_data}
-
-CONVERSATION HISTORY:
-{last_5_messages}
-
-CUSTOMER: {user_message}
-ASSISTANT:
-```
-
-`{retrieved_chunks}` = top-5 nodes from pgvector similarity search, concatenated with `---` separator.
-`{order_data}` = populated only when order intent detected, otherwise omitted.
-`{last_5_messages}` = last 5 ChatMessage records for this session, formatted as `role: content`.
-
----
-
-## 9. Error handling
-
-### Embedding pipeline (Django task)
+### Embedding pipeline (background job)
 
 | Error | Behaviour |
 |---|---|
@@ -390,7 +419,7 @@ ASSISTANT:
 
 | Error | Widget behaviour |
 |---|---|
-| Django unreachable (network error) | Show inline message: "Something went wrong. Please try again." Retry button |
+| Hono unreachable (network error) | Show inline message: "Something went wrong. Please try again." Retry button |
 | `/api/widget/chat/` returns 500 | Same as above |
 | Response takes >8s | Typing indicator (C-08) shows "Still looking…" at 8s mark. If no response by 15s: show "Taking too long — try again" with retry |
 | pgvector returns 0 nodes | Skip RAG answer. Trigger escalation with reason: low_confidence. Do not show empty answer |
@@ -408,32 +437,32 @@ ASSISTANT:
 
 | Error | Plugin behaviour |
 |---|---|
-| Django unreachable on Save | Show WP Admin notice: "Could not connect to WooCS.ai. Check your server URL and try again." |
+| Hono unreachable on Save | Show WP Admin notice: "Could not connect to WooCS.ai. Check your server URL and try again." |
 | API key rejected (401) | Show: "Invalid API key. Please check your key or generate a new one at woocs.ai." |
 | Subscription suspended (402) | Stop widget injection. Show dismissible WP Admin notice: "Your WooCS.ai subscription has ended. [Upgrade now]" |
 | Sync fails mid-way | Show per-entity error in Sync log. Partial results are kept — only failed records are marked pending_embed |
 
 ---
 
-## 10. Tech stack
+## 8. Tech stack
 
 | Layer | Choice | Reason |
 |---|---|---|
 | WP plugin | PHP 8.1 | WP requirement |
 | Widget | React (bundled) | Component-based, storefront-injectable |
-| Backend | Django 5.x + Django Ninja | Async-ready, type-safe API schema |
-| Task queue | `django.tasks` framework (Custom Postgres Backend) | Async embedding pipeline |
+| Backend | Hono 5.x + Hono | Async-ready, type-safe API schema |
+| Task queue | `Hono.tasks` framework (Custom Postgres Backend) | Async embedding pipeline |
 | Database | PostgreSQL 15 + pgvector | Single DB for data + embeddings |
 | AI framework | LlamaIndex | One interface for Claude, OpenAI, Gemini, and future providers |
-| RAG orchestration | Lean Django services + ORM | Explicit tenant filtering, prompt construction, confidence, and escalation policies |
+| RAG orchestration | Lean Hono services + ORM | Explicit tenant filtering, prompt construction, confidence, and escalation policies |
 | Default embeddings | OpenAI `text-embedding-3-small` via LlamaIndex | Configurable 1024-dimensional retrieval; Gemini is also supported |
 | Default LLM | Claude Haiku via LlamaIndex | Fast support answers; configurable through settings |
 | Hosting | VPS — Ubuntu + Nginx + Gunicorn | Full control, no platform lock-in |
-| Email | Django SMTP (Gmail) | Zero cost for PoC |
+| Email | Hono SMTP (Gmail) | Email delivery provider |
 
 ---
 
-## 11. Kill switches
+## 9. Kill switches
 
 | Signal | Threshold | Action |
 |---|---|---|
@@ -442,11 +471,11 @@ ASSISTANT:
 | Widget theme conflict | >3 popular WP themes broken | Rebuild widget with Shadow DOM isolation |
 | WC API rate limit | Sync fails consistently | Switch to webhook push model |
 | Embedding pipeline | >20% of products fail after 3 retries | Investigate Haiku API limits, add batching |
-| Widget traffic abuse | >500 req/min per store_id (aggregate) | Manually block store_id via Django Admin |
+| Widget traffic abuse | >500 req/min per store_id (aggregate) | Manually block store_id via Hono Admin |
 
 ---
 
-## 12. Test plan (Week 4)
+## 10. Test plan (Week 4)
 
 **Manual query set — 20 queries:**
 
@@ -470,25 +499,25 @@ ASSISTANT:
 - Escalation email delivered to merchant inbox within 60 seconds
 
 **Error handling test:**
-- Simulate Django timeout on widget → verify "try again" message shown, no crash
+- Simulate Hono timeout on widget → verify "try again" message shown, no crash
 - Send order ID that doesn't exist → verify "order not found" message, no escalation
 - Trigger sync with WC credentials revoked → verify error shown in Sync page, no silent failure
 
 ---
 
-## 13. Deliverables
+## 11. Deliverables
 
 - [ ] WP plugin installable via zip upload
-- [ ] Django backend live on VPS
+- [ ] Hono JS backend live on VPS
 - [ ] Widget renders and chats on test WC store
 - [ ] 20-query test results documented
 - [ ] Escalation email confirmed working
 - [ ] Error handling test results documented
-- [ ] PoC findings doc: what passed, what failed, recommended next steps
+- [ ] Beta findings doc: what passed, what failed, recommended next steps
 
 ---
 
-## 14. Screen inventory & feature map
+## 12. Screen inventory & feature map
 
 ### Layer A — WP Admin Dashboard (plugin pages)
 
@@ -532,7 +561,21 @@ ASSISTANT:
 
 ---
 
-#### A4. Widget preview utility page
+#### A4. Knowledge page — General tab
+**Route:** `/wp-admin/admin.php?page=woocs-knowledge&tab=general`
+
+**Features:**
+- Document list: source URL/PDF name, type, status (processing, active, error), last updated
+- Add URL form: input field for website URL
+- Upload PDF form: file uploader via WP Media Library or direct proxy
+- Delete document with confirm dialog
+- "Re-sync Document" → triggers LlamaParse background job via `POST /api/stores/knowledge/document` (drops old chunks and re-crawls/re-parses the source)
+- **Immutability Rule:** Extracted chunks are read-only. Users cannot manually edit the text of a PDF/URL in the UI. To update, they must re-sync.
+- **Limitations Enforced:** Displays upgrade prompt if Free user attempts to upload PDF or exceed 1 URL limit.
+
+---
+
+#### A5. Widget preview utility page
 **Route:** `/wp-admin/admin.php?page=woocs-preview`
 
 Preview is opened from Settings → Widget. It stays registered under WooCS through authorization, then its visible submenu item is removed during `admin_head`.
@@ -540,7 +583,7 @@ Preview is opened from Settings → Widget. It stays registered under WooCS thro
 **Features:**
 - Iframe: storefront with widget visible
 - Live chat test via real `/api/widget/chat/` endpoint
-- Debug overlay (PoC only): confidence score per response
+- Debug overlay (Dev mode only): confidence score per response
 - Escalation test button: sends "refund" keyword, verifies trigger fires
 - Response latency display in ms
 
@@ -555,7 +598,7 @@ Appears on: all public-facing pages. Excluded by default: WP Admin, order confir
 
 ---
 
-### Layer C — Django Admin (internal, operator only)
+### Layer C — Hono Admin (internal, operator only)
 
 #### C1. Stores
 Store list and detail. Regenerate API key, force sync, deactivate store actions.
@@ -564,7 +607,7 @@ Store list and detail. Regenerate API key, force sync, deactivate store actions.
 Product list (filter by store, stock_status), product detail with variation inline, FAQ list.
 
 #### C3. Chat sessions
-Session list (filter by store, escalated). Session detail: full message thread with role, content, confidence_score, escalation_reason. Primary PoC debug tool.
+Session list (filter by store, escalated). Session detail: full message thread with role, content, confidence_score, escalation_reason. Primary debug tool.
 
 ---
 
@@ -575,7 +618,7 @@ Shows the generated API key (once only) and instructions to install the WP plugi
 
 ---
 
-## 15. Widget specification
+## 13. Widget specification
 
 The widget is the only customer-facing surface. It is a React bundle injected into every storefront page by the WP plugin. It starts collapsed as a floating bubble and expands to a full chat panel on click.
 
@@ -616,7 +659,7 @@ Always visible on storefront. Fixed position, configurable (default: bottom-righ
 **Contains:**
 - Chat icon when collapsed
 - X icon when panel is open
-- Unread badge (post-PoC)
+- Unread badge (Planned)
 
 **Behaviour:** Click → open panel. Click again or click X in panel header → collapse. Position set from A1 Settings (bottom-right / bottom-left).
 
@@ -627,9 +670,9 @@ Always visible on storefront. Fixed position, configurable (default: bottom-righ
 Top bar of panel. Always visible when panel is open.
 
 **Contains:**
-- Bot avatar (default: robot icon. Post-PoC: merchant-uploaded image)
+- Bot avatar (Merchant-uploaded image or default icon)
 - Bot name (default: "Store assistant". Configurable by merchant)
-- Online status dot (always green in PoC — no offline state)
+- Online status dot (always green — no offline state)
 - Close (×) button → collapses panel to bubble
 
 ---
@@ -658,7 +701,7 @@ Rendered below the latest bot message. Disappears when customer starts typing or
 
 | Context | Pills shown |
 |---|---|
-| Idle / after greeting | Check my order · Return policy · Browse products |
+| Idle / after greeting | Track my order · Return policy · Browse products |
 | After product answer | Other sizes · View product |
 | After order status | Track again · Need help? |
 | After escalation dismissed | Ask another question |
@@ -682,9 +725,9 @@ Rendered inline inside a bot bubble when the query matches a product in the cata
 - "View product" CTA → opens WC product page, same tab
 
 **Rules:**
-- One card per bot message in PoC
+- One card per bot message
 - Stock count hidden if merchant has disabled stock display in WooCommerce settings
-- No add-to-cart in PoC — CTA is view only
+- Add to cart directly from widget
 
 ---
 
@@ -692,7 +735,7 @@ Rendered inline inside a bot bubble when the query matches a product in the cata
 
 Rendered inline inside a bot bubble when an order number is detected in the customer message.
 
-**Intent detection:** Regex match on `#\d+` or phrase "order \d+" — checked by Django before RAG, calls `/api/widget/order-status/` directly.
+**Intent detection:** Regex match on `#\d+` or phrase "order \d+" — checked by Hono before RAG, calls `/api/widget/order-status/` directly.
 
 **Contains:**
 - Order number as typed by customer
@@ -725,7 +768,7 @@ Rendered instead of a normal bot bubble when confidence < 0.65 or a keyword trig
 **Trigger sources:**
 - `keyword_trigger` — pre-RAG keyword match (refund, damage, broken, lawsuit)
 - `low_confidence` — post-RAG confidence score below threshold
-- `customer_request` — customer explicitly types "talk to human" or similar (post-PoC)
+- `customer_request` — customer explicitly types "talk to human" or similar (Planned)
 
 **Contains:**
 - Warning icon (⚠)
@@ -733,7 +776,11 @@ Rendered instead of a normal bot bubble when confidence < 0.65 or a keyword trig
 - Two CTAs:
 
 **"Talk to someone":**
-Records escalation → widget shows confirmation bubble: "Got it! The team will reach out to you shortly." → Django sends escalation email to merchant.
+Expands an inline Support Form requesting:
+- Email (Required)
+- Name (Optional)
+- Issue summary (Pre-filled with last message)
+Once submitted, records escalation → widget shows confirmation bubble: "Got it! The team will reach out to you shortly." → Hono sends an **extra urgent** escalation email to the merchant including the form details.
 
 **"No thanks":**
 Dismisses bubble → chat continues normally → subsequent low-confidence turns show softer inline fallback: "I'm not sure — try rephrasing or ask something else." (no second escalation bubble per session)
@@ -747,7 +794,7 @@ Dismisses bubble → chat continues normally → subsequent low-confidence turns
 
 ### Component C-08 · Typing indicator
 
-Shown in the message thread immediately after a customer sends a message, while awaiting Django response.
+Shown in the message thread immediately after a customer sends a message, while awaiting Hono response.
 
 **States:**
 - 0–8s: three animated dots
@@ -774,7 +821,7 @@ Pinned to bottom of panel at all times.
 | After order status | Any other questions? |
 | Escalation bubble visible | Continue chatting… |
 
-**Send behaviour:** Enter key or send button submits. Multiline not supported in PoC.
+**Send behaviour:** Enter key or send button submits. Multiline not supported currently.
 
 **Disabled state:** The input field and send button are fully disabled while awaiting a response (typing indicator visible) or when an escalation bubble (C-07) is visible, forcing the user to select an escalation CTA.
 
@@ -786,7 +833,7 @@ Always visible at bottom of panel, below input bar.
 
 **Contains:** "Powered by WooCS.ai" text link → woocs.ai (new tab).
 
-Removed in future white-label tier (post-PoC).
+Removed in future white-label tier (Planned).
 
 ---
 
@@ -827,11 +874,11 @@ Widget
 
 ---
 
-## 16. Auth model
+## 14. Auth model
 
 ### Overview
 
-All plugin-to-Django communication is authenticated via a single static API key. No sessions, no cookies, no JWTs. Every plugin request carries the key in the `X-API-Key` header.
+All plugin-to-Hono communication is authenticated via a single static API key. No sessions, no cookies, no JWTs. Every plugin request carries the key in the `X-API-Key` header.
 
 The widget does not use the API key. It uses `store_id` only — a non-secret UUID. The API key is never sent to or stored in the browser.
 
@@ -839,15 +886,15 @@ The widget does not use the API key. It uses `store_id` only — a non-secret UU
 
 ### API key lifecycle
 
-**Generation** — Django generates a cryptographically random 48-character hex key when a Store record is created via `POST /api/stores/register/` (plugin-first flow). If an `api_key` is provided in the payload (web-first flow), Django verifies the existing key instead of generating a new one. When generated, the SHA-256 hash of the key is stored in `Store.api_key_hash`. The raw key is returned once in the registration response and never stored or shown again.
+**Generation** — Hono generates a cryptographically random 48-character hex key when a Store record is created via `POST /api/stores/register/` (plugin-first flow). If an `api_key` is provided in the payload (web-first flow), Hono verifies the existing key instead of generating a new one. When generated, the SHA-256 hash of the key is stored in `Store.api_key_hash`. The raw key is returned once in the registration response and never stored or shown again.
 
-**Transmission** — Plugin stores the raw key in `wp_options` (WordPress encrypted options table). Every plugin-to-Django request includes header: `X-API-Key: {raw_key}`.
+**Transmission** — Plugin stores the raw key in `wp_options` (WordPress encrypted options table). Every plugin-to-Hono request includes header: `X-API-Key: {raw_key}`.
 
-**Validation** — Django Ninja auth middleware hashes the incoming key (SHA-256), queries Store by hash. If no match → 401. If match → attaches Store to request state for the view.
+**Validation** — Hono auth middleware hashes the incoming key (SHA-256), queries Store by hash. If no match → 401. If match → attaches Store to request state for the view.
 
-**Rotation** — operator-only via Django Admin. Generates new key, invalidates old immediately. Merchant must update manually in A1 Settings. Not exposed to merchants in PoC.
+**Rotation** — operator-only via Hono Admin. Generates new key, invalidates old immediately. Merchant must update manually in A1 Settings. Not exposed to merchants currently.
 
-**Suspension** — when subscription lapses, Django sets `subscription_status = suspended`. Middleware returns 402 instead of processing the request. Key is not deleted — reactivating subscription restores access without re-setup.
+**Suspension** — when subscription lapses, Hono sets `subscription_status = suspended`. Middleware returns 402 instead of processing the request. Key is not deleted — reactivating subscription restores access without re-setup.
 
 ---
 
@@ -865,17 +912,17 @@ The widget does not use the API key. It uses `store_id` only — a non-secret UU
 
 ### Cross-system identity map
 
-| WordPress (`wp_options`) | Django (`Store` record) |
+| WordPress (`wp_options`) | Hono (`Store` record) |
 |---|---|
 | `woocs_store_id` | `Store.id` (UUID) |
 | `woocs_api_key` | hashed → `Store.api_key_hash` |
-| `woocs_api_url` | base URL of Django API |
+| `woocs_api_url` | base URL of Hono API |
 
-**MerchantUser (post-PoC):** In PoC, the Store record IS the merchant identity. There is no login, no dashboard, no user account. Post-PoC, a `MerchantUser` model will be added, linked to Store, enabling dashboard login, team members, and password reset. This is explicitly a non-goal for PoC.
+**MerchantUser (Planned):** In PoC, the Store record IS the merchant identity. There is no login, no dashboard, no user account. Post-PoC, a `MerchantUser` model will be added, linked to Store, enabling dashboard login, team members, and password reset. This is explicitly a non-goal for PoC.
 
 ---
 
-## 17. Onboarding flows
+## 15. Onboarding flows
 
 Two entry points, same end state: store connected, catalog synced, widget live.
 
@@ -888,13 +935,13 @@ The single registration endpoint for both paths is `POST /api/stores/register/`.
 ```
 1. Merchant visits woocs.ai, clicks "Start free trial"
 2. Fills signup form: email, password, store URL
-3. Django creates Store record, generates api_key
+3. Hono creates Store record, generates api_key
 4. Post-signup screen shown (see mock in Section 14)
 5. Merchant installs WooCS.ai plugin in WP Admin
 6. Opens WooCS.ai › Settings
 7. Pastes API key, clicks Save
 8. Plugin calls POST /api/stores/register/ with {api_key, wc_url}
-   Django validates key exists, returns {store_id, store_name}
+   Hono validates key exists, returns {store_id, store_name}
 9. Plugin saves store_id + api_key to wp_options
 10. Plugin initiates first catalog sync → POST /api/stores/sync/
 11. Sync status page shows live progress
@@ -912,7 +959,7 @@ The single registration endpoint for both paths is `POST /api/stores/register/`.
 4. Merchant clicks "Connect to WooCS.ai"
 5. New tab opens: woocs.ai/connect?store_url=...
 6. Merchant signs up (or logs in if returning)
-7. Django creates Store record, generates api_key
+7. Hono creates Store record, generates api_key
 8. woocs.ai shows api_key with copy button
 9. Merchant copies key, returns to WP Admin tab
 10. Pastes key into API key field, clicks Save
@@ -925,7 +972,7 @@ The single registration endpoint for both paths is `POST /api/stores/register/`.
 
 Both paths converge at step 8 of Entry point A. After `POST /api/stores/register/` validates and `POST /api/stores/sync/` completes:
 
-- Store record exists in Django with valid api_key_hash
+- Store record exists in Hono with valid api_key_hash
 - Products, variations, FAQs are synced and embedded in pgvector
 - Widget is injected into all storefront pages
 - Merchant sees "Your store is live!" on Sync status page
@@ -938,13 +985,13 @@ Both paths converge at step 8 of Entry point A. After `POST /api/stores/register
 |---|---|
 | Store registered | `POST /api/stores/register/` succeeds |
 | Plugin connected | store_id saved to wp_options |
-| First sync complete | Django ingest_catalog task finishes |
+| First sync complete | Hono ingest_catalog task finishes |
 | FAQ added | At least 1 FAQ record exists for store |
 | First widget chat | First ChatMessage with role=user created |
 
 ---
 
-## 18. Subscription & billing
+## 16. Subscription & billing
 
 ### Trial
 
@@ -956,7 +1003,7 @@ Both paths converge at step 8 of Entry point A. After `POST /api/stores/register
 
 ---
 
-### Plans (post-PoC, via Polar.sh)
+### Plans (via Polar.sh)
 
 | Plan | Price | Conversation limit |
 |---|---|---|
@@ -995,7 +1042,7 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 
 ---
 
-## 19. Mock UX (ASCII wireframes)
+## 17. Mock UX (ASCII wireframes)
 
 ### A1. WP Admin — Settings (connected state)
 
@@ -1018,8 +1065,11 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 │                  │                                              │
 │                  │  ┌─ Widget ───────────────────────────────┐  │
 │                  │  │  Enable widget   [x] On storefront     │  │
-│                  │  │  Position        (●) Bottom-right      │  │
-│                  │  │                  ( ) Bottom-left       │  │
+│                  │  │  Pre-chat Form   [x] Ask for Name      │  │
+│                  │  │                  [ ] Ask for Email     │  │
+│                  │  │  Features        [x] Quick Replies     │  │
+│                  │  │                  [x] Add to Cart       │  │
+│                  │  │                  [x] Product Carousel  │  │
 │                  │  └────────────────────────────────────────┘  │
 │                  │                                              │
 │                  │  [Save settings]   [Disconnect store]        │
@@ -1117,7 +1167,7 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 │                  │  │                    ┌────────────────┐  │  │
 │                  │  │  ┌─────────────┐   │ 🤖 Store asst  │  │  │
 │                  │  │  │ conf: 0.87  │   │ ● Online    [×]│  │  │
-│                  │  │  │ (debug PoC) │   │ Hi! I can help │  │  │
+│                  │  │  │ (debug info)│   │ Hi! I can help │  │  │
 │                  │  │  └─────────────┘   │ [Ask now...]   │  │  │
 │                  │  │                    └────────────────┘  │  │
 │                  │  └────────────────────────────────────────┘  │
@@ -1145,8 +1195,7 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 ```
 │  [store header]                                             │
 │  [product grid]        ┌────────────────────────────────┐  │
-│                        │ C-02                        [×] │  │
-│                        │ 🤖 Store assistant  ● Online    │  │
+│                        │ 🤖 Store assistant  ● Online   │  │
 │                        │────────────────────────────────│  │
 │                        │ C-03                           │  │
 │                        │  Hi! I can help you find       │  │
@@ -1160,6 +1209,8 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 │                        │────────────────────────────────│  │
 │                        │ C-10 Powered by WooCS.ai       │  │
 │                        └────────────────────────────────┘  │
+│                                                     [▼]    │
+│  [footer]                                                  │
 ```
 
 ---
@@ -1303,7 +1354,7 @@ Overage: $0.02/conversation above limit. Soft cap — service continues, merchan
 
 ---
 
-## 20. System design diagrams
+## 18. System design diagrams
 
 ---
 
@@ -1318,8 +1369,8 @@ graph TD
     Plugin --> WC
   end
 
-  subgraph Django["Django backend (VPS · Nginx · Gunicorn)"]
-    Ninja["Django Ninja API"]
+  subgraph Hono["Hono JS backend (VPS · Nginx · Gunicorn)"]
+    Ninja["Hono API"]
     Stores["stores app\nTenant · Catalog · Embedding"]
     Chat["chat app\nSessions · RAG · Escalation"]
     Ninja --> Stores
@@ -1353,37 +1404,37 @@ graph TD
 sequenceDiagram
   actor Customer
   participant Widget
-  participant Django as Django (chat app)
+  participant Hono as Hono (chat app)
   participant Embeddings as OpenAI / Gemini Embeddings
   participant PG as pgvector
   participant Haiku as Claude Haiku
 
   Customer->>Widget: types message
-  Widget->>Django: POST /api/widget/chat/ {store_id, session_id, message}
+  Widget->>Hono: POST /api/widget/chat/ {store_id, session_id, message}
   
-  Django->>Django: order intent check
+  Hono->>Hono: order intent check
   alt order intent matched
-    Django->>WC: GET /wc/v3/orders/{id}
-    WC-->>Django: order data
-    Django-->>Widget: {answer, response_type: order_card}
+    Hono->>WC: GET /wc/v3/orders/{id}
+    WC-->>Hono: order data
+    Hono-->>Widget: {answer, response_type: order_card}
   else
-    Django->>Django: keyword check
+    Hono->>Hono: keyword check
     alt keyword match
-      Django-->>Widget: {escalated: true, reason: keyword_trigger}
-      Django-)Django: send_escalation_email.enqueue()
+      Hono-->>Widget: {escalated: true, reason: keyword_trigger}
+      Hono-)Hono: send_escalation_email.enqueue()
     else no match
-      Django->>Embeddings: embed(query)
-      Embeddings-->>Django: query vector
-      Django->>PG: similarity search (store_id, top_k=5)
-      PG-->>Django: top-k records + cosine distances
-      Django->>Haiku: prompt + context + history
-      Haiku-->>Django: generated answer
+      Hono->>Embeddings: embed(query)
+      Embeddings-->>Hono: query vector
+      Hono->>PG: similarity search (store_id, top_k=5)
+      PG-->>Hono: top-k records + cosine distances
+      Hono->>Haiku: prompt + context + history
+      Haiku-->>Hono: generated answer
 
       alt confidence >= 0.65
-        Django-->>Widget: {answer, confidence, escalated: false}
+        Hono-->>Widget: {answer, confidence, escalated: false}
       else confidence < 0.65
-        Django-->>Widget: {escalated: true, reason: low_confidence}
-        Django-)Django: send_escalation_email.enqueue()
+        Hono-->>Widget: {escalated: true, reason: low_confidence}
+        Hono-)Hono: send_escalation_email.enqueue()
       end
     end
   end
@@ -1400,23 +1451,23 @@ sequenceDiagram
   actor Merchant
   participant WP as WP Plugin
   participant WC as WooCommerce REST API
-  participant Django as Django (stores app)
-  participant Worker as django.tasks runner
+  participant Hono as Hono (stores app)
+  participant Worker as Hono.tasks runner
   participant Embeddings as OpenAI / Gemini Embeddings
   participant PG as pgvector
 
-  Note over Merchant,Django: Web-first or plugin-first — converge here
+  Note over Merchant,Hono: Web-first or plugin-first — converge here
 
   Merchant->>WP: pastes API key, clicks Save
-  WP->>Django: POST /api/stores/register/ {api_key, wc_url}
-  Django-->>WP: {store_id, store_name, valid: true}
+  WP->>Hono: POST /api/stores/register/ {api_key, wc_url}
+  Hono-->>WP: {store_id, store_name, valid: true}
   WP->>WP: save store_id + api_key to wp_options
 
   WP->>WC: GET /wc/v3/products (paginated)
   WC-->>WP: products + variations
-  WP->>Django: POST /api/stores/sync/ {products[], faqs[]}
-  Django-->>WP: 202 {task_id, status: queued}
-  Django-)Worker: ingest_catalog.enqueue(store_id)
+  WP->>Hono: POST /api/stores/sync/ {products[], faqs[]}
+  Hono-->>WP: 202 {task_id, status: queued}
+  Hono-)Worker: ingest_catalog.enqueue(store_id)
 
   loop for each product and FAQ
     Worker->>Worker: build_document(record)
@@ -1425,9 +1476,9 @@ sequenceDiagram
     Worker->>PG: save with embedding
   end
 
-  Worker-)Django: update Store.last_synced_at
-  WP->>Django: GET /api/stores/sync/status/ (poll every 10s)
-  Django-->>WP: {status: complete, products_count: 248}
+  Worker-)Hono: update Store.last_synced_at
+  WP->>Hono: GET /api/stores/sync/status/ (poll every 10s)
+  Hono-->>WP: {status: complete, products_count: 248}
   WP->>WP: activate widget injection
 ```
 
@@ -1522,7 +1573,7 @@ flowchart LR
     WC["WooCommerce REST API"]
     Plugin["WP Plugin\nbuild payload"]
     StoresApp["stores app\nparse · persist"]
-    Worker["django.tasks\nbuild_document()"]
+    Worker["Hono.tasks\nbuild_document()"]
     EmbedModel["OpenAI or Gemini\nembed"]
   end
 

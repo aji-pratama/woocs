@@ -2,7 +2,7 @@
 
 **Status:** Living document  
 **Last updated:** 2026-08-08  
-**Scope:** Django backend, WordPress plugin, React applications, and the foundation for authentication and subscriptions.
+**Scope:** Hono JS backend, WordPress plugin, React applications, and the foundation for authentication and subscriptions.
 
 This document describes system boundaries and ownership. Product behavior remains defined by [`PRD.md`](./PRD.md); implementation work is tracked under [`plans/`](./plans/).
 
@@ -10,7 +10,7 @@ This document describes system boundaries and ownership. Product behavior remain
 
 ## 1. Architectural principles
 
-1. **Django is the source of truth.** Stores, subscriptions, catalog data, and conversations are authoritative in PostgreSQL.
+1. **Hono is the source of truth.** Stores, subscriptions, catalog data, and conversations are authoritative in PostgreSQL.
 2. **Store is the current billing boundary.** Each connected WooCommerce store has one subscription until account requirements are implemented.
 3. **Authentication is intentionally deferred.** Billing uses the existing store API key; do not introduce merchant users before the product needs them.
 4. **The WordPress plugin is a trusted machine client.** It uses a rotatable installation credential and never receives a merchant browser session.
@@ -19,12 +19,12 @@ This document describes system boundaries and ownership. Product behavior remain
 7. **External providers stay behind adapters.** LlamaIndex abstracts AI providers; `PolarClient` isolates the Polar API.
 8. **Prefer explicit, lean modules.** Add an application or abstraction only when it owns a distinct domain boundary.
 
-### Mental model: Django first, custom only at domain boundaries
+### Mental model: Hono first, custom only at domain boundaries
 
 Use this decision order for subscriptions:
 
 1. **Reuse the current store identity:** plugin requests authenticate with the hashed store API key.
-2. **Add only the domain model Django cannot provide:** a local Polar `Subscription` projection linked directly to `Store`.
+2. **Add only the domain model Hono cannot provide:** a local Polar `Subscription` projection linked directly to `Store`.
 3. **Keep policy small:** use `Subscription.is_active` and one `store_has_access` function until real plan limits exist.
 4. **Keep external state outside core models:** Polar IDs and webhook payloads belong in `billing`; WooCommerce credentials belong in `store`.
 5. **Do not add infrastructure speculatively:** no user model, JWT, OAuth server, organization, membership, entitlement table, seat model, usage ledger, or SSO until a concrete requirement needs it.
@@ -43,11 +43,11 @@ flowchart LR
     WPAdmin --> Plugin["WooCS WordPress plugin"]
     Storefront --> Widget["React support widget"]
 
-    Plugin -->|"installation credential"| API["Django Ninja API"]
+    Plugin -->|"installation credential"| API["Hono Ninja API"]
     Widget -->|"public widget token"| API
 
     API --> DB["PostgreSQL + pgvector"]
-    API --> Tasks["Django Tasks worker"]
+    API --> Tasks["Hono Tasks worker"]
     API --> Billing["Polar"]
     Plugin --> WC["WooCommerce API"]
     API --> AI["LlamaIndex provider adapters"]
@@ -57,7 +57,7 @@ flowchart LR
 
 | Unit | Location | Runtime | Responsibility |
 |---|---|---|---|
-| Django API | `backend/` | Host process | Domain logic, APIs, persistence, tasks |
+| Hono API | `backend/` | Host process | Domain logic, APIs, persistence, tasks |
 | PostgreSQL | Docker infrastructure | Container | Relational data, vectors, task records |
 | WordPress plugin | `plugin/` | WordPress/PHP | Store connection, admin UI, sync orchestration, widget injection |
 | React widget | `plugin/widget/` | Browser | Customer chat experience |
@@ -75,7 +75,7 @@ The merchant React app does not exist yet. WordPress admin remains the merchant 
 
 ## 3. Backend boundaries
 
-The backend contains `common`, `billing`, `store`, and `chat`. Billing remains a separate Django app rather than expanding `store` into a catch-all.
+The backend contains `common`, `billing`, `store`, and `chat`. Billing remains a separate Hono app rather than expanding `store` into a catch-all.
 
 ```text
 backend/
@@ -90,7 +90,7 @@ backend/
 
 ```mermaid
 flowchart TD
-    API["Django Ninja routers"] --> Billing["billing services"]
+    API["Hono routers"] --> Billing["billing services"]
     API --> Store["store services"]
     API --> Chat["chat services"]
 
@@ -109,7 +109,7 @@ Rules:
 - `store` owns WooCommerce integration and catalog state.
 - `chat` may read Store access state but must not mutate subscriptions.
 - API routers validate transport input and call services; they do not contain billing or authentication policy.
-- Cross-domain orchestration belongs in a small service, not in Django signals.
+- Cross-domain orchestration belongs in a small service, not in events.
 
 ---
 
@@ -189,11 +189,11 @@ WooCS currently has two client types:
 
 Billing checkout, subscription status, and Customer Portal creation are plugin-facing operations authenticated by the existing Store API key. There is no merchant account or browser session API at this stage.
 
-The raw store API key is returned once, stored in `wp_options`, and represented only by its SHA-256 hash in Django. It must never be injected into widget JavaScript.
+The raw store API key is returned once, stored in `wp_options`, and represented only by its SHA-256 hash in Hono. It must never be injected into widget JavaScript.
 
 ### Widget authentication
 
-`store_id` is an identifier, not authorization. Before production, widget configuration should include a short-lived signed token minted by Django or the plugin through an authenticated server-to-server request.
+`store_id` is an identifier, not authorization. Before production, widget configuration should include a short-lived signed token minted by Hono or the plugin through an authenticated server-to-server request.
 
 Token claims should contain only:
 
@@ -220,7 +220,7 @@ authenticate principal
 
 ## 6. Polar subscription architecture
 
-Polar is the payment and subscription authority. Django stores only enough normalized state to authorize WooCS requests without calling Polar on every request. For now, both chat and catalog sync need the same answer: whether the Store subscription is active.
+Polar is the payment and subscription authority. Hono stores only enough normalized state to authorize WooCS requests without calling Polar on every request. For now, both chat and catalog sync need the same answer: whether the Store subscription is active.
 
 ### Minimal local models
 
@@ -258,7 +258,7 @@ Polar IDs and webhook payloads remain inside `billing`. `chat` and `store` consu
 sequenceDiagram
     participant Merchant
     participant Plugin as WordPress plugin
-    participant API as Django
+    participant API as Hono
     participant Polar
     participant DB as PostgreSQL
 
@@ -329,13 +329,13 @@ Keep APIs grouped by trust boundary.
 | `/api/widget/` | Storefront React widget | Public token | Chat and verified customer actions |
 | `/api/stores/` | WordPress plugin | Store API key | Store sync, subscription, billing portal, status |
 | `/api/webhooks/polar/` | Polar | Standard Webhooks signature | Subscription projection updates |
-| `/admin/` | Internal staff | Django staff session | Operations and support |
+| `/admin/` | Internal staff | Hono staff session | Operations and support |
 
 The current `/api/stores/` routes are plugin-facing. They can remain until a versioned migration to `/api/plugin/` is justified; do not rename them only for aesthetics.
 
 ### Response conventions
 
-- Validate all request and response bodies with Django Ninja schemas.
+- Validate all request and response bodies with Hono Ninja schemas.
 - Use stable machine-readable error codes alongside human-readable messages.
 - Never expose provider exceptions, secrets, or stack traces.
 - Pagination is required for collection endpoints.
@@ -353,7 +353,7 @@ The plugin is an integration client, not a second backend.
 - WordPress capability and nonce checks;
 - WooCommerce catalog extraction;
 - local plugin configuration;
-- server-to-server calls to Django;
+- server-to-server calls to Hono;
 - widget asset loading and public configuration;
 - WordPress-native admin presentation.
 
@@ -368,11 +368,11 @@ The plugin is an integration client, not a second backend.
 
 ### Credential storage
 
-- Store only the installation secret required to call Django.
+- Store only the installation secret required to call Hono.
 - Never inject it into `window.WooCS`, HTML, or browser-accessible JavaScript.
 - Redact secrets in logs and admin notices.
 - Support reconnect, rotation, and revocation.
-- WordPress nonces protect WordPress actions; they do not authenticate calls to Django.
+- WordPress nonces protect WordPress actions; they do not authenticate calls to Hono.
 
 ### Plugin connection flow
 
@@ -387,7 +387,7 @@ The current plugin registers a Store through `/api/stores/register/`, stores the
 - Public, untrusted, and store-scoped.
 - Reads non-secret configuration from `window.WooCS`.
 - Calls only `/api/widget/`.
-- Keeps UI/session continuity locally but treats Django as conversation truth.
+- Keeps UI/session continuity locally but treats Hono as conversation truth.
 - Must not infer access from injected config; the backend enforces subscription state.
 - Must not call WooCommerce directly.
 
@@ -408,7 +408,7 @@ Do not turn the storefront widget into the dashboard application. Their security
 ```mermaid
 sequenceDiagram
     participant WP as WordPress plugin
-    participant API as Django API
+    participant API as Hono API
     participant DB as PostgreSQL
     participant Worker as Task worker
 
@@ -425,7 +425,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Widget as React widget
-    participant API as Django API
+    participant API as Hono API
     participant DB as PostgreSQL
     participant AI as LlamaIndex adapter
 
@@ -444,7 +444,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Plugin as WordPress plugin
-    participant API as Django API
+    participant API as Hono API
     participant Billing as Polar
 
     Plugin->>API: Create checkout + Store API key
