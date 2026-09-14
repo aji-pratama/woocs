@@ -31,7 +31,7 @@ if ($success_msg) delete_transient('woocs_admin_success');
     </div>
 
     <!-- ROW 1: SETTINGS -->
-    <div style="margin-bottom: 30px;">
+    <div style="margin-bottom: 20px;">
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php wp_nonce_field('woocs_save_settings'); ?>
             <input type="hidden" name="action" value="woocs_save_settings">
@@ -41,7 +41,7 @@ if ($success_msg) delete_transient('woocs_admin_success');
                 <div class="woocs-card-header"><h2>Appearance Settings</h2></div>
                 <div class="woocs-card-body">
                     
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 40px;">
+                    <div class="woocs-grid-2col">
                         
                         <!-- Left Column: Widget Settings -->
                         <div>
@@ -168,10 +168,8 @@ if ($success_msg) delete_transient('woocs_admin_success');
                     </div>
                 </div>
                 
-                <div class="woocs-card-body" style="border-top: 1px solid #ccd0d4; background: #f9f9f9; padding: 15px 20px;">
-                    <p class="submit" style="margin: 0; padding: 0;">
-                        <button type="submit" class="button button-primary">Save Appearance Settings</button>
-                    </p>
+                <div class="woocs-card-footer">
+                    <button type="submit" class="button button-primary">Save Appearance Settings</button>
                 </div>
             </div>
         </form>

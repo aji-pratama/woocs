@@ -37,7 +37,7 @@ $is_connected = !empty(get_option('woocs_store_id'));
     <div class="woocs-card">
         <div class="woocs-card-header">
             <h2>Conversations</h2>
-            <span id="woocs-ch-meta" style="font-size:12px;color:#646970;"></span>
+            <span id="woocs-ch-meta" class="woocs-card-header-desc"></span>
         </div>
         <div class="woocs-card-body p-0">
             <table class="wp-list-table widefat fixed striped">
@@ -53,16 +53,16 @@ $is_connected = !empty(get_option('woocs_store_id'));
                     </tr>
                 </thead>
                 <tbody id="woocs-ch-body">
-                    <tr><td colspan="7" style="padding:16px;color:#8c8f94;">Loading&hellip;</td></tr>
+                    <tr><td colspan="7" class="woocs-p-16 woocs-text-muted">Loading&hellip;</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
     <!-- Pagination -->
-    <div id="woocs-ch-pagination" style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+    <div id="woocs-ch-pagination" class="woocs-toolbar-actions" style="margin-top:14px;">
         <button class="button" id="woocs-ch-prev">&#8592; Prev</button>
-        <span id="woocs-ch-page-info" style="font-size:13px;color:#646970;"></span>
+        <span id="woocs-ch-page-info" class="woocs-card-header-desc"></span>
         <button class="button" id="woocs-ch-next">Next &#8594;</button>
     </div>
 
@@ -73,11 +73,11 @@ $is_connected = !empty(get_option('woocs_store_id'));
             <button type="button" class="button" id="woocs-ch-drawer-close">&times; Close</button>
         </div>
         <div class="woocs-card-body">
-            <div id="woocs-ch-customer-info" style="margin-bottom:16px;padding:12px;background:#f6f7f7;border-radius:3px;font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div id="woocs-ch-customer-info" class="woocs-drawer-customer-bar">
                 <div id="woocs-ch-customer-details"></div>
-                <div style="display:flex;align-items:center;gap:8px;">
+                <div class="woocs-toolbar-actions">
                     <label for="woocs-drawer-lead-select"><strong>Lead Status:</strong></label>
-                    <select id="woocs-drawer-lead-select" style="font-size:12px;">
+                    <select id="woocs-drawer-lead-select" class="woocs-lead-select">
                         <option value="hot">🔥 Hot</option>
                         <option value="warm">⚡ Warm</option>
                         <option value="cold">❄️ Cold</option>
@@ -87,7 +87,7 @@ $is_connected = !empty(get_option('woocs_store_id'));
                     </select>
                 </div>
             </div>
-            <div id="woocs-ch-messages" style="max-height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
+            <div id="woocs-ch-messages" class="woocs-drawer-messages"></div>
         </div>
     </div>
 
@@ -177,7 +177,7 @@ $is_connected = !empty(get_option('woocs_store_id'));
                     nextBtn.disabled = currentPage >= totalPages;
 
                     if (!data.sessions || data.sessions.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;color:#8c8f94;">No conversations yet.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="7" class="woocs-p-16 woocs-text-muted">No conversations yet.</td></tr>';
                         return;
                     }
 
@@ -187,11 +187,11 @@ $is_connected = !empty(get_option('woocs_store_id'));
                         var date = s.created_at ? new Date(s.created_at).toLocaleString([], {dateStyle:'short',timeStyle:'short'}) : '—';
                         var escalated = s.escalated
                             ? '<span class="woocs-badge woocs-badge-warning">Escalated</span>'
-                            : '<span style="color:#8c8f94;">No</span>';
-                        var preview = s.first_message ? esc(s.first_message.substring(0, 70)) + (s.first_message.length > 70 ? '…' : '') : '<span style="color:#8c8f94;">—</span>';
+                            : '<span class="woocs-text-muted">No</span>';
+                        var preview = s.first_message ? esc(s.first_message.substring(0, 70)) + (s.first_message.length > 70 ? '…' : '') : '<span class="woocs-text-muted">—</span>';
                         var currentLabel = s.lead_label || 'lead';
 
-                        var leadSelectHtml = '<select class="woocs-lead-select" data-sid="' + esc(s.session_id) + '" style="font-size:11px; height:26px; line-height:26px; padding:0 4px;">' +
+                        var leadSelectHtml = '<select class="woocs-lead-select" data-sid="' + esc(s.session_id) + '">' +
                             '<option value="hot"' + (currentLabel === 'hot' ? ' selected' : '') + '>🔥 Hot</option>' +
                             '<option value="warm"' + (currentLabel === 'warm' ? ' selected' : '') + '>⚡ Warm</option>' +
                             '<option value="cold"' + (currentLabel === 'cold' ? ' selected' : '') + '>❄️ Cold</option>' +
@@ -236,7 +236,7 @@ $is_connected = !empty(get_option('woocs_store_id'));
                 })
                 .catch(function(err) {
                     console.error(err);
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;color:#d63638;">Network error.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="woocs-p-16 woocs-text-error">Network error.</td></tr>';
                 });
         }
 
@@ -257,7 +257,7 @@ $is_connected = !empty(get_option('woocs_store_id'));
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
                     if (!res.success) {
-                        customerDetails.innerHTML = '<span style="color:#d63638;">Failed to load session.</span>';
+                        customerDetails.innerHTML = '<span class="woocs-text-error">Failed to load session.</span>';
                         return;
                     }
                     var s = res.data;
@@ -267,31 +267,31 @@ $is_connected = !empty(get_option('woocs_store_id'));
                     if (s.customer_name)  parts.push('<strong>Name:</strong> ' + esc(s.customer_name));
                     if (s.customer_email) parts.push('<strong>Email:</strong> ' + esc(s.customer_email));
                     if (s.customer_phone) parts.push('<strong>Phone:</strong> ' + esc(s.customer_phone));
-                    customerDetails.innerHTML = parts.length ? parts.join('&nbsp;&nbsp;|&nbsp;&nbsp;') : '<span style="color:#8c8f94;">Anonymous session</span>';
+                    customerDetails.innerHTML = parts.length ? parts.join('&nbsp;&nbsp;|&nbsp;&nbsp;') : '<span class="woocs-text-muted">Anonymous session</span>';
 
                     if (drawerLeadSelect) {
                         drawerLeadSelect.value = s.lead_label || 'lead';
                     }
 
                     if (!s.messages || s.messages.length === 0) {
-                        messagesEl.innerHTML = '<p style="color:#8c8f94;">No messages.</p>';
+                        messagesEl.innerHTML = '<p class="woocs-text-muted">No messages.</p>';
                         return;
                     }
 
                     messagesEl.innerHTML = s.messages.map(function(m) {
                         var isBot = m.role === 'assistant';
-                        var bg    = isBot ? '#f6f7f7' : '#eaf4ff';
+                        var bubbleClass = isBot ? 'woocs-chat-bubble-bot' : 'woocs-chat-bubble-user';
                         var align = isBot ? 'flex-start' : 'flex-end';
                         return '<div style="display:flex;justify-content:' + align + ';">' +
-                            '<div style="max-width:70%;background:' + bg + ';border-radius:6px;padding:8px 12px;font-size:13px;line-height:1.5;">' +
-                            '<span style="font-size:11px;font-weight:600;color:#646970;display:block;margin-bottom:3px;">' + (isBot ? 'Assistant' : 'Customer') + '</span>' +
+                            '<div class="' + bubbleClass + '">' +
+                            '<span class="woocs-chat-bubble-label">' + (isBot ? 'Assistant' : 'Customer') + '</span>' +
                             esc(m.content) +
                             '</div></div>';
                     }).join('');
                 })
                 .catch(function(err) {
                     console.error(err);
-                    customerDetails.innerHTML = '<span style="color:#d63638;">Network error.</span>';
+                    customerDetails.innerHTML = '<span class="woocs-text-error">Network error.</span>';
                 });
         }
 
