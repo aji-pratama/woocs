@@ -6,6 +6,10 @@ const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DATABASE_URL: z.string().default('postgres://woocs:woocs_dev@127.0.0.1:5435/woocs'),
   
+  OPENROUTER_API_KEY: z.string().optional(),
+  OPENROUTER_BASE_URL: z.string().default('https://openrouter.ai/api/v1'),
+  AI_CHAT_MODEL: z.string().default('openai/gpt-4o-mini'),
+  AI_EMBEDDING_MODEL: z.string().default('openai/text-embedding-3-small'),
   OPENAI_API_KEY: z.string().optional(),
   LLAMAPARSE_API_KEY: z.string().optional(),
   

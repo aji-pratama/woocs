@@ -2,7 +2,7 @@ import { db } from '../../db/client';
 import { products, faqs } from '../../db/schema/stores';
 import { eq, and, isNull, sql } from 'drizzle-orm';
 import { embed, embedMany } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { aiModels, to1024Vector } from '../../services/ai';
 import { stores } from '../../db/schema/stores';
 import { productVariations } from '../../db/schema/stores';
 import { InferSelectModel } from 'drizzle-orm';
@@ -93,13 +93,13 @@ export async function embedCatalog(storeId: string): Promise<{ productsEmbedded:
 
     // Batch embed
     const { embeddings } = await embedMany({
-      model: (openai.embedding as any)('text-embedding-3-small', { dimensions: 1024 }) as any,
+      model: aiModels.embedding,
       values: documents,
     });
 
     // Save embeddings
     for (let j = 0; j < batch.length; j++) {
-      const vectorStr = `[${embeddings[j].join(',')}]`;
+      const vectorStr = `[${to1024Vector(embeddings[j]).join(',')}]`;
       await db.execute(
         sql`UPDATE store_product SET embedding = ${vectorStr}::vector WHERE id = ${batch[j].id}`
       );
@@ -117,12 +117,12 @@ export async function embedCatalog(storeId: string): Promise<{ productsEmbedded:
     const documents = batch.map(buildFaqDocument);
 
     const { embeddings } = await embedMany({
-      model: (openai.embedding as any)('text-embedding-3-small', { dimensions: 1024 }) as any,
+      model: aiModels.embedding,
       values: documents,
     });
 
     for (let j = 0; j < batch.length; j++) {
-      const vectorStr = `[${embeddings[j].join(',')}]`;
+      const vectorStr = `[${to1024Vector(embeddings[j]).join(',')}]`;
       await db.execute(
         sql`UPDATE store_faq SET embedding = ${vectorStr}::vector WHERE id = ${batch[j].id}`
       );

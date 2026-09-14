@@ -1,5 +1,5 @@
 import { embed, generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { aiModels, to1024Vector } from './ai';
 import { db } from '../db/client';
 import { stores, products, faqs, knowledgeChunks, knowledgeDocuments } from '../db/schema/stores';
 import { chatMessages, chatSessions } from '../db/schema/chat';
@@ -46,11 +46,11 @@ export class RagService {
 
     // 1. Get embedding for the message
     const { embedding } = await embed({
-      model: (openai.embedding as any)('text-embedding-3-small', { dimensions: 1024 }) as any,
+      model: aiModels.embedding,
       value: message,
     });
 
-    const queryVector = `[${embedding.join(',')}]`;
+    const queryVector = `[${to1024Vector(embedding).join(',')}]`;
 
     // 2. Page context
     const primaryProduct = await this._getPrimaryProduct(store.id, pageContext);
@@ -128,7 +128,7 @@ export class RagService {
     const prompt = this._buildPrompt(message, retrievedProducts, retrievedFaqs, retrievedKnowledge, history, contextUsed === 'page_context' ? primaryProduct : null);
 
     const response = await generateText({
-      model: openai('gpt-3.5-turbo') as any,
+      model: aiModels.chat,
       system: this.systemPrompt,
       prompt,
     });

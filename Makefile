@@ -2,7 +2,7 @@
         infra-up infra-down infra-logs \
         api-install api-dev api-worker api-test api-db-generate api-db-migrate api-db-studio \
         widget-install dev-widget wp-build wp-dev-setup \
-        dev dev-setup dev-clean dev-hard-clean db-dump \
+        dev dev-setup dev-clean dev-hard-clean db-dump db-init \
         lint lint-api lint-widget lint-plugin
 
 # Use Podman socket if podman.sock does not exist
@@ -32,6 +32,7 @@ help:
 	@echo "  api-db-generate       Generate Drizzle SQL migrations"
 	@echo "  api-db-migrate        Apply Drizzle migrations"
 	@echo "  api-db-studio         Launch Drizzle Studio"
+	@echo "  db-init               Initialize database (pgvector, migrate, and verify)"
 	@echo ""
 	@echo "  Widget (React/Vite — runs on host)"
 	@echo "  ─────────────────────────────"
@@ -78,6 +79,9 @@ api-db-migrate:
 
 api-db-studio:
 	cd api && npx drizzle-kit studio
+
+db-init:
+	cd api && npm run db:init
 
 # ─── Widget ──────────────────────────────────────────────────────────────────
 widget-install:
@@ -167,7 +171,7 @@ test-plugin:
 	@echo "Installing Plugin dependencies via Podman..."
 	$(CONTAINER) run --rm -v $(PWD)/plugin:/app -w /app composer install
 	@echo "Running Plugin tests via Podman..."
-	$(CONTAINER) run --rm -v $(PWD)/plugin:/app -w /app php:8.2-cli ./vendor/bin/phpunit
+	$(CONTAINER) run --rm -v $(PWD)/plugin:/app -w /app php:8.3-cli ./vendor/bin/phpunit
 
 test-all:
 	@echo "Running all tests..."

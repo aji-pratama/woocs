@@ -2,7 +2,7 @@ import { db } from '../../db/client';
 import { knowledgeDocuments, knowledgeChunks } from '../../db/schema/stores';
 import { eq, sql } from 'drizzle-orm';
 import { embedMany } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { aiModels, to1024Vector } from '../../services/ai';
 import { ENV } from '../../config/env';
 
 const EMBEDDING_BATCH_SIZE = 20;
@@ -11,7 +11,7 @@ const EMBEDDING_BATCH_SIZE = 20;
  * Splits text into chunks of roughly maxTokens length, with overlap.
  * Uses a naive character-based split for the PoC.
  */
-function chunkText(text: string, maxTokens: number = 1024, overlapTokens: number = 200): string[] {
+export function chunkText(text: string, maxTokens: number = 1024, overlapTokens: number = 200): string[] {
   // Rough approximation: 1 token ~= 4 chars
   const chunkSize = maxTokens * 4;
   const overlapSize = overlapTokens * 4;
@@ -34,10 +34,7 @@ function chunkText(text: string, maxTokens: number = 1024, overlapTokens: number
   return chunks.filter(c => c.length > 0);
 }
 
-/**
- * Mocks LlamaParse extraction. In a real app, this would upload to LlamaParse API.
- */
-async function extractTextFromPDF(source: string): Promise<string> {
+export async function extractTextFromPDF(source: string): Promise<string> {
   const apiKey = ENV.LLAMAPARSE_API_KEY;
   if (!apiKey) {
     console.warn('No LLAMAPARSE_API_KEY found, using mock PDF extraction.');
@@ -47,10 +44,7 @@ async function extractTextFromPDF(source: string): Promise<string> {
   return `# Extracted PDF for ${source}\n\nActual LlamaParse integration goes here.`;
 }
 
-/**
- * Fetches and extracts text from a URL.
- */
-async function extractTextFromURL(source: string): Promise<string> {
+export async function extractTextFromURL(source: string): Promise<string> {
   try {
     const res = await fetch(source);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -103,12 +97,12 @@ export async function processKnowledgeDocument(
       const batch = chunks.slice(i, i + EMBEDDING_BATCH_SIZE);
       
       const { embeddings } = await embedMany({
-        model: (openai.embedding as any)('text-embedding-3-small', { dimensions: 1024 }) as any,
+        model: aiModels.embedding,
         values: batch,
       });
 
       for (let j = 0; j < batch.length; j++) {
-        const vectorStr = `[${embeddings[j].join(',')}]`;
+        const vectorStr = `[${to1024Vector(embeddings[j]).join(',')}]`;
         const [chunkRecord] = await db.insert(knowledgeChunks).values({
           documentId,
           content: batch[j],
