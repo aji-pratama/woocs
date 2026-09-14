@@ -1,6 +1,7 @@
 .PHONY: help \
         infra-up infra-down infra-logs \
         api-install api-dev api-worker api-test api-db-generate api-db-migrate api-db-studio \
+        cf-dev cf-deploy \
         widget-install dev-widget wp-build wp-dev-setup \
         dev dev-setup dev-clean dev-hard-clean db-dump db-init \
         lint lint-api lint-widget lint-plugin
@@ -33,6 +34,8 @@ help:
 	@echo "  api-db-migrate        Apply Drizzle migrations"
 	@echo "  api-db-studio         Launch Drizzle Studio"
 	@echo "  db-init               Initialize database (pgvector, migrate, and verify)"
+	@echo "  cf-dev                Start Cloudflare Workers local simulator (wrangler dev)"
+	@echo "  cf-deploy             Deploy Hono backend to Cloudflare Workers"
 	@echo ""
 	@echo "  Widget (React/Vite — runs on host)"
 	@echo "  ─────────────────────────────"
@@ -82,6 +85,12 @@ api-db-studio:
 
 db-init:
 	cd api && npm run db:init
+
+cf-dev:
+	cd api && npm run cf:dev
+
+cf-deploy:
+	cd api && npm run cf:deploy
 
 # ─── Widget ──────────────────────────────────────────────────────────────────
 widget-install:

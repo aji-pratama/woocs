@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "woocs-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "NODE_ENV": "production",
+    "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
+    "AI_CHAT_MODEL": "openai/gpt-4o-mini",
+    "AI_EMBEDDING_MODEL": "openai/text-embedding-3-small",
+    "POLAR_API_URL": "https://api.polar.sh",
+    "POLAR_PRO_PRODUCT_ID": "prod_placeholder"
+  }
+}

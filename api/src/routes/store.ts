@@ -13,6 +13,7 @@ import { KnowledgeService } from '../services/knowledge';
 import { stores, products } from '../db/schema/stores';
 import { chatSessions, chatMessages } from '../db/schema/chat';
 import { eq, sql } from 'drizzle-orm';
+import { executeTaskById, safeWaitUntil } from '../worker/runner.js';
 
 type Variables = {
   storeId: string;
@@ -94,6 +95,9 @@ storeRouter.post(
       args: [],
       kwargs: { store_id: storeId },
     }).returning();
+
+    // Serverless background execution if running in Cloudflare Workers
+    safeWaitUntil(c, executeTaskById(task.id));
 
     return c.json({
       task_id: task.id,
@@ -210,6 +214,9 @@ storeRouter.post('/knowledge/document', requireApiKey, async (c) => {
     args: [],
     kwargs: { store_id: storeId, document_id: doc.id, type, source, raw_text: rawText },
   }).returning();
+
+  // Serverless background execution if running in Cloudflare Workers
+  safeWaitUntil(c, executeTaskById(task.id));
 
   return c.json({ document: doc, task_id: task.id }, 202);
 });

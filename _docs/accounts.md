@@ -22,6 +22,10 @@ pass: PstugersBsar
 
 ## Polar.sh
 service: payment
-email: atamasite@gmail.com
+email: atamasite@gmail.com --> a bit tricky for registration, so will use existing
 desc: GoogleSSO
 
+## Cloudflare
+service: backend API
+email: bisatekno.id@gmail.com
+desc: Google SSO
