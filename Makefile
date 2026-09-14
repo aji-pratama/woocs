@@ -2,6 +2,7 @@
         dev dev-plugin dev-api dev-worker dev-widget \
         infra-up infra-down infra-logs \
         dev-setup dev-clean dev-hard-clean db-init db-dump \
+        api-install widget-install \
         wp-build cf-dev cf-deploy \
         test-all test-api test-widget test-plugin \
         lint lint-api lint-widget lint-plugin
@@ -95,10 +96,16 @@ infra-logs:
 	$(COMPOSE) logs -f
 
 # ─── Setup & Database ────────────────────────────────────────────────────────
+api-install:
+	cd api && npm install
+
+widget-install:
+	cd plugin/widget && npm install
+
 dev-setup:
 	@echo "Setting up development environment..."
-	cd plugin/widget && npm install
-	cd api && npm install
+	$(MAKE) widget-install
+	$(MAKE) api-install
 	$(MAKE) infra-up
 	@echo "Waiting for databases to be ready..."
 	@sleep 5
