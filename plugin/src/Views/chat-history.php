@@ -5,8 +5,24 @@ if (!defined('ABSPATH')) exit;
 $is_connected = !empty(get_option('woocs_store_id'));
 ?>
 <div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">Conversations</h1>
+    <div class="woocs-page-header">
+        <h1 class="wp-heading-inline">Conversations</h1>
+    </div>
     <hr class="wp-header-end">
+
+    <div class="woocs-page-toolbar">
+        <p class="description">Review customer conversations, manage lead status, and export transcripts or contacts.</p>
+        <?php if ($is_connected): ?>
+        <div class="woocs-toolbar-actions">
+            <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=woocs_export_chat&type=full'), 'woocs_export_chat')); ?>" class="button">
+                Export Conversations (CSV)
+            </a>
+            <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=woocs_export_chat&type=leads'), 'woocs_export_chat')); ?>" class="button button-primary">
+                Export Leads DB (CSV)
+            </a>
+        </div>
+        <?php endif; ?>
+    </div>
 
     <?php if (!$is_connected): ?>
         <div class="woocs-card">
@@ -27,16 +43,17 @@ $is_connected = !empty(get_option('woocs_store_id'));
             <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
-                        <th style="width:160px;">Date</th>
-                        <th style="width:180px;">Customer</th>
+                        <th style="width:140px;">Date</th>
+                        <th style="width:160px;">Customer</th>
+                        <th style="width:125px;">Lead Status</th>
                         <th>First Message</th>
-                        <th style="width:70px;text-align:center;">Msgs</th>
-                        <th style="width:90px;text-align:center;">Escalated</th>
-                        <th style="width:80px;"></th>
+                        <th style="width:60px;text-align:center;">Msgs</th>
+                        <th style="width:80px;text-align:center;">Escalated</th>
+                        <th style="width:70px;"></th>
                     </tr>
                 </thead>
                 <tbody id="woocs-ch-body">
-                    <tr><td colspan="6" style="padding:16px;color:#8c8f94;">Loading&hellip;</td></tr>
+                    <tr><td colspan="7" style="padding:16px;color:#8c8f94;">Loading&hellip;</td></tr>
                 </tbody>
             </table>
         </div>
@@ -56,7 +73,20 @@ $is_connected = !empty(get_option('woocs_store_id'));
             <button type="button" class="button" id="woocs-ch-drawer-close">&times; Close</button>
         </div>
         <div class="woocs-card-body">
-            <div id="woocs-ch-customer-info" style="margin-bottom:16px;padding:12px;background:#f6f7f7;border-radius:3px;font-size:13px;"></div>
+            <div id="woocs-ch-customer-info" style="margin-bottom:16px;padding:12px;background:#f6f7f7;border-radius:3px;font-size:13px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                <div id="woocs-ch-customer-details"></div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <label for="woocs-drawer-lead-select"><strong>Lead Status:</strong></label>
+                    <select id="woocs-drawer-lead-select" style="font-size:12px;">
+                        <option value="hot">🔥 Hot</option>
+                        <option value="warm">⚡ Warm</option>
+                        <option value="cold">❄️ Cold</option>
+                        <option value="customer">🛍️ Customer</option>
+                        <option value="support">🎧 Support</option>
+                        <option value="lead">Lead</option>
+                    </select>
+                </div>
+            </div>
             <div id="woocs-ch-messages" style="max-height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
         </div>
     </div>
@@ -67,6 +97,7 @@ $is_connected = !empty(get_option('woocs_store_id'));
         var nonce   = document.getElementById('woocs_ch_nonce').value;
         var currentPage = 1;
         var totalPages  = 1;
+        var currentDrawerSessionId = null;
 
         var tbody    = document.getElementById('woocs-ch-body');
         var meta     = document.getElementById('woocs-ch-meta');
@@ -75,8 +106,10 @@ $is_connected = !empty(get_option('woocs_store_id'));
         var nextBtn  = document.getElementById('woocs-ch-next');
         var drawer   = document.getElementById('woocs-ch-drawer');
         var drawerTitle = document.getElementById('woocs-ch-drawer-title');
-        var customerInfo = document.getElementById('woocs-ch-customer-info');
+        var customerDetails = document.getElementById('woocs-ch-customer-details');
+        var drawerLeadSelect = document.getElementById('woocs-drawer-lead-select');
         var messagesEl   = document.getElementById('woocs-ch-messages');
+
         document.getElementById('woocs-ch-drawer-close').addEventListener('click', function() {
             drawer.style.display = 'none';
         });
@@ -87,8 +120,40 @@ $is_connected = !empty(get_option('woocs_store_id'));
             return d.innerHTML;
         }
 
+        function updateLeadLabel(sessionId, label, callback) {
+            var fd = new FormData();
+            fd.append('action', 'woocs_update_session_label');
+            fd.append('nonce', nonce);
+            fd.append('session_id', sessionId);
+            fd.append('lead_label', label);
+
+            fetch(ajaxUrl, { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (callback) callback(res.success);
+                })
+                .catch(function() {
+                    if (callback) callback(false);
+                });
+        }
+
+        if (drawerLeadSelect) {
+            drawerLeadSelect.addEventListener('change', function() {
+                if (!currentDrawerSessionId) return;
+                var newLabel = this.value;
+                drawerLeadSelect.disabled = true;
+                updateLeadLabel(currentDrawerSessionId, newLabel, function(ok) {
+                    drawerLeadSelect.disabled = false;
+                    if (ok) {
+                        var rowSelect = document.querySelector('.woocs-lead-select[data-sid="' + currentDrawerSessionId + '"]');
+                        if (rowSelect) rowSelect.value = newLabel;
+                    }
+                });
+            });
+        }
+
         function loadPage(page) {
-            tbody.innerHTML = '<tr><td colspan="6" style="padding:16px;color:#8c8f94;">Loading&hellip;</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;color:#8c8f94;">Loading&hellip;</td></tr>';
 
             var fd = new FormData();
             fd.append('action', 'woocs_chat_history');
@@ -99,7 +164,7 @@ $is_connected = !empty(get_option('woocs_store_id'));
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
                     if (!res.success) {
-                        tbody.innerHTML = '<tr><td colspan="6" style="padding:16px;color:#d63638;">Failed to load history.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;color:#d63638;">Failed to load history.</td></tr>';
                         return;
                     }
                     var data = res.data;
@@ -112,28 +177,55 @@ $is_connected = !empty(get_option('woocs_store_id'));
                     nextBtn.disabled = currentPage >= totalPages;
 
                     if (!data.sessions || data.sessions.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="6" style="padding:16px;color:#8c8f94;">No conversations yet.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;color:#8c8f94;">No conversations yet.</td></tr>';
                         return;
                     }
 
                     tbody.innerHTML = data.sessions.map(function(s) {
                         var customerValue = s.customer_name || s.customer_email || s.customer_phone;
                         var customer = customerValue ? esc(customerValue) : '<span class="woocs-text-muted">Anonymous</span>';
-                        var date = s.created_at ? new Date(s.created_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}) : '—';
+                        var date = s.created_at ? new Date(s.created_at).toLocaleString([], {dateStyle:'short',timeStyle:'short'}) : '—';
                         var escalated = s.escalated
                             ? '<span class="woocs-badge woocs-badge-warning">Escalated</span>'
                             : '<span style="color:#8c8f94;">No</span>';
-                        var preview = s.first_message ? esc(s.first_message.substring(0, 80)) + (s.first_message.length > 80 ? '…' : '') : '<span style="color:#8c8f94;">—</span>';
+                        var preview = s.first_message ? esc(s.first_message.substring(0, 70)) + (s.first_message.length > 70 ? '…' : '') : '<span style="color:#8c8f94;">—</span>';
+                        var currentLabel = s.lead_label || 'lead';
+
+                        var leadSelectHtml = '<select class="woocs-lead-select" data-sid="' + esc(s.session_id) + '" style="font-size:11px; height:26px; line-height:26px; padding:0 4px;">' +
+                            '<option value="hot"' + (currentLabel === 'hot' ? ' selected' : '') + '>🔥 Hot</option>' +
+                            '<option value="warm"' + (currentLabel === 'warm' ? ' selected' : '') + '>⚡ Warm</option>' +
+                            '<option value="cold"' + (currentLabel === 'cold' ? ' selected' : '') + '>❄️ Cold</option>' +
+                            '<option value="customer"' + (currentLabel === 'customer' ? ' selected' : '') + '>🛍️ Customer</option>' +
+                            '<option value="support"' + (currentLabel === 'support' ? ' selected' : '') + '>🎧 Support</option>' +
+                            '<option value="lead"' + (currentLabel === 'lead' ? ' selected' : '') + '>Lead</option>' +
+                        '</select>';
 
                         return '<tr>' +
                             '<td>' + esc(date) + '</td>' +
                             '<td>' + customer + '</td>' +
+                            '<td>' + leadSelectHtml + '</td>' +
                             '<td>' + preview + '</td>' +
                             '<td style="text-align:center;">' + s.message_count + '</td>' +
                             '<td style="text-align:center;">' + escalated + '</td>' +
                             '<td><button class="button button-small woocs-ch-view" data-sid="' + esc(s.session_id) + '">View</button></td>' +
                         '</tr>';
                     }).join('');
+
+                    // Bind lead label change events in table
+                    document.querySelectorAll('.woocs-lead-select').forEach(function(sel) {
+                        sel.addEventListener('change', function() {
+                            var sid = this.getAttribute('data-sid');
+                            var val = this.value;
+                            this.disabled = true;
+                            var self = this;
+                            updateLeadLabel(sid, val, function(ok) {
+                                self.disabled = false;
+                                if (currentDrawerSessionId === sid && drawerLeadSelect) {
+                                    drawerLeadSelect.value = val;
+                                }
+                            });
+                        });
+                    });
 
                     // Bind view buttons
                     document.querySelectorAll('.woocs-ch-view').forEach(function(btn) {
@@ -144,14 +236,15 @@ $is_connected = !empty(get_option('woocs_store_id'));
                 })
                 .catch(function(err) {
                     console.error(err);
-                    tbody.innerHTML = '<tr><td colspan="6" style="padding:16px;color:#d63638;">Network error.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;color:#d63638;">Network error.</td></tr>';
                 });
         }
 
         function loadSession(sessionId) {
+            currentDrawerSessionId = sessionId;
             drawer.style.display = 'block';
             drawerTitle.textContent = 'Conversation Detail';
-            customerInfo.innerHTML = 'Loading&hellip;';
+            customerDetails.innerHTML = 'Loading&hellip;';
             messagesEl.innerHTML   = '';
             drawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -164,7 +257,7 @@ $is_connected = !empty(get_option('woocs_store_id'));
                 .then(function(r) { return r.json(); })
                 .then(function(res) {
                     if (!res.success) {
-                        customerInfo.innerHTML = '<span style="color:#d63638;">Failed to load session.</span>';
+                        customerDetails.innerHTML = '<span style="color:#d63638;">Failed to load session.</span>';
                         return;
                     }
                     var s = res.data;
@@ -174,7 +267,11 @@ $is_connected = !empty(get_option('woocs_store_id'));
                     if (s.customer_name)  parts.push('<strong>Name:</strong> ' + esc(s.customer_name));
                     if (s.customer_email) parts.push('<strong>Email:</strong> ' + esc(s.customer_email));
                     if (s.customer_phone) parts.push('<strong>Phone:</strong> ' + esc(s.customer_phone));
-                    customerInfo.innerHTML = parts.length ? parts.join('&nbsp;&nbsp;|&nbsp;&nbsp;') : '<span style="color:#8c8f94;">Anonymous session</span>';
+                    customerDetails.innerHTML = parts.length ? parts.join('&nbsp;&nbsp;|&nbsp;&nbsp;') : '<span style="color:#8c8f94;">Anonymous session</span>';
+
+                    if (drawerLeadSelect) {
+                        drawerLeadSelect.value = s.lead_label || 'lead';
+                    }
 
                     if (!s.messages || s.messages.length === 0) {
                         messagesEl.innerHTML = '<p style="color:#8c8f94;">No messages.</p>';
@@ -194,7 +291,7 @@ $is_connected = !empty(get_option('woocs_store_id'));
                 })
                 .catch(function(err) {
                     console.error(err);
-                    customerInfo.innerHTML = '<span style="color:#d63638;">Network error.</span>';
+                    customerDetails.innerHTML = '<span style="color:#d63638;">Network error.</span>';
                 });
         }
 

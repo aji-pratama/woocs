@@ -4,6 +4,64 @@
     margin-top: 20px;
 }
 
+/* Page Header & Standard Toolbar */
+.woocs-page-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.woocs-page-header h1 {
+    margin: 0;
+    padding: 0;
+    line-height: 1.3;
+}
+
+.woocs-page-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 12px;
+    margin-bottom: 20px;
+}
+
+.woocs-page-toolbar .description {
+    margin: 0;
+    color: #646970;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.woocs-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Child Tab Toolbars (e.g. inside FAQs or Knowledge sub-views) */
+.woocs-tab-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.woocs-tab-toolbar .description {
+    margin: 0;
+    color: #646970;
+    font-size: 13px;
+}
+
+.woocs-nav-tab-wrapper {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #c3c4c7;
+}
+
 .woocs-card {
     background: #fff;
     border: 1px solid #c3c4c7;

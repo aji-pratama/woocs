@@ -12,6 +12,7 @@ class AdminMenu {
         add_action('admin_post_woocs_disconnect_store', [$this, 'handle_disconnect_store']);
         add_action('admin_post_woocs_start_checkout', [$this, 'handle_start_checkout']);
         add_action('admin_post_woocs_open_billing_portal', [$this, 'handle_open_billing_portal']);
+        add_action('admin_post_woocs_export_chat', [$this, 'handle_export_chat']);
     }
 
     public function enqueue_assets($hook) {
@@ -238,6 +239,35 @@ class AdminMenu {
     private function redirect_billing_error(string $message): never {
         set_transient('woocs_billing_error', sanitize_text_field($message), 45);
         wp_safe_redirect(admin_url('admin.php?page=woocs-settings&tab=billing'));
+        exit;
+    }
+
+    public function handle_export_chat() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_die('Unauthorized');
+        }
+        check_admin_referer('woocs_export_chat');
+
+        $type = sanitize_key($_GET['type'] ?? 'full');
+        if (!in_array($type, ['full', 'leads'], true)) {
+            $type = 'full';
+        }
+
+        $client = new ApiClient();
+        $csv_data = $client->export_chat_history($type);
+
+        if (is_wp_error($csv_data)) {
+            wp_die(esc_html($csv_data->get_error_message()));
+        }
+
+        $filename = 'woocs-' . ($type === 'leads' ? 'leads' : 'conversations') . '-' . gmdate('Y-m-d') . '.csv';
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        echo $csv_data;
         exit;
     }
 }

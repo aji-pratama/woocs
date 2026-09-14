@@ -14,13 +14,19 @@ $subscription = $is_connected ? (new WooCS\ApiClient())->get_subscription() : nu
 $is_free_plan = !is_wp_error($subscription) && isset($subscription['plan_key']) && in_array($subscription['plan_key'], ['free', 'trial'], true);
 ?>
 <div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">Overview</h1>
-    <?php if ($is_connected && !is_wp_error($subscription)): ?>
-        <span class="woocs-badge <?php echo $is_free_plan ? 'woocs-badge-neutral' : 'woocs-badge-success'; ?> woocs-badge-inline">
-            <?php echo esc_html(ucfirst($subscription['plan_key'] ?? 'free')); ?> Plan
-        </span>
-    <?php endif; ?>
+    <div class="woocs-page-header">
+        <h1 class="wp-heading-inline">Overview</h1>
+        <?php if ($is_connected && !is_wp_error($subscription)): ?>
+            <span class="woocs-badge <?php echo $is_free_plan ? 'woocs-badge-neutral' : 'woocs-badge-success'; ?> woocs-badge-inline">
+                <?php echo esc_html(ucfirst($subscription['plan_key'] ?? 'free')); ?> Plan
+            </span>
+        <?php endif; ?>
+    </div>
     <hr class="wp-header-end">
+
+    <div class="woocs-page-toolbar">
+        <p class="description">Overview of store assistant automation, sync status, and performance analytics.</p>
+    </div>
 
     <?php if (!$is_connected): ?>
         <div class="woocs-card">
@@ -58,15 +64,14 @@ $is_free_plan = !is_wp_error($subscription) && isset($subscription['plan_key']) 
                 </ol>
                 <?php if (!$has_synced && $is_free_plan): ?>
                     <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings&tab=billing')); ?>">
-                        <span class="dashicons dashicons-star-filled" style="vertical-align: middle; line-height: 1;"></span>
                         Upgrade to Pro to sync catalog
                     </a>
                 <?php elseif (!$has_synced): ?>
                     <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-knowledge')); ?>">Sync catalog</a>
                 <?php elseif (!$has_previewed): ?>
-                    <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-preview')); ?>">Preview widget</a>
+                    <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-appearance')); ?>">Preview widget</a>
                 <?php else: ?>
-                    <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-settings&tab=widget')); ?>">Enable widget</a>
+                    <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=woocs-appearance')); ?>">Enable widget</a>
                 <?php endif; ?>
             </div>
         </div>

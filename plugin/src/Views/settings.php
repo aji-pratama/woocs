@@ -19,7 +19,10 @@ $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'connection';
 $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
 ?>
 <div class="wrap woocs-wrap">
-    <h1>Settings</h1>
+    <div class="woocs-page-header">
+        <h1 class="wp-heading-inline">Settings</h1>
+    </div>
+    <hr class="wp-header-end">
 
     <?php if ($error_msg): ?>
         <div class="notice notice-error is-dismissible"><p><?php echo esc_html($error_msg); ?></p></div>
@@ -28,8 +31,12 @@ $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
         <div class="notice notice-success is-dismissible"><p><?php echo esc_html($success_msg); ?></p></div>
     <?php endif; ?>
 
+    <div class="woocs-page-toolbar">
+        <p class="description">Configure your store connection, subscription plan, and integration settings.</p>
+    </div>
+
     <!-- Tabs -->
-    <nav class="nav-tab-wrapper">
+    <nav class="nav-tab-wrapper woocs-nav-tab-wrapper">
         <?php foreach ($tabs as $slug => $label): ?>
             <a href="<?php echo esc_url(add_query_arg('tab', $slug, admin_url('admin.php?page=woocs-settings'))); ?>"
                class="nav-tab <?php echo $active_tab === $slug ? 'nav-tab-active' : ''; ?>">

@@ -23,6 +23,7 @@ export const chatSessions = pgTable(
     customerEmail: varchar('customer_email', { length: 255 }),
     customerName: varchar('customer_name', { length: 150 }),
     customerPhone: varchar('customer_phone', { length: 30 }),
+    leadLabel: varchar('lead_label', { length: 50 }).$defaultFn(() => 'lead'),
     createdAt: timestamp('created_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
   },
   (table) => ({

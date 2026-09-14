@@ -14,7 +14,9 @@ if ($error_msg)   delete_transient('woocs_admin_error');
 if ($success_msg) delete_transient('woocs_admin_success');
 ?>
 <div class="wrap woocs-wrap">
-    <h1 class="wp-heading-inline">Widget Appearance</h1>
+    <div class="woocs-page-header">
+        <h1 class="wp-heading-inline">Widget Appearance</h1>
+    </div>
     <hr class="wp-header-end">
 
     <?php if ($error_msg): ?>
@@ -23,6 +25,10 @@ if ($success_msg) delete_transient('woocs_admin_success');
     <?php if ($success_msg): ?>
         <div class="notice notice-success is-dismissible"><p><?php echo esc_html($success_msg); ?></p></div>
     <?php endif; ?>
+
+    <div class="woocs-page-toolbar">
+        <p class="description">Customize widget branding, chat template quick replies, pre-chat lead capture, and preview storefront chat.</p>
+    </div>
 
     <!-- ROW 1: SETTINGS -->
     <div style="margin-bottom: 30px;">

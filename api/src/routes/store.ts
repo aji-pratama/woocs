@@ -334,6 +334,7 @@ storeRouter.get('/chat-history', requireApiKey, async (c) => {
       customer_name: s.customerName,
       customer_email: s.customerEmail,
       customer_phone: s.customerPhone,
+      lead_label: s.leadLabel || 'lead',
       first_message: firstMsg?.content || null,
       message_count: Number(countResult?.count || 0),
       escalated: Number(escalatedResult?.count || 0) > 0,
@@ -345,6 +346,155 @@ storeRouter.get('/chat-history', requireApiKey, async (c) => {
     .where(eq(chatSessions.storeId, storeId));
 
   return c.json({ sessions: enrichedSessions, total: Number(totalResult?.count || 0), page, page_size: pageSize });
+});
+
+// Helper to escape CSV cell
+function escapeCsv(value: any): string {
+  if (value === null || value === undefined) return '""';
+  const str = String(value).replace(/"/g, '""');
+  return `"${str}"`;
+}
+
+// GET /api/stores/chat-history/export
+storeRouter.get('/chat-history/export', requireApiKey, async (c) => {
+  const storeId = c.get('storeId');
+  const type = c.req.query('type') || 'full'; // 'full' | 'leads'
+  const dateStr = new Date().toISOString().split('T')[0];
+
+  if (type === 'leads') {
+    // Collect unique leads with contact info (email, phone, or name)
+    const sessions = await db.select().from(chatSessions)
+      .where(sql`${chatSessions.storeId} = ${storeId} AND (${chatSessions.customerEmail} IS NOT NULL OR ${chatSessions.customerPhone} IS NOT NULL OR ${chatSessions.customerName} IS NOT NULL)`)
+      .orderBy(sql`${chatSessions.createdAt} DESC`);
+
+    // Group by identifier
+    const leadsMap = new Map<string, any>();
+
+    for (const s of sessions) {
+      const key = (s.customerEmail || s.customerPhone || s.customerName || s.sessionId).toLowerCase();
+      
+      const [lastMsg] = await db.select().from(chatMessages)
+        .where(eq(chatMessages.sessionId, s.id))
+        .orderBy(sql`${chatMessages.createdAt} DESC`)
+        .limit(1);
+
+      if (!leadsMap.has(key)) {
+        leadsMap.set(key, {
+          customerName: s.customerName || '',
+          customerEmail: s.customerEmail || '',
+          customerPhone: s.customerPhone || '',
+          leadLabel: s.leadLabel || 'lead',
+          totalSessions: 1,
+          firstSeen: s.createdAt,
+          lastSeen: s.createdAt,
+          lastMessage: lastMsg?.content || '',
+        });
+      } else {
+        const existing = leadsMap.get(key);
+        existing.totalSessions += 1;
+        if (new Date(s.createdAt) < new Date(existing.firstSeen)) existing.firstSeen = s.createdAt;
+        if (new Date(s.createdAt) > new Date(existing.lastSeen)) {
+          existing.lastSeen = s.createdAt;
+          if (lastMsg) existing.lastMessage = lastMsg.content;
+        }
+        if (s.leadLabel === 'hot') existing.leadLabel = 'hot';
+        else if (s.leadLabel === 'warm' && existing.leadLabel !== 'hot') existing.leadLabel = 'warm';
+      }
+    }
+
+    const rows = [
+      ['Customer Name', 'Customer Email', 'Customer Phone', 'Lead Label', 'Total Sessions', 'First Seen', 'Last Seen', 'Last Message'].join(',')
+    ];
+
+    for (const lead of leadsMap.values()) {
+      rows.push([
+        escapeCsv(lead.customerName),
+        escapeCsv(lead.customerEmail),
+        escapeCsv(lead.customerPhone),
+        escapeCsv(lead.leadLabel),
+        escapeCsv(lead.totalSessions),
+        escapeCsv(new Date(lead.firstSeen).toISOString()),
+        escapeCsv(new Date(lead.lastSeen).toISOString()),
+        escapeCsv(lead.lastMessage),
+      ].join(','));
+    }
+
+    const csvContent = rows.join('\n');
+    return new Response(csvContent, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="woocs-leads-${dateStr}.csv"`,
+      },
+    });
+  } else {
+    // Full export of all sessions and transcripts
+    const sessions = await db.select().from(chatSessions)
+      .where(eq(chatSessions.storeId, storeId))
+      .orderBy(sql`${chatSessions.createdAt} DESC`);
+
+    const rows = [
+      ['Session ID', 'Date', 'Customer Name', 'Customer Email', 'Customer Phone', 'Lead Label', 'Message Count', 'Escalated', 'Escalation Reason', 'Transcript'].join(',')
+    ];
+
+    for (const s of sessions) {
+      const msgs = await db.select().from(chatMessages)
+        .where(eq(chatMessages.sessionId, s.id))
+        .orderBy(chatMessages.createdAt);
+
+      const transcript = msgs.map(m => `[${m.role === 'user' ? 'Customer' : 'AI'}]: ${m.content}`).join('\n');
+      const isEscalated = msgs.some(m => m.escalated);
+      const escalationReason = msgs.find(m => m.escalated)?.escalationReason || '';
+
+      rows.push([
+        escapeCsv(s.sessionId),
+        escapeCsv(new Date(s.createdAt).toISOString()),
+        escapeCsv(s.customerName || ''),
+        escapeCsv(s.customerEmail || ''),
+        escapeCsv(s.customerPhone || ''),
+        escapeCsv(s.leadLabel || 'lead'),
+        escapeCsv(msgs.length),
+        escapeCsv(isEscalated ? 'Yes' : 'No'),
+        escapeCsv(escalationReason),
+        escapeCsv(transcript),
+      ].join(','));
+    }
+
+    const csvContent = rows.join('\n');
+    return new Response(csvContent, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="woocs-conversations-${dateStr}.csv"`,
+      },
+    });
+  }
+});
+
+const VALID_LEAD_LABELS = ['hot', 'warm', 'cold', 'customer', 'support', 'lead'];
+
+// PATCH /api/stores/chat-history/:id/label
+storeRouter.patch('/chat-history/:id/label', requireApiKey, async (c) => {
+  const storeId = c.get('storeId');
+  const reqSessionId = c.req.param('id');
+  const body = await c.req.json().catch(() => ({}));
+  const label = body.lead_label;
+
+  if (!label || !VALID_LEAD_LABELS.includes(label)) {
+    return c.json({ error: `Invalid lead_label. Must be one of: ${VALID_LEAD_LABELS.join(', ')}` }, 400);
+  }
+
+  const [session] = await db.select().from(chatSessions)
+    .where(sql`${chatSessions.sessionId} = ${reqSessionId} AND ${chatSessions.storeId} = ${storeId}`)
+    .limit(1);
+
+  if (!session) {
+    return c.json({ error: 'Session not found' }, 404);
+  }
+
+  await db.update(chatSessions)
+    .set({ leadLabel: label })
+    .where(eq(chatSessions.id, session.id));
+
+  return c.json({ success: true, session_id: reqSessionId, lead_label: label });
 });
 
 // GET /api/stores/chat-history/:id/
@@ -364,6 +514,7 @@ storeRouter.get('/chat-history/:id', requireApiKey, async (c) => {
     customer_name: sessionData.customerName,
     customer_email: sessionData.customerEmail,
     customer_phone: sessionData.customerPhone,
+    lead_label: sessionData.leadLabel || 'lead',
     session_id: sessionData.sessionId,
   };
   

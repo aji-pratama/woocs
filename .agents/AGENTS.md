@@ -17,7 +17,7 @@ These facts MUST NOT be changed without a new architecture decision:
 
 ### Runtime Model
 - **Hono JS backend** runs **directly on the host** (not in a container).
-- **Infrastructure services** (PostgreSQL, MySQL, WordPress) run in Docker via `compose.dev.yml`.
+- **Infrastructure services** (PostgreSQL, MySQL, WordPress) run in Podman via `compose.dev.yml` (`podman compose`).
 - **React widget** dev server runs directly on the host (`npm run dev` in `plugin/widget/`).
 - **No container rebuilds needed** for code changes. Backend and widget changes are hot-reloaded.
 
@@ -34,7 +34,7 @@ woocs/
 │   └── chat/         # ChatSession, ChatMessage, RAG pipeline, escalation
 ├── plugin/           # WordPress plugin (PHP)
 │   └── widget/       # React/Vite widget (host process)
-├── compose.dev.yml   # Docker Compose for infra only
+├── compose.dev.yml   # Compose definition for infra (run with podman compose)
 ├── Makefile          # Dev orchestration
 └── README.md
 ```

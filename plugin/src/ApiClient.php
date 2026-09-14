@@ -111,6 +111,44 @@ class ApiClient {
         return $this->handle_response($response);
     }
 
+    public function update_chat_session_label(string $session_id, string $lead_label): array|\WP_Error {
+        $url = $this->base_url . '/api/stores/chat-history/' . rawurlencode($session_id) . '/label';
+
+        $response = wp_remote_request($url, [
+            'method'  => 'PATCH',
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-API-Key'     => $this->api_key,
+            ],
+            'body'    => wp_json_encode(['lead_label' => $lead_label]),
+            'timeout' => 10,
+        ]);
+
+        return $this->handle_response($response);
+    }
+
+    public function export_chat_history(string $type = 'full'): string|\WP_Error {
+        $url = add_query_arg(['type' => $type], $this->base_url . '/api/stores/chat-history/export');
+
+        $response = wp_remote_get($url, [
+            'headers' => [
+                'X-API-Key' => $this->api_key,
+            ],
+            'timeout' => 30,
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        if ($status_code >= 400) {
+            return new \WP_Error('woocs_export_error', 'Failed to export conversations: ' . wp_remote_retrieve_body($response));
+        }
+
+        return wp_remote_retrieve_body($response);
+    }
+
     public function get_knowledge_documents(): array|\WP_Error {
         $url = $this->base_url . '/api/stores/knowledge';
 

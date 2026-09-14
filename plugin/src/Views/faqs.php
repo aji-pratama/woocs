@@ -5,8 +5,10 @@ if (!defined('ABSPATH')) exit;
 $faqs = get_option('woocs_faqs', []);
 if (!is_array($faqs)) $faqs = [];
 ?>
-    <p><button type="button" class="button button-primary" id="woocs-add-faq-btn">Add FAQ</button></p>
-    <p class="description">FAQ changes are included the next time you sync the catalog.</p>
+    <div class="woocs-tab-toolbar">
+        <p class="description">Frequently Asked Questions are indexed by the assistant to answer common store queries.</p>
+        <button type="button" class="button button-primary" id="woocs-add-faq-btn">Add FAQ</button>
+    </div>
 
     <input type="hidden" id="woocs_faq_nonce" value="<?php echo esc_attr(wp_create_nonce('woocs_faq_nonce')); ?>">
     <input type="hidden" id="woocs_ajax_url" value="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">

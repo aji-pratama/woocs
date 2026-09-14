@@ -9,6 +9,8 @@
 PODMAN_SOCK := $(shell podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}' 2>/dev/null)
 export podman_HOST := $(if $(PODMAN_SOCK),unix://$(PODMAN_SOCK),unix:///var/run/podman.sock)
 
+CONTAINER ?= podman
+
 # ─── Help ────────────────────────────────────────────────────────────────────
 help:
 	@echo ""
@@ -43,7 +45,7 @@ help:
 	@echo ""
 
 COMPOSE_ENV := $(if $(wildcard api/.env),--env-file api/.env,)
-COMPOSE := podman compose -f compose.dev.yml $(COMPOSE_ENV)
+COMPOSE := $(CONTAINER) compose -f compose.dev.yml $(COMPOSE_ENV)
 
 # ─── Infrastructure ──────────────────────────────────────────────────────────
 infra-up:
@@ -147,8 +149,8 @@ lint-widget:
 	cd plugin/widget && npx tsc --noEmit
 
 lint-plugin:
-	@echo "Linting Plugin (PHP syntax check) via Docker..."
-	docker run --rm -v $$(pwd)/plugin:/app -w /app php:8.2-cli bash -c 'for f in $$(find src/ woocs.php -name "*.php"); do php -l $$f > /dev/null || exit 1; done'
+	@echo "Linting Plugin (PHP syntax check) via Podman..."
+	$(CONTAINER) run --rm -v $$(pwd)/plugin:/app -w /app php:8.2-cli bash -c 'for f in $$(find src/ woocs.php -name "*.php"); do php -l $$f > /dev/null || exit 1; done'
 
 lint: lint-api lint-widget lint-plugin
 	@echo "✅ All linting checks passed!"
@@ -162,10 +164,10 @@ test-widget:
 	cd plugin/widget && npm test
 
 test-plugin:
-	@echo "Installing Plugin dependencies via Docker..."
-	docker run --rm -v $(PWD)/plugin:/app -w /app composer install
-	@echo "Running Plugin tests via Docker..."
-	docker run --rm -v $(PWD)/plugin:/app -w /app php:8.2-cli ./vendor/bin/phpunit
+	@echo "Installing Plugin dependencies via Podman..."
+	$(CONTAINER) run --rm -v $(PWD)/plugin:/app -w /app composer install
+	@echo "Running Plugin tests via Podman..."
+	$(CONTAINER) run --rm -v $(PWD)/plugin:/app -w /app php:8.2-cli ./vendor/bin/phpunit
 
 test-all:
 	@echo "Running all tests..."

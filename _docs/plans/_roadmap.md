@@ -42,3 +42,13 @@
 - [x] Comment out URL fetch form with TODO for future headless crawler.
 - [x] Support `type: 'text'` with direct chunking and vector embedding in Hono API and background worker.
 
+## Conversations Export & Lead Labeling
+
+- [x] Add `lead_label` (`hot`, `warm`, `cold`, `customer`, `support`, `lead`) to `chat_chatsession`.
+- [x] Auto-label to `warm` when visitor provides email/phone in pre-chat.
+- [x] Implement `PATCH /api/stores/chat-history/:id/label` endpoint.
+- [x] Implement `GET /api/stores/chat-history/export` with `type=full` (all transcripts) and `type=leads` (contact DB).
+- [x] Add export buttons and lead label management to WordPress Conversations view.
+- [x] Add TDD test suite in `api/tests/store/export-leads.test.ts`.
+
+

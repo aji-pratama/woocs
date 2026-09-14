@@ -60,3 +60,6 @@ api/dist/
 api/.env
 api/.wrangler/
 vendor
+.phpunit.result.cache
+*.phpunit.result.cache
+

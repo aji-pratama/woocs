@@ -55,3 +55,60 @@ trigger:
 - Encrypt stored WC consumer key and secret at rest using `wp_hash` or a reversible encryption utility.
 - API key never exposed to the browser.
 - All AJAX endpoints registered with `wp_ajax_` hooks and nonce-verified.
+
+## 9. UI & Styling Standards (Admin Design System)
+
+All WordPress admin views under `plugin/src/Views/` MUST strictly follow these structural and design invariants:
+
+### 1. Page Header Structure
+- Every top-level view must wrap its title in `.woocs-page-header` and terminate with `<hr class="wp-header-end">`:
+```php
+<div class="wrap woocs-wrap">
+    <div class="woocs-page-header">
+        <h1 class="wp-heading-inline"><?php esc_html_e('Page Title', 'woocs-ai'); ?></h1>
+        <?php /* optional inline badge */ ?>
+    </div>
+    <hr class="wp-header-end">
+```
+
+### 2. Page Toolbar & Button Placement Invariant
+- **Rule**: Page actions (such as **Export CSV**, **Add New**, filter controls) and page descriptions **MUST sit below the header** (`<hr class="wp-header-end">`), inside a `.woocs-page-toolbar`.
+- **Prohibited**: NEVER put action buttons inside the `<h1>` row or squeeze them next to the page heading with ad-hoc flex divs.
+```php
+    <div class="woocs-page-toolbar">
+        <p class="description"><?php esc_html_e('Explain what this page does.', 'woocs-ai'); ?></p>
+        <div class="woocs-toolbar-actions">
+            <a href="..." class="button"><?php esc_html_e('Export Conversations (CSV)', 'woocs-ai'); ?></a>
+            <a href="..." class="button button-primary"><?php esc_html_e('Export Leads DB (CSV)', 'woocs-ai'); ?></a>
+        </div>
+    </div>
+```
+
+### 3. Tab Navigation Standard (The Knowledge Tab Model)
+- Multi-tab pages (e.g. Knowledge, Settings) must use standard WordPress tab wrappers:
+```php
+    <nav class="nav-tab-wrapper woocs-nav-tab-wrapper">
+        <?php foreach ($tabs as $slug => $label): ?>
+            <a href="<?php echo esc_url(add_query_arg('tab', $slug, admin_url('admin.php?page=...'))); ?>"
+               class="nav-tab <?php echo $active_tab === $slug ? 'nav-tab-active' : ''; ?>">
+                <?php echo esc_html($label); ?>
+            </a>
+        <?php endforeach; ?>
+    </nav>
+```
+- Child tabs with actions/descriptions must use `<div class="woocs-tab-toolbar">` with `<p class="description">` and `<div class="woocs-toolbar-actions">`.
+
+### 4. Cards & Data Tables
+- Section containers must use `.woocs-card`.
+- Headers must use `.woocs-card-header` with `<h2>Title</h2>` and right-aligned badges or contextual card-level buttons.
+- Content goes in `.woocs-card-body` (add `.p-0` modifier when embedding data tables).
+- Tables must use standard WordPress classes: `.wp-list-table.widefat.fixed.striped`.
+
+### 5. Buttons & Icon Aesthetics
+- Primary actions: `.button.button-primary`.
+- Secondary actions & exports: `.button`.
+- Keep buttons text-first and clean. Do not add arbitrary, misaligned Dashicons inside buttons.
+
+### 6. No Ad-hoc Inline Layout Styling
+- Do not use arbitrary inline styles (such as `style="display:flex; justify-content:space-between; margin-bottom:12px;"`) for page scaffolding. Always use established classes in `plugin/assets/admin.css`.
+

@@ -9,15 +9,18 @@ if (!is_wp_error($docs_response) && isset($docs_response['documents'])) {
     $documents = $docs_response['documents'];
 }
 ?>
-    <p>
-        <button type="button" class="button button-primary" id="woocs-add-text-btn">Add Text Document</button>
-        <button type="button" class="button" id="woocs-add-pdf-btn">Upload PDF</button>
-        <!-- TODO: Re-enable URL fetch once robust scraper / headless browser service is ready
-        <button type="button" class="button" id="woocs-add-url-btn">Add URL</button>
-        -->
-    </p>
-    <p class="description">General Knowledge allows the AI to answer customer questions using your store policies (e.g. Return Policy, Shipping Details, FAQ) or documents.</p>
-    <p class="description"><strong>Note:</strong> Documents are synced to AI vector embeddings. You can remove and re-add them at any time.</p>
+    <div class="woocs-tab-toolbar">
+        <div>
+            <p class="description">General Knowledge allows the AI to answer customer questions using your store policies and custom documents.</p>
+        </div>
+        <div class="woocs-toolbar-actions">
+            <button type="button" class="button button-primary" id="woocs-add-text-btn">Add Text Document</button>
+            <button type="button" class="button" id="woocs-add-pdf-btn">Upload PDF</button>
+            <!-- TODO: Re-enable URL fetch once robust scraper / headless browser service is ready
+            <button type="button" class="button" id="woocs-add-url-btn">Add URL</button>
+            -->
+        </div>
+    </div>
 
     <input type="hidden" id="woocs_knowledge_nonce" value="<?php echo esc_attr(wp_create_nonce('woocs_knowledge_nonce')); ?>">
     <input type="hidden" id="woocs_ajax_url" value="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">

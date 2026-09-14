@@ -14,6 +14,7 @@ class AjaxHandlers {
         add_action('wp_ajax_woocs_save_sync_log', [self::class, 'handle_save_sync_log']);
         add_action('wp_ajax_woocs_chat_history', [self::class, 'handle_chat_history']);
         add_action('wp_ajax_woocs_chat_session_detail', [self::class, 'handle_chat_session_detail']);
+        add_action('wp_ajax_woocs_update_session_label', [self::class, 'handle_update_session_label']);
         add_action('wp_ajax_woocs_add_knowledge_url', [self::class, 'handle_add_knowledge_url']);
         add_action('wp_ajax_woocs_add_knowledge_text', [self::class, 'handle_add_knowledge_text']);
         add_action('wp_ajax_woocs_add_knowledge_pdf', [self::class, 'handle_add_knowledge_pdf']);
@@ -197,6 +198,29 @@ class AjaxHandlers {
 
         $client = new ApiClient();
         $response = $client->get_chat_session($session_id);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => $response->get_error_message()], 500);
+        }
+
+        wp_send_json_success($response);
+    }
+
+    public static function handle_update_session_label() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+        check_ajax_referer('woocs_chat_history_nonce', 'nonce');
+
+        $session_id = sanitize_text_field($_POST['session_id'] ?? '');
+        $lead_label = sanitize_key($_POST['lead_label'] ?? '');
+
+        if (empty($session_id) || empty($lead_label)) {
+            wp_send_json_error(['message' => 'session_id and lead_label are required.']);
+        }
+
+        $client = new ApiClient();
+        $response = $client->update_chat_session_label($session_id, $lead_label);
 
         if (is_wp_error($response)) {
             wp_send_json_error(['message' => $response->get_error_message()], 500);
