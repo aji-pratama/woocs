@@ -15,8 +15,15 @@ function createDbInstance(connectionString: string) {
     // Neon Serverless HTTP driver for Cloudflare Workers:
     // Uses HTTPS fetch() per query instead of raw TCP sockets.
     // Completely eliminates "Cannot perform I/O on behalf of a different request" errors!
-    const sql = neon(connectionString);
-    const dbInstance = drizzleNeon(sql, { schema });
+    const rawNeon = neon(connectionString);
+    const sql = (query: any, params?: any[]) => {
+      if (typeof query === 'string') {
+        return rawNeon.query(query, params);
+      }
+      return rawNeon(query, ...(params || []));
+    };
+    Object.assign(sql, rawNeon);
+    const dbInstance = drizzleNeon(sql as any, { schema });
     return { client: sql, db: dbInstance };
   }
 
