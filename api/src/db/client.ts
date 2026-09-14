@@ -5,26 +5,26 @@ import * as schema from './schema/index.js';
 
 let _client: ReturnType<typeof postgres> | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
+let _currentUrl: string | null = null;
 
 export function getDbClient() {
-  if (!_client) {
-    const connectionString = process.env.DATABASE_URL || ENV.DATABASE_URL;
+  const connectionString = process.env.DATABASE_URL || ENV.DATABASE_URL;
+  if (!_client || _currentUrl !== connectionString) {
+    _currentUrl = connectionString;
     const isSsl = connectionString.includes('sslmode=require') || connectionString.includes('neon.tech');
     _client = postgres(connectionString, {
       prepare: false, // For Supabase / Neon PgBouncer compatibility
       max: (process.env.NODE_ENV === 'test' || ENV.NODE_ENV === 'test') ? 1 : 5,
       ssl: isSsl ? 'require' : undefined,
     });
+    _db = drizzle(_client, { schema });
   }
   return _client;
 }
 
 export function getDb() {
-  if (!_db) {
-    const client = getDbClient();
-    _db = drizzle(client, { schema });
-  }
-  return _db;
+  getDbClient();
+  return _db!;
 }
 
 // Transparent proxy to support existing imports: `import { db } from '../db/client.js'`

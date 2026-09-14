@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
+import { env } from 'hono/adapter';
 import { sql } from 'drizzle-orm';
 import { db } from './db/client.js';
 import { storeRouter } from './routes/store.js';
@@ -12,13 +13,27 @@ const app = new Hono({ strict: false });
 app.use('*', cors());
 app.use('*', logger());
 
+// Bridge Cloudflare Workers bindings (c.env) into process.env for universal runtime compatibility
+app.use('*', async (c, next) => {
+  const currentEnv = env(c) as Record<string, any>;
+  if (currentEnv) {
+    for (const [key, val] of Object.entries(currentEnv)) {
+      if (typeof val === 'string' && val.length > 0) {
+        process.env[key] = val;
+      }
+    }
+  }
+  await next();
+});
+
 app.route('/api/stores', storeRouter);
 app.route('/api/widget', widgetRouter);
 app.route('/api/webhooks', webhooksRouter);
 
 const healthCheckHandler = async (c: any) => {
   const start = Date.now();
-  const dbUrl = process.env.DATABASE_URL || '';
+  const currentEnv = env(c) as Record<string, any>;
+  const dbUrl = currentEnv.DATABASE_URL || process.env.DATABASE_URL || '';
   const isFallbackLocal = !dbUrl || dbUrl.includes('127.0.0.1:5435');
 
   let dbStatus = 'disconnected';
@@ -37,7 +52,7 @@ const healthCheckHandler = async (c: any) => {
     }
   } else {
     dbStatus = 'not_configured';
-    dbError = 'DATABASE_URL is not configured or using fallback 127.0.0.1:5435. Please set the DATABASE_URL environment secret.';
+    dbError = 'DATABASE_URL is not configured in Cloudflare Secrets. Please add DATABASE_URL in Cloudflare Settings > Variables and Secrets.';
   }
 
   // Mask database host for security (e.g. ep-ca...neon.tech)
@@ -69,11 +84,11 @@ const healthCheckHandler = async (c: any) => {
         ...(dbError ? { error: dbError } : {}),
       },
       ai_provider: {
-        openrouter_configured: Boolean(process.env.OPENROUTER_API_KEY && !process.env.OPENROUTER_API_KEY.includes('...')),
-        chat_model: process.env.AI_CHAT_MODEL || 'openai/gpt-4o-mini',
+        openrouter_configured: Boolean((currentEnv.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY) && !(currentEnv.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY || '').includes('...')),
+        chat_model: currentEnv.AI_CHAT_MODEL || process.env.AI_CHAT_MODEL || 'openai/gpt-4o-mini',
       },
       billing: {
-        polar_configured: Boolean(process.env.POLAR_ACCESS_TOKEN && !process.env.POLAR_ACCESS_TOKEN.includes('...')),
+        polar_configured: Boolean((currentEnv.POLAR_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN) && !(currentEnv.POLAR_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN || '').includes('...')),
       }
     }
   });
