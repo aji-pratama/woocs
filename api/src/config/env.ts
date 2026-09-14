@@ -24,6 +24,9 @@ const EnvSchema = z.object({
   SMTP_PORT: z.string().transform(val => val ? parseInt(val) : 587).optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+
+  HEALTH_CHECK_SECRET: z.string().default('woocs-secret-health-key-2026'),
+  HEALTH_CHECK_PATH: z.string().default('/api/internal/health-check-9x7f2k'),
 });
 
 // Parse process.env immediately. This will throw a clear ZodError on startup if a required field is missing.

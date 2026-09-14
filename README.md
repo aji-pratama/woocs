@@ -175,6 +175,66 @@ Once enabled, restart the API server. You can then trigger specific UI scenarios
 
 ---
 
+## Internal Health Check & Diagnostics (Secured)
+
+To protect internal infrastructure details (database host, live latency, AI provider status, Polar secrets), the health diagnostic endpoint is obfuscated and secured behind an authentication key.
+
+* **Endpoint Path:** `/api/internal/health-check-9x7f2k` *(Configurable via `HEALTH_CHECK_PATH`)*
+* **Auth Requirement:** Valid `X-Health-Key` header or `?key=` query parameter matching `HEALTH_CHECK_SECRET`.
+* **Default Dev Secret:** `woocs-secret-health-key-2026`
+* **Public `/health`:** Disabled / returns `404 Not Found` to prevent reconnaissance scans.
+
+### Usage Examples
+
+```bash
+# 1. Inspect live Cloudflare API health using Header (Recommended)
+curl -s -H "X-Health-Key: woocs-secret-health-key-2026" \
+  https://woocs.bisatekno-id.workers.dev/api/internal/health-check-9x7f2k
+
+# 2. Inspect live Cloudflare API health using Query Parameter
+curl -s "https://woocs.bisatekno-id.workers.dev/api/internal/health-check-9x7f2k?key=woocs-secret-health-key-2026"
+
+# 3. Inspect Local Dev API
+curl -s -H "X-Health-Key: woocs-secret-health-key-2026" \
+  http://localhost:8001/api/internal/health-check-9x7f2k
+```
+
+### Sample Response (200 OK)
+
+```json
+{
+  "status": "healthy",
+  "service": "woocs-api",
+  "timestamp": "2026-09-14T15:10:00.000Z",
+  "duration_ms": 36,
+  "checks": {
+    "database": {
+      "status": "connected",
+      "host": "ep-res....neon.tech",
+      "latency_ms": 36
+    },
+    "ai_provider": {
+      "openrouter_configured": false,
+      "chat_model": "openai/gpt-4o-mini"
+    },
+    "billing": {
+      "polar_configured": false
+    }
+  }
+}
+```
+
+If an invalid or missing key is sent, the API immediately rejects the request:
+```json
+// HTTP 401 Unauthorized
+{
+  "error": "Unauthorized: Invalid or missing health check key",
+  "message": "Provide valid X-Health-Key header or ?key= query parameter"
+}
+```
+
+---
+
 ## PoC Scope
 
 See [PRD](./_docs/PRD.md) for the full specification.

@@ -32,8 +32,18 @@ app.route('/api/widget', widgetRouter);
 app.route('/api/webhooks', webhooksRouter);
 
 const healthCheckHandler = async (c: any) => {
-  const start = Date.now();
   const currentEnv = env(c) as Record<string, any>;
+  const expectedSecret = currentEnv.HEALTH_CHECK_SECRET || process.env.HEALTH_CHECK_SECRET || ENV.HEALTH_CHECK_SECRET || 'woocs-secret-health-key-2026';
+  const providedKey = c.req.header('x-health-key') || c.req.query('key');
+
+  if (!providedKey || providedKey !== expectedSecret) {
+    return c.json({
+      error: 'Unauthorized: Invalid or missing health check key',
+      message: 'Provide valid X-Health-Key header or ?key= query parameter'
+    }, 401);
+  }
+
+  const start = Date.now();
   const dbUrl = currentEnv.DATABASE_URL || process.env.DATABASE_URL || '';
   const isFallbackLocal = !dbUrl || dbUrl.includes('127.0.0.1:5435');
 
@@ -95,8 +105,8 @@ const healthCheckHandler = async (c: any) => {
   });
 };
 
-app.get('/health', healthCheckHandler);
-app.get('/api/health', healthCheckHandler);
+const healthPath = ENV.HEALTH_CHECK_PATH || '/api/internal/health-check-9x7f2k';
+app.get(healthPath, healthCheckHandler);
 
 app.onError((err, c) => {
   console.error('[API Error]', err);
