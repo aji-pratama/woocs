@@ -34,3 +34,11 @@
 
 - [x] Implement Pre-chat form validation.
 - [x] Implement Widget icon upload and rendering with 50x50 optimization constraint.
+
+## Knowledge Base Enhancements
+
+- [x] Add Text Area / Markdown input for General Knowledge documents (`title` + `content`).
+- [x] Add client-side .txt/.md file loader to easily import policies.
+- [x] Comment out URL fetch form with TODO for future headless crawler.
+- [x] Support `type: 'text'` with direct chunking and vector embedding in Hono API and background worker.
+

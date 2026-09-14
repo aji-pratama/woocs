@@ -15,6 +15,7 @@ class AjaxHandlers {
         add_action('wp_ajax_woocs_chat_history', [self::class, 'handle_chat_history']);
         add_action('wp_ajax_woocs_chat_session_detail', [self::class, 'handle_chat_session_detail']);
         add_action('wp_ajax_woocs_add_knowledge_url', [self::class, 'handle_add_knowledge_url']);
+        add_action('wp_ajax_woocs_add_knowledge_text', [self::class, 'handle_add_knowledge_text']);
         add_action('wp_ajax_woocs_add_knowledge_pdf', [self::class, 'handle_add_knowledge_pdf']);
         add_action('wp_ajax_woocs_delete_knowledge_doc', [self::class, 'handle_delete_knowledge_doc']);
     }
@@ -217,6 +218,36 @@ class AjaxHandlers {
 
         $client = new ApiClient();
         $response = $client->sync_knowledge_url($url);
+
+        if (is_wp_error($response)) {
+            $error_data = $response->get_error_data();
+            wp_send_json_error([
+                'message' => $response->get_error_message(),
+                'upgrade_required' => $error_data['upgrade_required'] ?? false
+            ], 400);
+        }
+
+        wp_send_json_success($response);
+    }
+
+    public static function handle_add_knowledge_text() {
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+        check_ajax_referer('woocs_knowledge_nonce', 'nonce');
+
+        $title = sanitize_text_field($_POST['title'] ?? '');
+        $content = isset($_POST['content']) ? trim((string) wp_unslash($_POST['content'])) : '';
+
+        if (empty($title)) {
+            wp_send_json_error(['message' => 'Document title is required.']);
+        }
+        if (empty($content)) {
+            wp_send_json_error(['message' => 'Document content is required.']);
+        }
+
+        $client = new ApiClient();
+        $response = $client->add_knowledge_text($title, $content);
 
         if (is_wp_error($response)) {
             $error_data = $response->get_error_data();

@@ -71,8 +71,9 @@ async function extractTextFromURL(source: string): Promise<string> {
 export async function processKnowledgeDocument(
   storeId: string,
   documentId: string,
-  type: 'url' | 'pdf',
-  source: string
+  type: 'url' | 'pdf' | 'text',
+  source: string,
+  rawTextArg?: string
 ): Promise<{ chunksEmbedded: number }> {
   try {
     // 1. Update status to processing
@@ -82,7 +83,9 @@ export async function processKnowledgeDocument(
 
     // 2. Extract Text
     let rawText = '';
-    if (type === 'url') {
+    if (type === 'text') {
+      rawText = rawTextArg || '';
+    } else if (type === 'url') {
       rawText = await extractTextFromURL(source);
     } else {
       rawText = await extractTextFromPDF(source);

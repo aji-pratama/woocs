@@ -60,9 +60,30 @@ describe('Knowledge API', () => {
     expect(data.task_id).toBeDefined();
   });
 
-  it('should reject a new knowledge URL without valid payload', async () => {
+  it('should accept a new knowledge text document via JSON', async () => {
+    const res = await app.request('/api/stores/knowledge/document', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': rawApiKey,
+      },
+      body: JSON.stringify({
+        title: 'Return Policy',
+        content: '# Return Policy\n\nCustomers can return items within 30 days of receipt.',
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    const data = await res.json();
+    expect(data.document).toBeDefined();
+    expect(data.document.type).toBe('text');
+    expect(data.document.source).toBe('Return Policy');
+    expect(data.task_id).toBeDefined();
+  });
+
+  it('should reject a new knowledge document without valid payload', async () => {
     const formData = new FormData();
-    // Missing url or pdf
+    // Missing content, url or pdf
 
     const res = await app.request('/api/stores/knowledge/document', {
       method: 'POST',
@@ -72,7 +93,7 @@ describe('Knowledge API', () => {
 
     expect(res.status).toBe(400);
     const data = await res.json();
-    expect(data.error).toContain('Missing url or pdf in body');
+    expect(data.error).toContain('Missing content, url or pdf in body');
   });
 
   it('should enforce quota limits when downgrading to free', async () => {

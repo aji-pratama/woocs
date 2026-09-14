@@ -15,9 +15,9 @@ const TASK_HANDLERS: Record<string, TaskHandler> = {
     return embedCatalog(storeId);
   },
   process_knowledge_document: async (kwargs) => {
-    const { store_id, document_id, type, source } = kwargs;
+    const { store_id, document_id, type, source, raw_text } = kwargs;
     if (!store_id || !document_id || !type || !source) throw new Error('Missing required kwargs');
-    return processKnowledgeDocument(store_id, document_id, type, source);
+    return processKnowledgeDocument(store_id, document_id, type, source, raw_text);
   },
 };
 

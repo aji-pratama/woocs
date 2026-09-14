@@ -146,9 +146,10 @@ storeRouter.post('/knowledge/document', requireApiKey, async (c) => {
   const sub = await BillingService.getSubscription(storeId);
   const isPro = sub && sub.planKey === 'pro';
   
-  const MAX_SYNCS = isPro ? 20 : 3;
+  const MAX_SYNCS = isPro ? 20 : 5;
   const MAX_URLS = isPro ? 5 : 1;
   const MAX_PDFS = isPro ? 5 : 0;
+  const MAX_TEXTS = isPro ? 10 : 3;
 
   // Check monthly sync limit
   const store = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
@@ -157,12 +158,26 @@ storeRouter.post('/knowledge/document', requireApiKey, async (c) => {
   }
 
   const counts = await KnowledgeService.getDocumentCount(storeId);
-  const body = await c.req.parseBody();
+  let body: any = {};
+  const contentType = c.req.header('content-type') || '';
+  if (contentType.includes('application/json')) {
+    body = await c.req.json().catch(() => ({}));
+  } else {
+    body = await c.req.parseBody().catch(() => ({}));
+  }
   
-  let type: 'url' | 'pdf' = 'url';
+  let type: 'url' | 'pdf' | 'text' = 'text';
   let source = '';
+  let rawText = '';
   
-  if (body.url && typeof body.url === 'string') {
+  if (body.content && typeof body.content === 'string') {
+    if (counts.texts >= MAX_TEXTS) {
+      return c.json({ error: `Text document limit reached (max ${MAX_TEXTS})`, upgrade_required: !isPro }, 403);
+    }
+    type = 'text';
+    source = (body.title && typeof body.title === 'string' && body.title.trim()) ? body.title.trim() : 'Document';
+    rawText = body.content.trim();
+  } else if (body.url && typeof body.url === 'string') {
     if (counts.urls >= MAX_URLS) {
       return c.json({ error: `URL limit reached (max ${MAX_URLS})`, upgrade_required: !isPro }, 403);
     }
@@ -175,11 +190,11 @@ storeRouter.post('/knowledge/document', requireApiKey, async (c) => {
     // PDF upload handling
     type = 'pdf';
     const file = body.pdf as File;
-    source = file.name;
+    source = file.name || 'document.pdf';
     // In production we would save the file to S3 or process it directly.
     // For PoC, we just pretend it was saved.
   } else {
-    return c.json({ error: 'Missing url or pdf in body' }, 400);
+    return c.json({ error: 'Missing content, url or pdf in body' }, 400);
   }
 
   // Increment syncs
@@ -193,7 +208,7 @@ storeRouter.post('/knowledge/document', requireApiKey, async (c) => {
   const [task] = await db.insert(taskRecords).values({
     taskName: 'process_knowledge_document',
     args: [],
-    kwargs: { store_id: storeId, document_id: doc.id, type, source },
+    kwargs: { store_id: storeId, document_id: doc.id, type, source, raw_text: rawText },
   }).returning();
 
   return c.json({ document: doc, task_id: task.id }, 202);

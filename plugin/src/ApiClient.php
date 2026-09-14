@@ -139,6 +139,25 @@ class ApiClient {
         return $this->handle_response($response, true);
     }
 
+    public function add_knowledge_text(string $title, string $content): array|\WP_Error {
+        $url = $this->base_url . '/api/stores/knowledge/document';
+
+        $response = wp_remote_post($url, [
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-API-Key' => $this->api_key,
+            ],
+            'body' => wp_json_encode([
+                'title' => $title,
+                'content' => $content,
+                'type' => 'text',
+            ]),
+            'timeout' => 30,
+        ]);
+
+        return $this->handle_response($response, true);
+    }
+
     public function delete_knowledge_document(string $id): array|\WP_Error {
         $url = $this->base_url . '/api/stores/knowledge/document/' . rawurlencode($id);
 

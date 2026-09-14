@@ -12,14 +12,16 @@ export class KnowledgeService {
     const docs = await this.getDocuments(storeId);
     let urls = 0;
     let pdfs = 0;
+    let texts = 0;
     docs.forEach(d => {
       if (d.type === 'url') urls++;
       if (d.type === 'pdf') pdfs++;
+      if (d.type === 'text') texts++;
     });
-    return { total: urls + pdfs, urls, pdfs };
+    return { total: urls + pdfs + texts, urls, pdfs, texts };
   }
 
-  static async createDocument(storeId: string, type: 'url' | 'pdf', source: string) {
+  static async createDocument(storeId: string, type: 'url' | 'pdf' | 'text', source: string) {
     const [doc] = await db.insert(knowledgeDocuments).values({
       storeId,
       type,
