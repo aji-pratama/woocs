@@ -5,76 +5,56 @@ import postgres from 'postgres';
 import { ENV } from '../config/env.js';
 import * as schema from './schema/index.js';
 
-let _globalDb: any = null;
-let _globalClient: any = null;
-let _globalUrl: string | null = null;
+type DatabaseInstance = ReturnType<typeof drizzlePostgres<typeof schema>>;
 
-function createDbInstance(connectionString: string) {
-  const isNeon = connectionString.includes('neon.tech');
-  if (isNeon) {
-    // Neon Serverless HTTP driver for Cloudflare Workers:
-    // Uses HTTPS fetch() per query instead of raw TCP sockets.
-    // Completely eliminates "Cannot perform I/O on behalf of a different request" errors!
-    const rawNeon = neon(connectionString);
-    const sql = (query: any, params?: any[]) => {
-      if (typeof query === 'string') {
-        return rawNeon.query(query, params);
-      }
-      return rawNeon(query, ...(params || []));
-    };
-    Object.assign(sql, rawNeon);
-    const dbInstance = drizzleNeon(sql as any, { schema });
-    return { client: sql, db: dbInstance };
-  }
-
-  // Standard postgres.js driver for local development and background workers
-  const sql = postgres(connectionString, {
-    prepare: false,
-    max: (process.env.NODE_ENV === 'test' || ENV.NODE_ENV === 'test') ? 1 : 5,
-  });
-  const dbInstance = drizzlePostgres(sql, { schema });
-  return { client: sql, db: dbInstance };
-}
+let _instance: DatabaseInstance | null = null;
+let _cachedUrl: string | null = null;
 
 /**
- * Execute an operation with the appropriate DB connection.
+ * Creates a database instance tailored to the runtime and target database:
+ * - Neon Serverless (Cloudflare Workers / Edge): stateless HTTPS fetch per query.
+ * - PostgreSQL (Local Dev / Vitest / Background Worker): pooled TCP connections via postgres.js.
  */
-export async function withRequestDb<T>(connectionString: string, fn: () => Promise<T>): Promise<T> {
-  // DB client handles both HTTP-based serverless and local pooled connection
-  return fn();
+function createDatabase(connectionString: string): DatabaseInstance {
+  if (connectionString.includes('neon.tech')) {
+    const rawNeon = neon(connectionString);
+    // Adapter to support both tagged-template and conventional (query, params) calls from Drizzle
+    const sql = (query: any, params?: any[]) => {
+      return typeof query === 'string'
+        ? rawNeon.query(query, params)
+        : rawNeon(query, ...(params || []));
+    };
+    Object.assign(sql, rawNeon);
+    return drizzleNeon(sql as any, { schema }) as unknown as DatabaseInstance;
+  }
+
+  // Local / standard PostgreSQL connection with automatic SSL enforcement for remote hosts
+  const isLocal = connectionString.includes('127.0.0.1') || connectionString.includes('localhost');
+  const isSsl = connectionString.includes('sslmode=require') || !isLocal;
+
+  const sql = postgres(connectionString, {
+    prepare: false, // Required for PgBouncer and serverless poolers
+    max: process.env.NODE_ENV === 'test' ? 1 : 5,
+    ssl: isSsl ? 'require' : undefined,
+  });
+
+  return drizzlePostgres(sql, { schema });
 }
 
-export function getDb(): any {
+export function getDb(): DatabaseInstance {
   const connectionString = process.env.DATABASE_URL || ENV.DATABASE_URL;
-  if (!_globalDb || _globalUrl !== connectionString) {
-    _globalUrl = connectionString;
-    const instance = createDbInstance(connectionString);
-    _globalClient = instance.client;
-    _globalDb = instance.db;
+  if (!_instance || _cachedUrl !== connectionString) {
+    _cachedUrl = connectionString;
+    _instance = createDatabase(connectionString);
   }
-  return _globalDb;
+  return _instance;
 }
 
-export function getDbClient(): any {
-  if (!_globalClient) {
-    getDb();
-  }
-  return _globalClient;
-}
-
-// Transparent proxy to support existing imports: `import { db } from '../db/client.js'`
-export const db = new Proxy({} as ReturnType<typeof drizzlePostgres>, {
+// Transparent proxy for zero-overhead imports: `import { db } from '../db/client.js'`
+export const db = new Proxy({} as DatabaseInstance, {
   get(_, prop) {
     const instance = getDb() as any;
-    const val = instance[prop];
-    return typeof val === 'function' ? val.bind(instance) : val;
-  }
-});
-
-export const client = new Proxy({} as ReturnType<typeof postgres>, {
-  get(_, prop) {
-    const instance = getDbClient() as any;
-    const val = instance[prop];
-    return typeof val === 'function' ? val.bind(instance) : val;
-  }
+    const value = instance[prop];
+    return typeof value === 'function' ? value.bind(instance) : value;
+  },
 });
