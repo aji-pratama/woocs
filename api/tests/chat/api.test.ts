@@ -8,7 +8,7 @@ import { StoreService } from '../../src/services/store';
 
 // Mock AI SDK
 vi.mock('ai', () => ({
-  embed: vi.fn().mockResolvedValue({ embedding: new Array(1536).fill(0.1) }),
+  embed: vi.fn().mockResolvedValue({ embedding: new Array(1024).fill(0.1) }),
   generateText: vi.fn().mockResolvedValue({ text: 'This is a mocked AI response.' }),
 }));
 
