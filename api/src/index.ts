@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
+import { sql } from 'drizzle-orm';
+import { db } from './db/client.js';
 import { storeRouter } from './routes/store.js';
 import { widgetRouter } from './routes/widget.js';
 import { webhooksRouter } from './routes/webhooks.js';
@@ -14,15 +16,71 @@ app.route('/api/stores', storeRouter);
 app.route('/api/widget', widgetRouter);
 app.route('/api/webhooks', webhooksRouter);
 
-app.get('/health', (c) => {
+const healthCheckHandler = async (c: any) => {
+  const start = Date.now();
   const dbUrl = process.env.DATABASE_URL || '';
-  const dbConfigured = dbUrl.length > 0 && !dbUrl.includes('127.0.0.1:5435');
+  const isFallbackLocal = !dbUrl || dbUrl.includes('127.0.0.1:5435');
+
+  let dbStatus = 'disconnected';
+  let dbLatencyMs: number | null = null;
+  let dbError: string | null = null;
+
+  if (!isFallbackLocal) {
+    try {
+      const dbStart = Date.now();
+      await db.execute(sql`SELECT 1 as ping`);
+      dbLatencyMs = Date.now() - dbStart;
+      dbStatus = 'connected';
+    } catch (err: any) {
+      dbStatus = 'error';
+      dbError = err.message || String(err);
+    }
+  } else {
+    dbStatus = 'not_configured';
+    dbError = 'DATABASE_URL is not configured or using fallback 127.0.0.1:5435. Please set the DATABASE_URL environment secret.';
+  }
+
+  // Mask database host for security (e.g. ep-ca...neon.tech)
+  let maskedHost = 'none';
+  if (dbUrl) {
+    try {
+      const match = dbUrl.match(/@([^:\/?]+)/);
+      if (match && match[1]) {
+        const host = match[1];
+        maskedHost = host.length > 12 ? `${host.slice(0, 6)}...${host.slice(-10)}` : host;
+      }
+    } catch {
+      maskedHost = 'unknown';
+    }
+  }
+
+  const isHealthy = dbStatus === 'connected';
+
   return c.json({
-    status: 'ok',
+    status: isHealthy ? 'healthy' : 'degraded',
     service: 'woocs-api',
-    database_configured: dbConfigured,
+    timestamp: new Date().toISOString(),
+    duration_ms: Date.now() - start,
+    checks: {
+      database: {
+        status: dbStatus,
+        host: maskedHost,
+        latency_ms: dbLatencyMs,
+        ...(dbError ? { error: dbError } : {}),
+      },
+      ai_provider: {
+        openrouter_configured: Boolean(process.env.OPENROUTER_API_KEY && !process.env.OPENROUTER_API_KEY.includes('...')),
+        chat_model: process.env.AI_CHAT_MODEL || 'openai/gpt-4o-mini',
+      },
+      billing: {
+        polar_configured: Boolean(process.env.POLAR_ACCESS_TOKEN && !process.env.POLAR_ACCESS_TOKEN.includes('...')),
+      }
+    }
   });
-});
+};
+
+app.get('/health', healthCheckHandler);
+app.get('/api/health', healthCheckHandler);
 
 app.onError((err, c) => {
   console.error('[API Error]', err);
