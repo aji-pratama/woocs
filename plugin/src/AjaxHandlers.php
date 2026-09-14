@@ -302,7 +302,7 @@ class AjaxHandlers {
         $client = new ApiClient();
         
         // Use sync_knowledge_pdf if implemented, or mock it.
-        $url = rtrim(get_option('woocs_api_url', 'http://host.docker.internal:8001'), '/') . '/api/stores/knowledge/document';
+        $url = rtrim(get_option('woocs_api_url', 'http://host.containers.internal:8001'), '/') . '/api/stores/knowledge/document';
         $response = wp_remote_post($url, [
             'headers' => [
                 'Content-Type' => 'application/json',

@@ -1,10 +1,12 @@
 .PHONY: help \
+        dev dev-plugin dev-api dev-worker dev-widget \
         infra-up infra-down infra-logs \
-        api-install api-dev api-worker api-test api-db-generate api-db-migrate api-db-studio \
-        cf-dev cf-deploy \
-        widget-install dev-widget wp-build wp-dev-setup \
-        dev dev-setup dev-clean dev-hard-clean db-dump db-init \
+        dev-setup dev-clean dev-hard-clean db-init db-dump \
+        wp-build cf-dev cf-deploy \
+        test-all test-api test-widget test-plugin \
         lint lint-api lint-widget lint-plugin
+
+CLOUD_API_URL ?= https://woocs.bisatekno-id.workers.dev
 
 # Use Podman socket if podman.sock does not exist
 PODMAN_SOCK := $(shell podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}' 2>/dev/null)
@@ -12,44 +14,75 @@ export podman_HOST := $(if $(PODMAN_SOCK),unix://$(PODMAN_SOCK),unix:///var/run/
 
 CONTAINER ?= podman
 
+COMPOSE_ENV := $(if $(wildcard api/.env),--env-file api/.env,)
+COMPOSE := $(CONTAINER) compose -f compose.dev.yml $(COMPOSE_ENV)
+
 # ─── Help ────────────────────────────────────────────────────────────────────
 help:
 	@echo ""
 	@echo "WooCS.ai — Development Commands"
 	@echo "================================"
 	@echo ""
-	@echo "  Infrastructure (podman)"
+	@echo "  Development Modes"
 	@echo "  ─────────────────────────────"
-	@echo "  infra-up              Start all containers"
-	@echo "  infra-down            Stop and remove containers"
-	@echo "  infra-logs            Tail container logs"
+	@echo "  dev                   Start full stack locally (infra + api + worker + widget)"
+	@echo "  dev-plugin            Start plugin only with Cloud API (infra + widget)"
+	@echo "  dev-api               Start local Hono API server"
+	@echo "  dev-worker            Start local background task worker"
+	@echo "  dev-widget            Start Vite widget dev server"
 	@echo ""
-	@echo "  Hono API (TypeScript — runs on host)"
+	@echo "  Infrastructure & Environment"
 	@echo "  ─────────────────────────────"
-	@echo "  api-install           npm install in api/"
-	@echo "  api-dev               Start Hono dev server"
-	@echo "  api-worker            Start Hono task worker"
-	@echo "  api-test              Run Vitest test suite"
-	@echo "  api-db-generate       Generate Drizzle SQL migrations"
-	@echo "  api-db-migrate        Apply Drizzle migrations"
-	@echo "  api-db-studio         Launch Drizzle Studio"
+	@echo "  infra-up              Start Podman containers (WordPress, MySQL, Postgres)"
+	@echo "  infra-down            Stop containers"
+	@echo "  infra-logs            Tail container logs"
+	@echo "  dev-setup             Initial setup (dependencies, containers, migrations, WP)"
+	@echo "  dev-clean             Remove containers and volumes"
+	@echo "  dev-hard-clean        Remove all containers, images, and volumes"
 	@echo "  db-init               Initialize database (pgvector, migrate, and verify)"
-	@echo "  cf-dev                Start Cloudflare Workers local simulator (wrangler dev)"
+	@echo "  db-dump               Dump Postgres database to fixtures/init.sql"
+	@echo ""
+	@echo "  Build & Deployment"
+	@echo "  ─────────────────────────────"
+	@echo "  wp-build              Build widget bundle and package plugin zip (woocs.zip)"
+	@echo "  cf-dev                Simulate Cloudflare Workers locally (wrangler dev)"
 	@echo "  cf-deploy             Deploy Hono backend to Cloudflare Workers"
 	@echo ""
-	@echo "  Widget (React/Vite — runs on host)"
+	@echo "  Quality & Testing"
 	@echo "  ─────────────────────────────"
-	@echo "  widget-install        npm install in widget/"
-	@echo "  dev-widget            Start Vite dev server"
-	@echo "  wp-build              Build widget bundle and package plugin zip"
-	@echo ""
-	@echo "  All-in-one"
-	@echo "  ─────────────────────────────"
-	@echo "  dev                   Start everything (infra + api + worker + widget)"
+	@echo "  test-all              Run all test suites (API + Widget + Plugin)"
+	@echo "  lint                  Run all linters (TypeScript + PHP)"
 	@echo ""
 
-COMPOSE_ENV := $(if $(wildcard api/.env),--env-file api/.env,)
-COMPOSE := $(CONTAINER) compose -f compose.dev.yml $(COMPOSE_ENV)
+# ─── Development Modes ───────────────────────────────────────────────────────
+# Full-stack local development (infra + local Hono API + local worker + Vite widget)
+dev: infra-up
+	@echo "Configuring WordPress for local API (http://host.containers.internal:8001)..."
+	@podman exec woocs_wp_db mysql -u wordpress -pwordpress_dev wordpress -e "INSERT INTO wp_options (option_name, option_value, autoload) VALUES ('woocs_api_url', 'http://host.containers.internal:8001', 'yes') ON DUPLICATE KEY UPDATE option_value = 'http://host.containers.internal:8001';" 2>/dev/null || true
+	@echo "Infrastructure started. Launching host services..."
+	@trap 'kill 0' EXIT; \
+	$(MAKE) dev-api & \
+	$(MAKE) dev-worker & \
+	$(MAKE) dev-widget & \
+	wait
+
+# Plugin-only development (WordPress + Widget dev server connected to Cloud API)
+dev-plugin: infra-up
+	@echo "Configuring WordPress to use Cloud API: $(CLOUD_API_URL)..."
+	@podman exec woocs_wp_db mysql -u wordpress -pwordpress_dev wordpress -e "INSERT INTO wp_options (option_name, option_value, autoload) VALUES ('woocs_api_url', '$(CLOUD_API_URL)', 'yes') ON DUPLICATE KEY UPDATE option_value = '$(CLOUD_API_URL)';" 2>/dev/null || true
+	@echo "WordPress storefront running at: http://localhost:8080"
+	@echo "Starting widget dev server connected to $(CLOUD_API_URL)..."
+	@VITE_API_URL="$(CLOUD_API_URL)" $(MAKE) dev-widget
+
+dev-api:
+	cd api && npm run dev
+
+dev-worker:
+	cd api && npm run worker
+
+dev-widget:
+	rm -f plugin/assets/woocs-widget.*
+	cd plugin/widget && npm run dev
 
 # ─── Infrastructure ──────────────────────────────────────────────────────────
 infra-up:
@@ -61,66 +94,21 @@ infra-down:
 infra-logs:
 	$(COMPOSE) logs -f
 
-# ─── Hono API (TypeScript) ───────────────────────────────────────────────────
-api-install:
-	cd api && npm install
-
-api-dev:
-	cd api && npm run dev
-
-api-worker:
-	cd api && npm run worker
-
-api-test:
-	cd api && npm test
-
-api-db-generate:
-	cd api && npx drizzle-kit generate
-
-api-db-migrate:
-	cd api && npx drizzle-kit migrate
-
-api-db-studio:
-	cd api && npx drizzle-kit studio
-
-db-init:
-	cd api && npm run db:init
-
-cf-dev:
-	cd api && npm run cf:dev
-
-cf-deploy:
-	cd api && npm run cf:deploy
-
-# ─── Widget ──────────────────────────────────────────────────────────────────
-widget-install:
+# ─── Setup & Database ────────────────────────────────────────────────────────
+dev-setup:
+	@echo "Setting up development environment..."
 	cd plugin/widget && npm install
+	cd api && npm install
+	$(MAKE) infra-up
+	@echo "Waiting for databases to be ready..."
+	@sleep 5
+	cd api && npx drizzle-kit migrate
+	@chmod +x plugin/scripts/dev.sh && ./plugin/scripts/dev.sh
+	@echo "✅ Setup complete! You can now run 'make dev' or 'make dev-plugin'."
 
-dev-widget:
-	rm -f plugin/assets/woocs-widget.*
-	cd plugin/widget && npm run dev
-
-wp-build:
-	cd plugin/widget && npm run build
-	mkdir -p plugin/assets
-	cp plugin/widget/dist/assets/*.js plugin/assets/woocs-widget.js 2>/dev/null || \
-	  cp plugin/widget/dist/woocs-widget.umd.js plugin/assets/woocs-widget.js 2>/dev/null || true
-	cp plugin/widget/dist/assets/*.css plugin/assets/woocs-widget.css 2>/dev/null || true
-	rm -f woocs.zip
-	zip -r woocs.zip plugin/ -x "plugin/widget/*" -x "plugin/scripts/*" -x "plugin/dist/*"
-
-wp-dev-setup:
-	@chmod +x plugin/scripts/dev.sh
-	@./plugin/scripts/dev.sh
-
-# ─── All-in-one ──────────────────────────────────────────────────────────────
-dev: infra-up
-	@echo "Infrastructure started. Launching host services..."
-	@trap 'kill 0' EXIT; \
-	$(MAKE) api-dev & \
-	$(MAKE) api-worker & \
-	$(MAKE) dev-widget & \
-	wait
+dev-clean:
+	@echo "Cleaning containers and volumes..."
+	$(COMPOSE) down -v --remove-orphans
 
 dev-hard-clean:
 	@echo "⚠️  WARNING: This will remove all containers, volumes, networks, and images for this project."
@@ -131,28 +119,31 @@ dev-hard-clean:
 		echo "Aborted."; \
 	fi
 
-dev-clean:
-	@echo "Cleaning containers and volumes..."
-	$(COMPOSE) down -v --remove-orphans
+db-init:
+	cd api && npm run db:init
 
-dev-setup:
-	@echo "Setting up development environment..."
-	$(MAKE) widget-install
-	$(MAKE) api-install
-	$(MAKE) infra-up
-	@echo "Waiting for databases to be ready..."
-	@sleep 5
-	$(MAKE) api-db-migrate
-	$(MAKE) wp-dev-setup
-	@echo "✅ Setup complete! You can now run 'make dev' to start all services."
-
-# ─── Database ────────────────────────────────────────────────────────────────
 db-dump:
 	@mkdir -p fixtures
 	podman exec woocs_backend_db pg_dump -U woocs woocs > fixtures/init.sql
 	@echo "Dumped backend DB to fixtures/init.sql"
 
-# ─── Tests & Linting ─────────────────────────────────────────────────────────
+# ─── Build & Deployment ──────────────────────────────────────────────────────
+wp-build:
+	cd plugin/widget && npm run build
+	mkdir -p plugin/assets
+	cp plugin/widget/dist/assets/*.js plugin/assets/woocs-widget.js 2>/dev/null || \
+	  cp plugin/widget/dist/woocs-widget.umd.js plugin/assets/woocs-widget.js 2>/dev/null || true
+	cp plugin/widget/dist/assets/*.css plugin/assets/woocs-widget.css 2>/dev/null || true
+	rm -f woocs.zip
+	zip -r woocs.zip plugin/ -x "plugin/widget/*" -x "plugin/scripts/*" -x "plugin/dist/*"
+
+cf-dev:
+	cd api && npm run cf:dev
+
+cf-deploy:
+	cd api && npm run cf:deploy
+
+# ─── Testing & Quality ───────────────────────────────────────────────────────
 lint-api:
 	@echo "Linting API (TypeScript)..."
 	cd api && npx tsc --noEmit

@@ -120,6 +120,21 @@ $active_tab = array_key_exists($active_tab, $tabs) ? $active_tab : 'connection';
         <input type="hidden" name="woocs_settings_tab" value="advanced">
 
         <div class="woocs-card">
+            <div class="woocs-card-header"><h2>Backend & API Configuration</h2></div>
+            <div class="woocs-card-body">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">API Server URL</th>
+                        <td>
+                            <input type="url" name="woocs_api_url" value="<?php echo esc_attr(get_option('woocs_api_url', 'http://host.containers.internal:8001')); ?>" class="regular-text" placeholder="http://host.containers.internal:8001">
+                            <p class="description">URL of the WooCS Hono backend (use <code>http://host.containers.internal:8001</code> for local Podman dev, or your Cloudflare Worker URL).</p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="woocs-card">
             <div class="woocs-card-header"><h2>WooCommerce Credentials</h2></div>
             <div class="woocs-card-body">
                 <table class="form-table">

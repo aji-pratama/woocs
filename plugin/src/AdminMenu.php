@@ -141,6 +141,9 @@ class AdminMenu {
 
         } elseif ($tab === 'advanced') {
             // Advanced tab
+            if (!empty($_POST['woocs_api_url'])) {
+                update_option('woocs_api_url', sanitize_url($_POST['woocs_api_url']));
+            }
             update_option('woocs_wc_url', sanitize_url($_POST['woocs_wc_url'] ?? get_site_url()));
             update_option('woocs_merchant_email', sanitize_email($_POST['woocs_merchant_email'] ?? ''));
             update_option('woocs_wc_consumer_key', sanitize_text_field($_POST['woocs_wc_consumer_key'] ?? ''));

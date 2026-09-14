@@ -15,7 +15,21 @@ app.route('/api/widget', widgetRouter);
 app.route('/api/webhooks', webhooksRouter);
 
 app.get('/health', (c) => {
-  return c.json({ status: 'ok', service: 'woocs-api' });
+  const dbUrl = process.env.DATABASE_URL || '';
+  const dbConfigured = dbUrl.length > 0 && !dbUrl.includes('127.0.0.1:5435');
+  return c.json({
+    status: 'ok',
+    service: 'woocs-api',
+    database_configured: dbConfigured,
+  });
+});
+
+app.onError((err, c) => {
+  console.error('[API Error]', err);
+  return c.json({
+    error: err.message || 'Internal Server Error',
+    type: err.name || 'Error',
+  }, 500);
 });
 
 export default app;
