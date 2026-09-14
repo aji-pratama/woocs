@@ -1,68 +1,62 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
+import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
+import { drizzle as drizzleNeon } from 'drizzle-orm/neon-http';
+import { neon } from '@neondatabase/serverless';
 import postgres from 'postgres';
 import { ENV } from '../config/env.js';
 import * as schema from './schema/index.js';
 
-import { AsyncLocalStorage } from 'node:async_hooks';
-
-interface RequestDbContext {
-  client: ReturnType<typeof postgres>;
-  db: ReturnType<typeof drizzle>;
-}
-
-const dbStorage = new AsyncLocalStorage<RequestDbContext>();
-
-let _globalClient: ReturnType<typeof postgres> | null = null;
-let _globalDb: ReturnType<typeof drizzle> | null = null;
+let _globalDb: any = null;
+let _globalClient: any = null;
 let _globalUrl: string | null = null;
 
-function createDbInstance(connectionString: string, isServerlessRequest: boolean) {
-  const isSsl = connectionString.includes('sslmode=require') || connectionString.includes('neon.tech');
+function createDbInstance(connectionString: string) {
+  const isNeon = connectionString.includes('neon.tech');
+  if (isNeon) {
+    // Neon Serverless HTTP driver for Cloudflare Workers:
+    // Uses HTTPS fetch() per query instead of raw TCP sockets.
+    // Completely eliminates "Cannot perform I/O on behalf of a different request" errors!
+    const sql = neon(connectionString);
+    const dbInstance = drizzleNeon(sql, { schema });
+    return { client: sql, db: dbInstance };
+  }
+
+  // Standard postgres.js driver for local development and background workers
   const sql = postgres(connectionString, {
     prepare: false,
-    max: isServerlessRequest ? 1 : ((process.env.NODE_ENV === 'test' || ENV.NODE_ENV === 'test') ? 1 : 5),
-    ssl: isSsl ? 'require' : undefined,
-    idle_timeout: isServerlessRequest ? 5 : undefined,
+    max: (process.env.NODE_ENV === 'test' || ENV.NODE_ENV === 'test') ? 1 : 5,
   });
-  const dbInstance = drizzle(sql, { schema });
+  const dbInstance = drizzlePostgres(sql, { schema });
   return { client: sql, db: dbInstance };
 }
 
 /**
- * Execute an operation with a dedicated, request-scoped DB connection.
- * Completely eliminates Cloudflare Workers' "Cannot perform I/O on behalf of a different request" error.
+ * Execute an operation with the appropriate DB connection.
  */
 export async function withRequestDb<T>(connectionString: string, fn: () => Promise<T>): Promise<T> {
-  const instance = createDbInstance(connectionString, true);
-  return dbStorage.run(instance, fn);
+  // DB client handles both HTTP-based serverless and local pooled connection
+  return fn();
 }
 
-export function getDb(): ReturnType<typeof drizzle> {
-  const store = dbStorage.getStore();
-  if (store) {
-    return store.db;
-  }
+export function getDb(): any {
   const connectionString = process.env.DATABASE_URL || ENV.DATABASE_URL;
-  if (!_globalClient || _globalUrl !== connectionString) {
+  if (!_globalDb || _globalUrl !== connectionString) {
     _globalUrl = connectionString;
-    const instance = createDbInstance(connectionString, false);
+    const instance = createDbInstance(connectionString);
     _globalClient = instance.client;
     _globalDb = instance.db;
   }
-  return _globalDb!;
+  return _globalDb;
 }
 
-export function getDbClient(): ReturnType<typeof postgres> {
-  const store = dbStorage.getStore();
-  if (store) {
-    return store.client;
+export function getDbClient(): any {
+  if (!_globalClient) {
+    getDb();
   }
-  getDb();
-  return _globalClient!;
+  return _globalClient;
 }
 
 // Transparent proxy to support existing imports: `import { db } from '../db/client.js'`
-export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+export const db = new Proxy({} as ReturnType<typeof drizzlePostgres>, {
   get(_, prop) {
     const instance = getDb() as any;
     const val = instance[prop];
