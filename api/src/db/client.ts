@@ -18,10 +18,10 @@ let _cachedUrl: string | null = null;
 function createDatabase(connectionString: string): DatabaseInstance {
   if (connectionString.includes('neon.tech')) {
     const rawNeon = neon(connectionString);
-    // Adapter to support both tagged-template and conventional (query, params) calls from Drizzle
-    const sql = (query: any, params?: any[]) => {
+    // Adapter to support both tagged-template and conventional (query, params, options) calls from Drizzle
+    const sql = (query: any, params?: any[], options?: any) => {
       return typeof query === 'string'
-        ? rawNeon.query(query, params)
+        ? rawNeon.query(query, params, options)
         : rawNeon(query, ...(params || []));
     };
     Object.assign(sql, rawNeon);
