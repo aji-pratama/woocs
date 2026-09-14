@@ -3,7 +3,8 @@ import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
 import { env } from 'hono/adapter';
 import { sql } from 'drizzle-orm';
-import { db } from './db/client.js';
+import { db, withRequestDb } from './db/client.js';
+import { ENV } from './config/env.js';
 import { storeRouter } from './routes/store.js';
 import { widgetRouter } from './routes/widget.js';
 import { webhooksRouter } from './routes/webhooks.js';
@@ -13,7 +14,7 @@ const app = new Hono({ strict: false });
 app.use('*', cors());
 app.use('*', logger());
 
-// Bridge Cloudflare Workers bindings (c.env) into process.env for universal runtime compatibility
+// Bridge Cloudflare Workers bindings (c.env) and isolate DB connection per request
 app.use('*', async (c, next) => {
   const currentEnv = env(c) as Record<string, any>;
   if (currentEnv) {
@@ -23,7 +24,8 @@ app.use('*', async (c, next) => {
       }
     }
   }
-  await next();
+  const dbUrl = currentEnv?.DATABASE_URL || process.env.DATABASE_URL || ENV.DATABASE_URL;
+  return withRequestDb(dbUrl, () => next());
 });
 
 app.route('/api/stores', storeRouter);
