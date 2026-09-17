@@ -20,17 +20,18 @@ export const TASK_HANDLERS: Record<string, TaskHandler> = {
 };
 
 export async function processTask(task: any) {
-  const handler = TASK_HANDLERS[task.task_name];
+  const taskName = task.taskName || task.task_name;
+  const handler = TASK_HANDLERS[taskName];
   if (!handler) {
-    console.error(`[Worker] Unknown task: ${task.task_name}`);
+    console.error(`[Worker] Unknown task: ${taskName}`);
     await db.update(taskRecords)
-      .set({ status: 'failed', traceback: `Unknown task: ${task.task_name}`, finishedAt: new Date() })
+      .set({ status: 'failed', traceback: `Unknown task: ${taskName}`, finishedAt: new Date() })
       .where(eq(taskRecords.id, task.id));
     return;
   }
 
   try {
-    console.log(`[Worker] Processing task ${task.id} (${task.task_name})`);
+    console.log(`[Worker] Processing task ${task.id} (${taskName})`);
     const result = await handler(task.kwargs || {});
     
     await db.update(taskRecords)

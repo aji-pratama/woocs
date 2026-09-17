@@ -10,9 +10,9 @@ import { getPlanConfig } from '../config/pricing';
 import { db } from '../db/client';
 import { taskRecords } from '../db/schema/tasks';
 import { KnowledgeService } from '../services/knowledge';
-import { stores, products } from '../db/schema/stores';
+import { stores, products, productVariations, faqs } from '../db/schema/stores';
 import { chatSessions, chatMessages } from '../db/schema/chat';
-import { eq, sql } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { executeTaskById, safeWaitUntil } from '../worker/runner.js';
 
 type Variables = {
@@ -39,14 +39,22 @@ storeRouter.post('/register', zValidator('json', StoreRegisterInSchema), async (
 
   return c.json({
     store_id: store.id,
-    store_name: StoreService.getStoreNameFromUrl(store.wcUrl || ''),
-    valid: true,
-    api_key: rawApiKey, // Only returned once on initial registration
+    api_key: rawApiKey,
+    status: 'connected',
+    message: 'Store registered and connected successfully'
   });
 });
 
-// PUT /api/stores/settings
-storeRouter.put('/settings', requireApiKey, zValidator('json', StoreSettingsInSchema), async (c) => {
+// GET /api/stores/settings/
+storeRouter.get('/settings', requireApiKey, async (c) => {
+  const store = c.get('store' as any);
+  return c.json({
+    powered_by_enabled: store.poweredByEnabled ?? false,
+  });
+});
+
+// POST /api/stores/settings/
+storeRouter.post('/settings', requireApiKey, zValidator('json', StoreSettingsInSchema), async (c) => {
   const body = c.req.valid('json');
   const storeId = c.get('storeId');
 
@@ -113,16 +121,43 @@ storeRouter.post(
 storeRouter.get('/sync/status', requireApiKey, async (c) => {
   const storeId = c.get('storeId');
   
+  // Get product, variation, and FAQ counts
+  const [productCountRes] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(products)
+    .where(eq(products.storeId, storeId));
+
+  const [variationCountRes] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(productVariations)
+    .innerJoin(products, eq(productVariations.productId, products.id))
+    .where(eq(products.storeId, storeId));
+
+  const [faqCountRes] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(faqs)
+    .where(eq(faqs.storeId, storeId));
+
+  const productsCount = Number(productCountRes?.count || 0);
+  const variationsCount = Number(variationCountRes?.count || 0);
+  const faqsCount = Number(faqCountRes?.count || 0);
+
   // Get the latest task for this store
   const tasks = await db.select().from(taskRecords)
     .where(
       sql`kwargs->>'store_id' = ${storeId}`
     )
-    .orderBy(taskRecords.enqueuedAt)
+    .orderBy(desc(taskRecords.enqueuedAt))
     .limit(1);
 
   if (tasks.length === 0) {
-    return c.json({ task_id: null, status: 'no_tasks', products_count: 0 });
+    return c.json({
+      task_id: null,
+      status: 'no_tasks',
+      products_count: productsCount,
+      variations_count: variationsCount,
+      faqs_count: faqsCount,
+    });
   }
 
   const task = tasks[0];
@@ -132,6 +167,9 @@ storeRouter.get('/sync/status', requireApiKey, async (c) => {
     started_at: task.startedAt,
     finished_at: task.finishedAt,
     error: task.traceback,
+    products_count: productsCount,
+    variations_count: variationsCount,
+    faqs_count: faqsCount,
   });
 });
 
