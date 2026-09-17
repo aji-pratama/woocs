@@ -1,5 +1,5 @@
-import { embed, generateText } from 'ai';
-import { aiModels, to1024Vector } from './ai';
+import { embed } from 'ai';
+import { aiModels, to1024Vector, generateOpenRouterText } from './ai';
 import { db } from '../db/client';
 import { stores, products, faqs, knowledgeChunks, knowledgeDocuments } from '../db/schema/stores';
 import { chatMessages, chatSessions } from '../db/schema/chat';
@@ -127,8 +127,7 @@ export class RagService {
 
     const prompt = this._buildPrompt(message, retrievedProducts, retrievedFaqs, retrievedKnowledge, history, contextUsed === 'page_context' ? primaryProduct : null);
 
-    const response = await generateText({
-      model: aiModels.chat,
+    const response = await generateOpenRouterText({
       system: this.systemPrompt,
       prompt,
     });
