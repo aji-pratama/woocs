@@ -3,6 +3,7 @@ import { taskRecords } from '../db/schema/tasks.js';
 import { eq } from 'drizzle-orm';
 import { embedCatalog } from './tasks/embedCatalog.js';
 import { processKnowledgeDocument } from './tasks/processKnowledgeDocument.js';
+import { logger } from '../common/logger.js';
 
 export type TaskHandler = (kwargs: Record<string, any>) => Promise<any>;
 
@@ -23,25 +24,53 @@ export async function processTask(task: any) {
   const taskName = task.taskName || task.task_name;
   const handler = TASK_HANDLERS[taskName];
   if (!handler) {
-    console.error(`[Worker] Unknown task: ${taskName}`);
+    logger.worker(`Unknown task type: ${taskName}`, {
+      taskId: task.id,
+      taskName,
+      status: 'failed',
+      error: `Unknown task: ${taskName}`,
+    });
     await db.update(taskRecords)
       .set({ status: 'failed', traceback: `Unknown task: ${taskName}`, finishedAt: new Date() })
       .where(eq(taskRecords.id, task.id));
     return;
   }
 
+  const startTime = Date.now();
+  logger.worker(`Task started [${taskName}]`, {
+    taskId: task.id,
+    taskName,
+    storeId: task.kwargs?.store_id,
+    status: 'running',
+  });
+
   try {
-    console.log(`[Worker] Processing task ${task.id} (${taskName})`);
     const result = await handler(task.kwargs || {});
+    const durationMs = Date.now() - startTime;
     
     await db.update(taskRecords)
       .set({ status: 'completed', result, finishedAt: new Date() })
       .where(eq(taskRecords.id, task.id));
     
-    console.log(`[Worker] Task ${task.id} completed:`, result);
+    logger.worker(`Task completed [${taskName}]`, {
+      taskId: task.id,
+      taskName,
+      storeId: task.kwargs?.store_id,
+      status: 'completed',
+      durationMs,
+    });
     return result;
   } catch (err: any) {
-    console.error(`[Worker] Task ${task.id} failed:`, err);
+    const durationMs = Date.now() - startTime;
+    logger.worker(`Task failed [${taskName}]: ${err.message}`, {
+      taskId: task.id,
+      taskName,
+      storeId: task.kwargs?.store_id,
+      status: 'failed',
+      durationMs,
+      error: err.message,
+      stack: err.stack,
+    });
     await db.update(taskRecords)
       .set({ status: 'failed', traceback: err.stack || String(err), finishedAt: new Date() })
       .where(eq(taskRecords.id, task.id));
@@ -57,7 +86,7 @@ export async function executeTaskById(taskId: string) {
   try {
     const [task] = await db.select().from(taskRecords).where(eq(taskRecords.id, taskId)).limit(1);
     if (!task) {
-      console.warn(`[Worker] Task ${taskId} not found for direct execution`);
+      logger.warn(`Task ${taskId} not found for direct execution`, { component: 'Worker', taskId });
       return;
     }
     // Set status to running if still pending
@@ -67,8 +96,12 @@ export async function executeTaskById(taskId: string) {
         .where(eq(taskRecords.id, taskId));
     }
     return await processTask(task);
-  } catch (err) {
-    console.error(`[Worker] Direct execution error for task ${taskId}:`, err);
+  } catch (err: any) {
+    logger.error(`Direct execution error for task ${taskId}: ${err.message}`, {
+      component: 'Worker',
+      taskId,
+      stack: err.stack,
+    });
   }
 }
 

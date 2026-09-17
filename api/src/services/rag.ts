@@ -1,10 +1,12 @@
 import { embed } from 'ai';
-import { aiModels, to1024Vector, generateOpenRouterText } from './ai';
-import { db } from '../db/client';
-import { stores, products, faqs, knowledgeChunks, knowledgeDocuments } from '../db/schema/stores';
-import { chatMessages, chatSessions } from '../db/schema/chat';
+import { aiModels, to1024Vector, generateOpenRouterText } from './ai.js';
+import { db } from '../db/client.js';
+import { stores, products, faqs, knowledgeChunks, knowledgeDocuments } from '../db/schema/stores.js';
+import { chatMessages, chatSessions } from '../db/schema/chat.js';
 import { eq, sql, and, desc, isNotNull } from 'drizzle-orm';
 import { InferSelectModel } from 'drizzle-orm';
+import { logger } from '../common/logger.js';
+import { PROMPTS } from '../config/constants.js';
 
 type Store = InferSelectModel<typeof stores>;
 type Product = InferSelectModel<typeof products>;
@@ -20,16 +22,32 @@ export interface RagResult {
   contextUsed: string;
 }
 
-import { PROMPTS } from '../config/constants';
-
 export class RagService {
   static systemPrompt = PROMPTS.SYSTEM;
 
   static async query(store: Store, message: string, session: ChatSession, pageContext: any = null): Promise<RagResult> {
+    const startTime = Date.now();
     try {
-      return await this._query(store, message, session, pageContext);
-    } catch (e) {
-      console.error('RAG query failed for store', store.id, e);
+      const result = await this._query(store, message, session, pageContext);
+      const durationMs = Date.now() - startTime;
+      logger.rag('RAG query completed', {
+        storeId: store.id,
+        sessionId: session.id,
+        durationMs,
+        confidence: result.confidence,
+        contextUsed: result.contextUsed,
+        productsCount: result.products.length,
+      });
+      return result;
+    } catch (e: any) {
+      const durationMs = Date.now() - startTime;
+      logger.error(`RAG query failed for store [${store.id}]: ${e.message}`, {
+        component: 'RAG',
+        storeId: store.id,
+        sessionId: session.id,
+        durationMs,
+        stack: e.stack,
+      });
       return {
         answer: "Sorry, I'm having trouble searching the catalog right now.",
         confidence: 0.0,

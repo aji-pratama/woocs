@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
-import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
 import { env } from 'hono/adapter';
 import { sql } from 'drizzle-orm';
 import { db } from './db/client.js';
 import { ENV } from './config/env.js';
+import { logger } from './common/logger.js';
 import { storeRouter } from './routes/store.js';
 import { widgetRouter } from './routes/widget.js';
 import { webhooksRouter } from './routes/webhooks.js';
@@ -12,10 +12,14 @@ import { webhooksRouter } from './routes/webhooks.js';
 const app = new Hono({ strict: false });
 
 app.use('*', cors());
-app.use('*', logger());
 
-// Bridge Cloudflare Workers bindings (c.env) into process.env for universal runtime compatibility
+// Request correlation and structured HTTP logging middleware
 app.use('*', async (c, next) => {
+  const start = Date.now();
+  const requestId = c.req.header('x-request-id') || crypto.randomUUID();
+  c.header('x-request-id', requestId);
+
+  // Bridge Cloudflare Workers bindings (c.env) into process.env for universal runtime compatibility
   const currentEnv = env(c) as Record<string, any>;
   if (currentEnv) {
     for (const [key, val] of Object.entries(currentEnv)) {
@@ -24,7 +28,21 @@ app.use('*', async (c, next) => {
       }
     }
   }
+
   await next();
+
+  const durationMs = Date.now() - start;
+  const method = c.req.method;
+  const path = c.req.path;
+  const status = c.res.status;
+
+  logger.http(`${method} ${path} -> ${status}`, {
+    method,
+    path,
+    status,
+    durationMs,
+    requestId,
+  });
 });
 
 app.route('/api/stores', storeRouter);
@@ -109,7 +127,15 @@ const healthPath = ENV.HEALTH_CHECK_PATH || '/api/internal/health-check-9x7f2k';
 app.get(healthPath, healthCheckHandler);
 
 app.onError((err, c) => {
-  console.error('[API Error]', err);
+  const requestId = c.req.header('x-request-id');
+  logger.error(`Unhandled API Error: ${err.message}`, {
+    component: 'API',
+    requestId,
+    path: c.req.path,
+    method: c.req.method,
+    stack: err.stack,
+    name: err.name,
+  });
   return c.json({
     error: err.message || 'Internal Server Error',
     type: err.name || 'Error',

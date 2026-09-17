@@ -1,5 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { ENV } from '../config/env';
+import { ENV } from '../config/env.js';
+import { logger } from '../common/logger.js';
 
 export function getOpenRouter() {
   const apiKey = process.env.OPENROUTER_API_KEY || ENV.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || ENV.OPENAI_API_KEY || '';
@@ -48,18 +49,28 @@ export async function generateOpenRouterText({
   system?: string;
   prompt: string;
 }): Promise<{ text: string }> {
+  const startTime = Date.now();
+  const chatModel = model || process.env.AI_CHAT_MODEL || ENV.AI_CHAT_MODEL || 'nex-agi/nex-n2.5-mini:free';
+
   if (process.env.NODE_ENV === 'test') {
     const { generateText } = await import('ai');
-    return await generateText({
+    const result = await generateText({
       model: aiModels.chat,
       system,
       prompt,
     });
+    const durationMs = Date.now() - startTime;
+    logger.ai(`Generated text via test model [${chatModel}]`, {
+      model: chatModel,
+      durationMs,
+      promptLength: prompt.length,
+      responseLength: result.text.length,
+    });
+    return result;
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY || ENV.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || ENV.OPENAI_API_KEY || '';
   const baseURL = process.env.OPENROUTER_BASE_URL || ENV.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
-  const chatModel = model || process.env.AI_CHAT_MODEL || ENV.AI_CHAT_MODEL || 'nex-agi/nex-n2.5-mini:free';
 
   const messages: { role: string; content: string }[] = [];
   if (system) {
@@ -67,28 +78,60 @@ export async function generateOpenRouterText({
   }
   messages.push({ role: 'user', content: prompt });
 
-  const res = await fetch(`${baseURL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': process.env.APP_URL || ENV.APP_URL || 'https://woocs.ai',
-      'X-Title': 'WooCS AI',
-    },
-    body: JSON.stringify({
+  try {
+    const res = await fetch(`${baseURL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': process.env.APP_URL || ENV.APP_URL || 'https://woocs.ai',
+        'X-Title': 'WooCS AI',
+      },
+      body: JSON.stringify({
+        model: chatModel,
+        messages,
+      }),
+    });
+
+    const durationMs = Date.now() - startTime;
+
+    if (!res.ok) {
+      const errorBody = await res.text();
+      logger.error(`OpenRouter API error [${res.status}]`, {
+        component: 'AI',
+        model: chatModel,
+        status: res.status,
+        durationMs,
+        error: errorBody,
+      });
+      throw new Error(`OpenRouter Error ${res.status}: ${errorBody}`);
+    }
+
+    const data = (await res.json()) as any;
+    const content = data?.choices?.[0]?.message?.content || '';
+    const usage = data?.usage;
+
+    logger.ai(`Generated text via [${chatModel}]`, {
       model: chatModel,
-      messages,
-    }),
-  });
+      durationMs,
+      promptTokens: usage?.prompt_tokens,
+      completionTokens: usage?.completion_tokens,
+      totalTokens: usage?.total_tokens,
+      promptLength: prompt.length,
+      responseLength: content.length,
+    });
 
-  if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`OpenRouter Error ${res.status}: ${errorBody}`);
+    return { text: content };
+  } catch (err: any) {
+    const durationMs = Date.now() - startTime;
+    logger.error(`AI generation failed: ${err.message}`, {
+      component: 'AI',
+      model: chatModel,
+      durationMs,
+      stack: err.stack,
+    });
+    throw err;
   }
-
-  const data = (await res.json()) as any;
-  const content = data?.choices?.[0]?.message?.content || '';
-  return { text: content };
 }
 
 /**
