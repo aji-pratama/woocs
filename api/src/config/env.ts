@@ -9,6 +9,7 @@ const EnvSchema = z.object({
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_BASE_URL: z.string().default('https://openrouter.ai/api/v1'),
   AI_CHAT_MODEL: z.string().default('nex-agi/nex-n2.5-mini:free'),
+  AI_CHAT_MODELS: z.string().default('nex-agi/nex-n2.5-mini:free,meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-small-24b-instruct-2501:free,google/gemini-2.0-flash-exp:free,qwen/qwen-2.5-coder-32b-instruct:free'),
   AI_EMBEDDING_MODEL: z.string().default('liquid/lfm-2.5-embedding-350m:free'),
   OPENAI_API_KEY: z.string().optional(),
   LLAMAPARSE_API_KEY: z.string().optional(),

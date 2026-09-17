@@ -25,10 +25,41 @@ export const openrouter = new Proxy({} as ReturnType<typeof createOpenAI>, {
   },
 });
 
+export function getChatModelCandidates(overrideModel?: string): string[] {
+  if (overrideModel) return [overrideModel];
+  
+  if (process.env.AI_CHAT_MODEL && !process.env.AI_CHAT_MODELS) {
+    return [process.env.AI_CHAT_MODEL];
+  }
+
+  const rawList = process.env.AI_CHAT_MODELS || ENV.AI_CHAT_MODELS || '';
+  const parsed = rawList
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const primary = process.env.AI_CHAT_MODEL;
+  if (primary && !parsed.includes(primary)) {
+    parsed.unshift(primary);
+  }
+
+  if (parsed.length === 0) {
+    return [
+      'nex-agi/nex-n2.5-mini:free',
+      'meta-llama/llama-3.3-70b-instruct:free',
+      'mistralai/mistral-small-24b-instruct-2501:free',
+      'google/gemini-2.0-flash-exp:free',
+      'qwen/qwen-2.5-coder-32b-instruct:free',
+    ];
+  }
+
+  return parsed;
+}
+
 export const aiModels = {
   get chat() {
-    const model = process.env.AI_CHAT_MODEL || ENV.AI_CHAT_MODEL || 'nex-agi/nex-n2.5-mini:free';
-    return getOpenRouter().chat(model) as any;
+    const candidates = getChatModelCandidates();
+    return getOpenRouter().chat(candidates[0]) as any;
   },
   get embedding() {
     const model = process.env.AI_EMBEDDING_MODEL || ENV.AI_EMBEDDING_MODEL || 'liquid/lfm-2.5-embedding-350m:free';
@@ -37,8 +68,9 @@ export const aiModels = {
 };
 
 /**
- * Direct OpenRouter chat generation helper.
- * Correctly handles OpenRouter payloads (including reasoning_details) that break standard OpenAI SDK parsers.
+ * Direct OpenRouter chat generation helper with automatic multi-model rotation & failover.
+ * If the primary free model hits rate limits (429), capacity errors (5xx), or returns empty responses,
+ * it seamlessly fails over to the next candidate model in the pool without dropping customer chat sessions.
  */
 export async function generateOpenRouterText({
   model,
@@ -48,11 +80,11 @@ export async function generateOpenRouterText({
   model?: string;
   system?: string;
   prompt: string;
-}): Promise<{ text: string }> {
-  const startTime = Date.now();
-  const chatModel = model || process.env.AI_CHAT_MODEL || ENV.AI_CHAT_MODEL || 'nex-agi/nex-n2.5-mini:free';
+}): Promise<{ text: string; modelUsed?: string }> {
+  const candidates = getChatModelCandidates(model);
 
-  if (process.env.NODE_ENV === 'test') {
+  if (process.env.NODE_ENV === 'test' && !process.env.TEST_OPENROUTER_ROTATOR) {
+    const startTime = Date.now();
     const { generateText } = await import('ai');
     const result = await generateText({
       model: aiModels.chat,
@@ -60,13 +92,13 @@ export async function generateOpenRouterText({
       prompt,
     });
     const durationMs = Date.now() - startTime;
-    logger.ai(`Generated text via test model [${chatModel}]`, {
-      model: chatModel,
+    logger.ai(`Generated text via test model [${candidates[0]}]`, {
+      model: candidates[0],
       durationMs,
       promptLength: prompt.length,
       responseLength: result.text.length,
     });
-    return result;
+    return { text: result.text, modelUsed: candidates[0] };
   }
 
   const apiKey = process.env.OPENROUTER_API_KEY || ENV.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || ENV.OPENAI_API_KEY || '';
@@ -78,60 +110,108 @@ export async function generateOpenRouterText({
   }
   messages.push({ role: 'user', content: prompt });
 
-  try {
-    const res = await fetch(`${baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': process.env.APP_URL || ENV.APP_URL || 'https://woocs.ai',
-        'X-Title': 'WooCS AI',
-      },
-      body: JSON.stringify({
-        model: chatModel,
-        messages,
-      }),
-    });
+  const errors: string[] = [];
 
-    const durationMs = Date.now() - startTime;
+  for (let i = 0; i < candidates.length; i++) {
+    const currentModel = candidates[i];
+    const startTime = Date.now();
 
-    if (!res.ok) {
-      const errorBody = await res.text();
-      logger.error(`OpenRouter API error [${res.status}]`, {
-        component: 'AI',
-        model: chatModel,
-        status: res.status,
-        durationMs,
-        error: errorBody,
+    try {
+      const res = await fetch(`${baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': process.env.APP_URL || ENV.APP_URL || 'https://woocs.ai',
+          'X-Title': 'WooCS AI',
+        },
+        body: JSON.stringify({
+          model: currentModel,
+          messages,
+        }),
       });
-      throw new Error(`OpenRouter Error ${res.status}: ${errorBody}`);
+
+      const durationMs = Date.now() - startTime;
+
+      if (!res.ok) {
+        const errorBody = await res.text();
+        const errSummary = `[${res.status}] ${errorBody.slice(0, 150)}`;
+        errors.push(`${currentModel}: ${errSummary}`);
+
+        const nextModel = candidates[i + 1];
+        if (nextModel) {
+          logger.warn(`AI model [${currentModel}] failed (${res.status}), rotating to next candidate [${nextModel}]...`, {
+            component: 'AI',
+            failedModel: currentModel,
+            nextModel,
+            status: res.status,
+            durationMs,
+          });
+          continue;
+        } else {
+          logger.error(`AI model [${currentModel}] failed (${res.status}) and no more candidates available.`, {
+            component: 'AI',
+            model: currentModel,
+            status: res.status,
+            durationMs,
+          });
+          throw new Error(`OpenRouter Error ${res.status}: ${errorBody}`);
+        }
+      }
+
+      const data = (await res.json()) as any;
+      const content = data?.choices?.[0]?.message?.content || '';
+      const usage = data?.usage;
+
+      if (!content && candidates[i + 1]) {
+        logger.warn(`AI model [${currentModel}] returned empty content, rotating to next candidate [${candidates[i + 1]}]...`, {
+          component: 'AI',
+          failedModel: currentModel,
+          nextModel: candidates[i + 1],
+          durationMs,
+        });
+        continue;
+      }
+
+      logger.ai(`Generated text via [${currentModel}]`, {
+        model: currentModel,
+        durationMs,
+        promptTokens: usage?.prompt_tokens,
+        completionTokens: usage?.completion_tokens,
+        totalTokens: usage?.total_tokens,
+        promptLength: prompt.length,
+        responseLength: content.length,
+        attemptsCount: i + 1,
+      });
+
+      return { text: content, modelUsed: currentModel };
+    } catch (err: any) {
+      const durationMs = Date.now() - startTime;
+      const nextModel = candidates[i + 1];
+
+      if (nextModel) {
+        logger.warn(`AI model [${currentModel}] exception: ${err.message}, rotating to next candidate [${nextModel}]...`, {
+          component: 'AI',
+          failedModel: currentModel,
+          nextModel,
+          durationMs,
+        });
+        errors.push(`${currentModel}: ${err.message}`);
+        continue;
+      }
+
+      logger.error(`All AI model candidates failed. Last error [${currentModel}]: ${err.message}`, {
+        component: 'AI',
+        candidates,
+        durationMs,
+        errors,
+        stack: err.stack,
+      });
+      throw err;
     }
-
-    const data = (await res.json()) as any;
-    const content = data?.choices?.[0]?.message?.content || '';
-    const usage = data?.usage;
-
-    logger.ai(`Generated text via [${chatModel}]`, {
-      model: chatModel,
-      durationMs,
-      promptTokens: usage?.prompt_tokens,
-      completionTokens: usage?.completion_tokens,
-      totalTokens: usage?.total_tokens,
-      promptLength: prompt.length,
-      responseLength: content.length,
-    });
-
-    return { text: content };
-  } catch (err: any) {
-    const durationMs = Date.now() - startTime;
-    logger.error(`AI generation failed: ${err.message}`, {
-      component: 'AI',
-      model: chatModel,
-      durationMs,
-      stack: err.stack,
-    });
-    throw err;
   }
+
+  throw new Error(`All candidate AI models failed: ${errors.join(' | ')}`);
 }
 
 /**
