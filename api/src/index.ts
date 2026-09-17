@@ -114,7 +114,7 @@ const healthCheckHandler = async (c: any) => {
       },
       ai_provider: {
         openrouter_configured: Boolean((currentEnv.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY) && !(currentEnv.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY || '').includes('...')),
-        chat_model: currentEnv.AI_CHAT_MODEL || process.env.AI_CHAT_MODEL || 'openai/gpt-4o-mini',
+        chat_model: currentEnv.AI_CHAT_MODEL || process.env.AI_CHAT_MODEL || ENV.AI_CHAT_MODEL || 'nex-agi/nex-n2.5-mini:free',
       },
       billing: {
         polar_configured: Boolean((currentEnv.POLAR_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN) && !(currentEnv.POLAR_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN || '').includes('...')),

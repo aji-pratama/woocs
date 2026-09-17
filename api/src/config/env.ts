@@ -8,8 +8,8 @@ const EnvSchema = z.object({
   
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_BASE_URL: z.string().default('https://openrouter.ai/api/v1'),
-  AI_CHAT_MODEL: z.string().default('openai/gpt-4o-mini'),
-  AI_EMBEDDING_MODEL: z.string().default('openai/text-embedding-3-small'),
+  AI_CHAT_MODEL: z.string().default('nex-agi/nex-n2.5-mini:free'),
+  AI_EMBEDDING_MODEL: z.string().default('liquid/lfm-2.5-embedding-350m:free'),
   OPENAI_API_KEY: z.string().optional(),
   LLAMAPARSE_API_KEY: z.string().optional(),
   
