@@ -39,6 +39,7 @@ node_modules
 # Build artifacts
 woocs.zip
 plugin/assets/woocs-widget.js
+plugin/assets/woocs-widget.css
 
 # Docker & Database local volumes (if mounted)
 data/

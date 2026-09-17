@@ -9,6 +9,7 @@ import { requireFeature, enforceProductLimit } from '../middleware/paywall';
 import { getPlanConfig } from '../config/pricing';
 import { db } from '../db/client';
 import { taskRecords } from '../db/schema/tasks';
+import { subscriptions } from '../db/schema/billing';
 import { KnowledgeService } from '../services/knowledge';
 import { stores, products, productVariations, faqs } from '../db/schema/stores';
 import { chatSessions, chatMessages } from '../db/schema/chat';
@@ -16,6 +17,7 @@ import { eq, desc, sql, inArray } from 'drizzle-orm';
 import { executeTaskById, safeWaitUntil } from '../worker/runner.js';
 import { appCache } from '../common/cache.js';
 import { CACHE_CONFIG } from '../config/constants.js';
+import { registerRateLimiter } from '../middleware/rate-limit.js';
 
 type Variables = {
   storeId: string;
@@ -24,7 +26,7 @@ type Variables = {
 export const storeRouter = new Hono<{ Variables: Variables }>();
 
 // POST /api/stores/register/
-storeRouter.post('/register', zValidator('json', StoreRegisterInSchema), async (c) => {
+storeRouter.post('/register', registerRateLimiter, zValidator('json', StoreRegisterInSchema), async (c) => {
   const body = c.req.valid('json');
   
   const { store, rawApiKey, isValid } = await StoreService.registerOrUpdateStore(
@@ -196,7 +198,7 @@ storeRouter.post('/knowledge/document', requireApiKey, async (c) => {
   
   // Dynamic Limits Check
   const sub = await BillingService.getSubscription(storeId);
-  const isPro = sub && sub.planKey === 'pro';
+  const isPro = Boolean(sub && sub.planKey === 'pro' && BillingService.storeHasAccess(sub));
   
   const MAX_SYNCS = isPro ? 20 : 5;
   const MAX_URLS = isPro ? 5 : 1;
@@ -280,19 +282,33 @@ storeRouter.delete('/knowledge/document/:id', requireApiKey, async (c) => {
 // GET /api/stores/subscription/
 storeRouter.get('/subscription', requireApiKey, async (c) => {
   const storeId = c.get('storeId');
-  const sub = await BillingService.getSubscription(storeId);
+  let sub = await BillingService.getSubscription(storeId);
+
+  if (!sub) {
+    try {
+      const [newSub] = await db.insert(subscriptions).values({
+        storeId,
+        planKey: 'free',
+        status: 'active',
+      }).returning();
+      sub = newSub;
+    } catch {
+      sub = await BillingService.getSubscription(storeId);
+    }
+  }
 
   if (!sub) {
     return c.json({ error: 'No subscription found' }, 404);
   }
 
-  const plan = getPlanConfig(sub.planKey);
+  const hasAccess = BillingService.storeHasAccess(sub);
+  const plan = getPlanConfig(hasAccess ? sub.planKey : 'free');
 
   return c.json({
     plan_key: sub.planKey,
-    plan_name: plan.name,
+    plan_name: getPlanConfig(sub.planKey).name,
     status: sub.status,
-    active: BillingService.storeHasAccess(sub),
+    active: hasAccess,
     cancel_at_period_end: sub.cancelAtPeriodEnd,
     current_period_end: sub.currentPeriodEnd?.toISOString() || null,
     features: plan.features,

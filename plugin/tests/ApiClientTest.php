@@ -147,4 +147,24 @@ class ApiClientTest extends TestCase {
         $this->assertInstanceOf(\WP_Error::class, $result);
         $this->assertEquals('Store not found', $result->get_error_message());
     }
+
+    public function testUnauthorized401ErrorHandledProperly() {
+        $this->setupApiClientMocks('invalid_key_456');
+
+        $errorPayload = json_encode(['error' => 'Invalid API Key']);
+
+        Functions\expect('wp_remote_get')
+            ->once()
+            ->andReturn(['response' => ['code' => 401], 'body' => $errorPayload]);
+
+        Functions\when('wp_remote_retrieve_response_code')->justReturn(401);
+        Functions\when('wp_remote_retrieve_body')->justReturn($errorPayload);
+
+        $client = new ApiClient();
+        $result = $client->get_dashboard_stats();
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertEquals('Invalid API Key', $result->get_error_message());
+        $this->assertEquals(401, $result->get_error_data()['status']);
+    }
 }

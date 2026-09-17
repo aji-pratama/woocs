@@ -73,3 +73,9 @@ export function createRateLimiter({
     await next();
   });
 }
+
+export const registerRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+});
+

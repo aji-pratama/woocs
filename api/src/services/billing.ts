@@ -5,6 +5,7 @@ import { subscriptions, polarWebhookEvents } from '../db/schema/billing';
 import { stores } from '../db/schema/stores';
 import { eq } from 'drizzle-orm';
 import { InferSelectModel } from 'drizzle-orm';
+import { appCache } from '../common/cache';
 
 type Store = InferSelectModel<typeof stores>;
 type Subscription = InferSelectModel<typeof subscriptions>;
@@ -12,7 +13,32 @@ type Subscription = InferSelectModel<typeof subscriptions>;
 export class BillingService {
   static storeHasAccess(subscription: Subscription | null): boolean {
     if (!subscription) return false;
-    return subscription.status === 'active' || subscription.status === 'trialing';
+
+    // Free tier is always active if status is active
+    if (subscription.planKey === 'free' && subscription.status === 'active') {
+      return true;
+    }
+
+    const now = new Date();
+
+    // If marked for cancellation at period end, check if period has expired
+    if (subscription.cancelAtPeriodEnd && subscription.currentPeriodEnd) {
+      if (now > subscription.currentPeriodEnd) {
+        return false;
+      }
+    }
+
+    // Active or trialing provides access
+    if (subscription.status === 'active' || subscription.status === 'trialing') {
+      return true;
+    }
+
+    // If status is canceled, but period end is still in the future
+    if (subscription.status === 'canceled' && subscription.currentPeriodEnd && subscription.currentPeriodEnd > now) {
+      return true;
+    }
+
+    return false;
   }
 
   static async getSubscription(storeId: string): Promise<Subscription | null> {
@@ -36,17 +62,31 @@ export class PolarCheckoutService {
       throw new Error('POLAR_ACCESS_TOKEN is not configured');
     }
 
+    const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+
+    const successUrl = store?.wcUrl
+      ? `${store.wcUrl.replace(/\/$/, '')}/wp-admin/admin.php?page=woocs-settings&tab=billing&checkout=success`
+      : (ENV.POLAR_SUCCESS_URL || 'http://localhost:8080/wp-admin/admin.php?page=woocs-settings&tab=billing&checkout=success');
+
+    const bodyPayload: Record<string, any> = {
+      product_id: plan.polarProductId,
+      customer_external_id: storeId,
+      metadata: { store_id: storeId },
+      success_url: successUrl,
+    };
+
+    if (store?.merchantEmail) {
+      bodyPayload.customer_email = store.merchantEmail;
+    }
+
     const response = await fetch(`${polarApiUrl}/v1/checkouts/custom/`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${polarAccessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        product_id: plan.polarProductId,
-        customer_external_id: storeId,
-        success_url: ENV.POLAR_SUCCESS_URL,
-      }),
+      body: JSON.stringify(bodyPayload),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
@@ -79,6 +119,7 @@ export class PolarCheckoutService {
       body: JSON.stringify({
         customer_id: sub.polarCustomerId,
       }),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
@@ -131,12 +172,19 @@ export class PolarWebhookVerifier {
       .update(signedPayload)
       .digest('base64');
 
-    const candidates = signatures
-      .split(',')
-      .filter((item: string) => item.startsWith('v1,'))
-      .map((item: string) => item.split(',')[1]);
+    const candidates: string[] = [];
+    const matches = signatures.matchAll(/v1,([A-Za-z0-9+/=]+)/g);
+    for (const match of matches) {
+      candidates.push(match[1]);
+    }
 
-    if (!candidates.some((candidate: string) => crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(candidate)))) {
+    const expectedBuf = Buffer.from(expected, 'utf8');
+    const valid = candidates.some((candidate: string) => {
+      const candidateBuf = Buffer.from(candidate, 'utf8');
+      return expectedBuf.length === candidateBuf.length && crypto.timingSafeEqual(expectedBuf, candidateBuf);
+    });
+
+    if (!valid) {
       throw new Error("Invalid Polar webhook signature.");
     }
 
@@ -173,7 +221,14 @@ export class PolarWebhookService {
       eventId,
       eventType,
       payload,
-    }).returning();
+      error: '',
+    })
+    .onConflictDoNothing({ target: polarWebhookEvents.eventId })
+    .returning();
+
+    if (!event) {
+      return false; // Concurrently inserted by duplicate delivery
+    }
 
     try {
       if (this.SUBSCRIPTION_EVENTS.has(eventType)) {
@@ -195,59 +250,112 @@ export class PolarWebhookService {
   }
 
   private static async _applySubscription(data: any, eventType: string) {
-    const externalId = data.customer?.external_id;
-    if (!externalId) {
-      throw new Error("Polar customer external_id is required.");
+    const externalId = data.customer?.external_id || data.customer_external_id || data.metadata?.store_id;
+    let store = null;
+
+    if (externalId) {
+      const [found] = await db.select().from(stores).where(eq(stores.id, externalId));
+      store = found;
     }
 
-    const [store] = await db.select().from(stores).where(eq(stores.id, externalId));
-    if (!store) {
-      throw new Error("Store not found for external_id.");
-    }
-
-    const productId = data.product_id || data.product?.id;
-    const polarProductsStr = ENV.POLAR_PRODUCTS;
-    const polarProducts = JSON.parse(polarProductsStr);
-
-    let planKey = null;
-    for (const [key, configuredId] of Object.entries(polarProducts)) {
-      if (configuredId === productId) {
-        planKey = key;
-        break;
+    const customerId = data.customer_id || data.customer?.id;
+    if (!store && customerId) {
+      const [foundSub] = await db.select().from(subscriptions).where(eq(subscriptions.polarCustomerId, customerId));
+      if (foundSub) {
+        const [found] = await db.select().from(stores).where(eq(stores.id, foundSub.storeId));
+        store = found;
       }
     }
 
+    const subscriptionId = data.id || data.subscription_id;
+    if (!store && subscriptionId) {
+      const [foundSub] = await db.select().from(subscriptions).where(eq(subscriptions.polarSubscriptionId, subscriptionId));
+      if (foundSub) {
+        const [found] = await db.select().from(stores).where(eq(stores.id, foundSub.storeId));
+        store = found;
+      }
+    }
+
+    if (!store) {
+      throw new Error(`Store not found for webhook event (external_id: ${externalId || 'none'}, customer_id: ${customerId || 'none'}, sub_id: ${subscriptionId || 'none'}).`);
+    }
+
+    const existingSubs = await db.select().from(subscriptions).where(eq(subscriptions.storeId, store.id));
+    const currentSub = existingSubs[0] || null;
+
+    const productId = data.product_id || data.product?.id;
+    let planKey: string | null = null;
+
+    if (productId) {
+      try {
+        const polarProducts = JSON.parse(ENV.POLAR_PRODUCTS || '{}');
+        for (const [key, configuredId] of Object.entries(polarProducts)) {
+          if (configuredId === productId) {
+            planKey = key;
+            break;
+          }
+        }
+      } catch {
+        // ignore parse error
+      }
+
+      if (!planKey && ENV.POLAR_PRO_PRODUCT_ID && productId === ENV.POLAR_PRO_PRODUCT_ID) {
+        planKey = 'pro';
+      }
+    }
+
+    // Preserve existing plan if not explicitly changed in payload
+    if (!planKey && currentSub?.planKey) {
+      planKey = currentSub.planKey;
+    }
+
+    // Default to 'pro' for subscription events
     if (!planKey) {
-      throw new Error("Polar product is not mapped to a WooCS plan.");
+      planKey = 'pro';
     }
 
     const periodEnd = data.current_period_end;
     const parsedPeriodEnd = periodEnd ? new Date(periodEnd) : null;
 
-    const status = eventType === "subscription.revoked" ? "revoked" : (data.status || "active");
+    let status = data.status || 'active';
+    if (eventType === 'subscription.revoked') {
+      status = 'revoked';
+    } else if (eventType === 'subscription.canceled' && !data.cancel_at_period_end) {
+      status = 'canceled';
+    } else if (eventType === 'subscription.uncanceled') {
+      status = 'active';
+    }
 
-    const existingSubs = await db.select().from(subscriptions).where(eq(subscriptions.storeId, store.id));
-    
-    if (existingSubs.length > 0) {
+    const cancelAtPeriodEnd = eventType === 'subscription.uncanceled'
+      ? false
+      : Boolean(data.cancel_at_period_end ?? (eventType === 'subscription.canceled'));
+
+    const polarCustomerId = data.customer_id || data.customer?.id || currentSub?.polarCustomerId;
+    const polarSubscriptionId = data.id || currentSub?.polarSubscriptionId;
+
+    if (currentSub) {
       await db.update(subscriptions).set({
-        polarCustomerId: data.customer_id || data.customer?.id,
-        polarSubscriptionId: data.id,
+        polarCustomerId,
+        polarSubscriptionId,
         planKey,
         status,
-        cancelAtPeriodEnd: data.cancel_at_period_end || false,
-        currentPeriodEnd: parsedPeriodEnd,
+        cancelAtPeriodEnd,
+        currentPeriodEnd: parsedPeriodEnd ?? currentSub.currentPeriodEnd,
         updatedAt: new Date(),
       }).where(eq(subscriptions.storeId, store.id));
     } else {
       await db.insert(subscriptions).values({
         storeId: store.id,
-        polarCustomerId: data.customer_id || data.customer?.id,
-        polarSubscriptionId: data.id,
+        polarCustomerId,
+        polarSubscriptionId,
         planKey,
         status,
-        cancelAtPeriodEnd: data.cancel_at_period_end || false,
+        cancelAtPeriodEnd,
         currentPeriodEnd: parsedPeriodEnd,
       });
     }
+
+    appCache.delete(`sub:${store.id}`);
+    appCache.delete(`dashboard_stats:${store.id}`);
   }
 }

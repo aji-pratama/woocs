@@ -31,7 +31,7 @@ export const polarWebhookEvents = pgTable('billing_polarwebhookevent', {
   eventType: varchar('event_type', { length: 64 }).notNull(),
   payload: jsonb('payload').notNull(),
   status: varchar('status', { length: 32 }).$defaultFn(() => 'received').notNull(),
-  error: text('error'),
+  error: text('error').default('').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
   processedAt: timestamp('processed_at', { withTimezone: true }),
 });

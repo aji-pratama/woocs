@@ -44,11 +44,15 @@ $status = $subscription['status'] ?? '';
 $current_plan = $subscription['plan_key'] ?? 'free';
 $is_paid = !empty($subscription) && !in_array($current_plan, ['free', 'trial'], true);
 $has_access = !empty($subscription['active']);
-if (isset($plans[$current_plan])) {
+
+if ($has_access && isset($plans[$current_plan])) {
     $plans[$current_plan]['is_current'] = true;
     $plans[$current_plan]['cta'] = 'Current Plan';
+} elseif (!$has_access && isset($plans['pro'])) {
+    $plans['pro']['cta'] = 'Reactivate Pro';
 }
-$show_plans = !$is_paid || in_array($status, ['revoked', 'unpaid'], true);
+
+$show_plans = !$is_paid || !$has_access || in_array($status, ['revoked', 'unpaid', 'canceled', 'incomplete_expired'], true);
 $period_end = !empty($subscription['current_period_end'])
     ? wp_date(get_option('date_format'), strtotime($subscription['current_period_end']))
     : null;
@@ -59,6 +63,11 @@ $period_end = !empty($subscription['current_period_end'])
     <?php endif; ?>
     <?php if ($error): ?>
         <div class="notice notice-error"><p><?php echo esc_html($error); ?></p></div>
+    <?php endif; ?>
+    <?php if ($status === 'past_due'): ?>
+        <div class="notice notice-warning"><p>Your subscription payment is past due. Please update your payment method via Manage Subscription to maintain service.</p></div>
+    <?php elseif (!$has_access && $is_paid): ?>
+        <div class="notice notice-error"><p>Your subscription is inactive or has expired. Choose a plan below to reactivate your Pro features.</p></div>
     <?php endif; ?>
 
     <?php if (!$is_connected): ?>
@@ -80,11 +89,15 @@ $period_end = !empty($subscription['current_period_end'])
                 <div class="woocs-subscription-info">
                     <div>
                         <span class="woocs-plan-label">Active Plan</span>
-                        <p class="woocs-plan-name"><?php echo esc_html(ucfirst($subscription['plan_key'] ?? 'trial')); ?></p>
+                        <p class="woocs-plan-name"><?php echo esc_html($subscription['plan_name'] ?? ucfirst($subscription['plan_key'] ?? 'free')); ?></p>
                     </div>
-                    <?php if ($period_end): ?>
+                    <?php if (!empty($subscription['cancel_at_period_end']) && $period_end): ?>
                         <div class="woocs-subscription-meta">
-                            <span class="description"><?php echo esc_html($status === 'trialing' ? 'Trial ends:' : 'Current period ends:'); ?> <strong><?php echo esc_html($period_end); ?></strong></span>
+                            <span class="description" style="color:#d63638;">Cancels at end of cycle: <strong><?php echo esc_html($period_end); ?></strong></span>
+                        </div>
+                    <?php elseif ($period_end): ?>
+                        <div class="woocs-subscription-meta">
+                            <span class="description"><?php echo esc_html($status === 'trialing' ? 'Trial ends:' : 'Renews on:'); ?> <strong><?php echo esc_html($period_end); ?></strong></span>
                         </div>
                     <?php endif; ?>
                 </div>

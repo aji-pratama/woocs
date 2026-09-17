@@ -10,6 +10,7 @@ import { subscriptions } from '../db/schema/billing.js';
 import { chatMessages, chatSessions } from '../db/schema/chat.js';
 import { eq, desc, and, gte, sql } from 'drizzle-orm';
 import { getPlanConfig } from '../config/pricing.js';
+import { BillingService } from '../services/billing.js';
 import { appCache } from '../common/cache.js';
 import { createRateLimiter } from '../middleware/rate-limit.js';
 import { CACHE_CONFIG, RATE_LIMIT_CONFIG, LIMITS, REGEX } from '../config/constants.js';
@@ -68,13 +69,12 @@ widgetRouter.post('/chat', chatLimiter, zValidator('json', ChatRequestInSchema),
 
   // Conversation limit check
   const sub = await getCachedSubscription(store.id);
-
-  if (sub) {
-    const plan = getPlanConfig(sub.planKey);
-    let limit = plan.features.monthlyConversationsLimit;
-    if (limit !== -1 && store.poweredByEnabled) {
-      limit += 50;
-    }
+  const hasAccess = BillingService.storeHasAccess(sub);
+  const plan = getPlanConfig(hasAccess ? sub?.planKey : 'free');
+  let limit = plan.features.monthlyConversationsLimit;
+  if (limit !== -1 && store.poweredByEnabled) {
+    limit += 50;
+  }
 
     if (limit !== -1) {
       const startOfMonth = new Date();
@@ -103,7 +103,6 @@ widgetRouter.post('/chat', chatLimiter, zValidator('json', ChatRequestInSchema),
         });
       }
     }
-  }
 
   const result = await ChatService.handleMessage(store, body.session_id, cleanMessage, body.page_context, body.widget_config, body.customer_info);
   
@@ -196,19 +195,18 @@ widgetRouter.post('/order-status', zValidator('json', OrderStatusRequestInSchema
 
   // Feature gate: order status lookup
   const sub = await getCachedSubscription(store.id);
+  const hasAccess = BillingService.storeHasAccess(sub);
+  const plan = getPlanConfig(hasAccess ? sub?.planKey : 'free');
 
-  if (sub) {
-    const plan = getPlanConfig(sub.planKey);
-    if (!plan.features.orderStatusLookup) {
-      return c.json({
-        order_id: body.order_id,
-        found: false,
-        status: null,
-        items: [],
-        total: null,
-        error: 'Order tracking is available on the Pro plan. Please contact the store team directly for order updates.',
-      });
-    }
+  if (!plan.features.orderStatusLookup) {
+    return c.json({
+      order_id: body.order_id,
+      found: false,
+      status: null,
+      items: [],
+      total: null,
+      error: 'Order tracking is available on the Pro plan. Please contact the store team directly for order updates.',
+    });
   }
 
   const result = await OrderService.getOrderStatus(store, body.order_id);
