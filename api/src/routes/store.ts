@@ -561,7 +561,7 @@ storeRouter.get('/chat-history/export', requireApiKey, async (c) => {
   }
 });
 
-const VALID_LEAD_LABELS = ['hot', 'warm', 'cold', 'customer', 'support', 'lead'];
+const VALID_LEAD_LABELS = ['lead', 'customer'];
 
 // PATCH /api/stores/chat-history/:id/label
 storeRouter.patch('/chat-history/:id/label', requireApiKey, async (c) => {

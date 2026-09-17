@@ -78,12 +78,8 @@ $is_connected = !empty(get_option('woocs_store_id'));
                 <div class="woocs-toolbar-actions">
                     <label for="woocs-drawer-lead-select"><strong>Lead Status:</strong></label>
                     <select id="woocs-drawer-lead-select" class="woocs-lead-select">
-                        <option value="hot">Hot</option>
-                        <option value="warm">Warm</option>
-                        <option value="cold">Cold</option>
-                        <option value="customer">Customer</option>
-                        <option value="support">Support</option>
                         <option value="lead">Lead</option>
+                        <option value="customer">Customer</option>
                     </select>
                 </div>
             </div>
@@ -192,12 +188,8 @@ $is_connected = !empty(get_option('woocs_store_id'));
                         var currentLabel = s.lead_label || 'lead';
 
                         var leadSelectHtml = '<select class="woocs-lead-select" data-sid="' + esc(s.session_id) + '">' +
-                            '<option value="hot"' + (currentLabel === 'hot' ? ' selected' : '') + '>Hot</option>' +
-                            '<option value="warm"' + (currentLabel === 'warm' ? ' selected' : '') + '>Warm</option>' +
-                            '<option value="cold"' + (currentLabel === 'cold' ? ' selected' : '') + '>Cold</option>' +
-                            '<option value="customer"' + (currentLabel === 'customer' ? ' selected' : '') + '>Customer</option>' +
-                            '<option value="support"' + (currentLabel === 'support' ? ' selected' : '') + '>Support</option>' +
                             '<option value="lead"' + (currentLabel === 'lead' ? ' selected' : '') + '>Lead</option>' +
+                            '<option value="customer"' + (currentLabel === 'customer' ? ' selected' : '') + '>Customer</option>' +
                         '</select>';
 
                         return '<tr>' +

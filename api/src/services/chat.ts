@@ -52,9 +52,6 @@ export class ChatService {
         customerName: customerInfo.name || null,
         customerPhone: customerInfo.phone || null,
       };
-      if ((session.leadLabel === 'lead' || !session.leadLabel) && (customerInfo.email || customerInfo.phone)) {
-        updateData.leadLabel = 'warm';
-      }
       await db.update(chatSessions)
         .set(updateData)
         .where(eq(chatSessions.id, session.id));

@@ -29,7 +29,7 @@ describe('Chat Export & Lead Labeling API', () => {
       customerName: 'Budi Santoso',
       customerEmail: 'budi@example.com',
       customerPhone: '+628123456789',
-      leadLabel: 'warm',
+      leadLabel: 'lead',
     }).returning();
 
     await db.insert(chatMessages).values([
@@ -44,7 +44,7 @@ describe('Chat Export & Lead Labeling API', () => {
       customerName: 'Siti Rahma',
       customerEmail: 'siti@example.com',
       customerPhone: '+628987654321',
-      leadLabel: 'hot',
+      leadLabel: 'customer',
     }).returning();
 
     await db.insert(chatMessages).values([
@@ -84,7 +84,7 @@ describe('Chat Export & Lead Labeling API', () => {
 
     const s1 = data.sessions.find((s: any) => s.session_id === session1Uuid);
     expect(s1).toBeDefined();
-    expect(s1.lead_label).toBe('warm');
+    expect(s1.lead_label).toBe('lead');
     expect(s1.customer_name).toBe('Budi Santoso');
   });
 
