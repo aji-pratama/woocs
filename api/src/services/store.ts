@@ -59,27 +59,22 @@ export class StoreService {
       const rawKey = this.generateApiKey();
       const apiKeyHash = this.hashApiKey(rawKey);
 
-      // Start transaction
-      const result = await db.transaction(async (tx) => {
-        const [newStore] = await tx.insert(stores).values({
-          apiKeyHash,
-          wcUrl,
-          merchantEmail,
-          wcConsumerKey,
-          wcConsumerSecret,
-        }).returning();
+      const [newStore] = await db.insert(stores).values({
+        apiKeyHash,
+        wcUrl,
+        merchantEmail,
+        wcConsumerKey,
+        wcConsumerSecret,
+      }).returning();
 
-        // Free tier subscription — active immediately, no payment needed
-        await tx.insert(subscriptions).values({
-          storeId: newStore.id,
-          planKey: 'free',
-          status: 'active',
-        });
-
-        return newStore;
+      // Free tier subscription — active immediately, no payment needed
+      await db.insert(subscriptions).values({
+        storeId: newStore.id,
+        planKey: 'free',
+        status: 'active',
       });
 
-      return { store: result, rawApiKey: rawKey, isValid: true };
+      return { store: newStore, rawApiKey: rawKey, isValid: true };
     }
   }
 }
@@ -90,15 +85,24 @@ export class SyncService {
     let variationsCount = 0;
     let faqsCount = 0;
 
-    // Use transaction for consistency
-    await db.transaction(async (tx) => {
-      // Products
-      for (const pIn of payload.products) {
-        // Upsert product
-        const [product] = await tx.insert(products)
-          .values({
-            storeId,
-            wcId: pIn.wc_id,
+    // Products
+    for (const pIn of payload.products) {
+      // Upsert product
+      const [product] = await db.insert(products)
+        .values({
+          storeId,
+          wcId: pIn.wc_id,
+          name: pIn.name,
+          description: pIn.description,
+          price: pIn.price ? String(pIn.price) : null,
+          stockStatus: pIn.stock_status,
+          stockQuantity: pIn.stock_quantity,
+          categories: pIn.categories,
+          tags: pIn.tags,
+        })
+        .onConflictDoUpdate({
+          target: [products.storeId, products.wcId],
+          set: {
             name: pIn.name,
             description: pIn.description,
             price: pIn.price ? String(pIn.price) : null,
@@ -106,59 +110,45 @@ export class SyncService {
             stockQuantity: pIn.stock_quantity,
             categories: pIn.categories,
             tags: pIn.tags,
+          }
+        })
+        .returning();
+      
+      productsCount++;
+
+      // Upsert variations
+      for (const vIn of pIn.variations) {
+        await db.insert(productVariations)
+          .values({
+            productId: product.id,
+            wcVariationId: vIn.wc_variation_id,
+            attributes: vIn.attributes,
+            stockQuantity: vIn.stock_quantity,
+            price: vIn.price ? String(vIn.price) : null,
           })
           .onConflictDoUpdate({
-            target: [products.storeId, products.wcId],
+            target: [productVariations.productId, productVariations.wcVariationId],
             set: {
-              name: pIn.name,
-              description: pIn.description,
-              price: pIn.price ? String(pIn.price) : null,
-              stockStatus: pIn.stock_status,
-              stockQuantity: pIn.stock_quantity,
-              categories: pIn.categories,
-              tags: pIn.tags,
-            }
-          })
-          .returning();
-        
-        productsCount++;
-
-        // Upsert variations
-        for (const vIn of pIn.variations) {
-          await tx.insert(productVariations)
-            .values({
-              productId: product.id,
-              wcVariationId: vIn.wc_variation_id,
               attributes: vIn.attributes,
               stockQuantity: vIn.stock_quantity,
               price: vIn.price ? String(vIn.price) : null,
-            })
-            .onConflictDoUpdate({
-              target: [productVariations.productId, productVariations.wcVariationId],
-              set: {
-                attributes: vIn.attributes,
-                stockQuantity: vIn.stock_quantity,
-                price: vIn.price ? String(vIn.price) : null,
-              }
-            });
-          variationsCount++;
-        }
+            }
+          });
+        variationsCount++;
       }
+    }
 
-      // Upsert FAQs
-      for (const fIn of payload.faqs) {
-        // Since we don't have unique on (storeId, question), we'll do manual lookup/upsert or just basic delete-insert?
-        // Wait, Django `update_or_create` on `question`. We should just query and update.
-        const existingFaqs = await tx.select().from(faqs).where(eq(faqs.storeId, storeId));
-        const match = existingFaqs.find(f => f.question === fIn.question);
-        if (match) {
-          await tx.update(faqs).set({ answer: fIn.answer }).where(eq(faqs.id, match.id));
-        } else {
-          await tx.insert(faqs).values({ storeId, question: fIn.question, answer: fIn.answer });
-        }
-        faqsCount++;
+    // Upsert FAQs
+    for (const fIn of payload.faqs) {
+      const existingFaqs = await db.select().from(faqs).where(eq(faqs.storeId, storeId));
+      const match = existingFaqs.find(f => f.question === fIn.question);
+      if (match) {
+        await db.update(faqs).set({ answer: fIn.answer }).where(eq(faqs.id, match.id));
+      } else {
+        await db.insert(faqs).values({ storeId, question: fIn.question, answer: fIn.answer });
       }
-    });
+      faqsCount++;
+    }
 
     return { productsCount, variationsCount, faqsCount };
   }
