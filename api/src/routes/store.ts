@@ -39,6 +39,8 @@ storeRouter.post('/register', zValidator('json', StoreRegisterInSchema), async (
 
   return c.json({
     store_id: store.id,
+    store_name: StoreService.getStoreNameFromUrl(store.wcUrl || ''),
+    valid: true,
     api_key: rawApiKey,
     status: 'connected',
     message: 'Store registered and connected successfully'

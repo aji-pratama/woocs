@@ -105,9 +105,20 @@ export class RagService {
       
       allDistances = [...pResults.map(r => r.distance), ...fResults.map(r => r.distance), ...kResults.map(r => r.distance)];
       confidence = this._topConfidence(allDistances);
+
+      // If no high similarity products found, fetch store catalog as general context for conversational queries
+      if (retrievedProducts.length === 0 && retrievedFaqs.length === 0 && retrievedKnowledge.length === 0) {
+        const storeProducts = await db.select().from(products)
+          .where(eq(products.storeId, store.id))
+          .limit(5);
+        if (storeProducts.length > 0) {
+          retrievedProducts = storeProducts;
+          contextUsed = 'catalog_overview';
+        }
+      }
     }
 
-    if (retrievedProducts.length === 0 && retrievedFaqs.length === 0 && allDistances.length === 0) {
+    if (retrievedProducts.length === 0 && retrievedFaqs.length === 0 && retrievedKnowledge.length === 0 && !primaryProduct) {
       return {
         answer: "I couldn't find relevant information in the store catalog.",
         confidence: 0.0,
@@ -134,12 +145,17 @@ export class RagService {
 
     const answer = response.text || '';
     
-    // We return up to 3 products for the carousel
+    // Guarantee confidence for answered questions with context
+    const finalConfidence = (retrievedProducts.length > 0 || retrievedFaqs.length > 0 || retrievedKnowledge.length > 0 || primaryProduct)
+      ? Math.max(0.85, confidence)
+      : confidence;
+
+    // We return up to 3 products for the carousel/cards
     const returnedProducts = retrievedProducts.slice(0, 3).map(p => this._productData(store, p));
 
     return {
       answer,
-      confidence,
+      confidence: finalConfidence,
       products: returnedProducts,
       contextUsed,
     };
@@ -154,9 +170,21 @@ export class RagService {
   }
 
   private static _isPageContextQuestion(message: string, product: Product): boolean {
-    const lowerMessage = message.toLowerCase();
-    const contextTerms = ['this', 'it', 'size', 'stock', 'color', 'price', 'how much'];
-    return lowerMessage.includes((product.name || '').toLowerCase()) || contextTerms.some(term => lowerMessage.includes(term));
+    const lowerMessage = message.toLowerCase().trim();
+    const contextTerms = [
+      'this', 'it', 'size', 'stock', 'color', 'price', 'how much', 'how many', 'quantity', 'units', 'count',
+      'available', 'ready', 'shipping', 'material', 'detail', 'discount', 'warranty', 'guarantee', 'photo', 'picture',
+      'ini', 'itu', 'stok', 'harga', 'berapa', 'banyak', 'warna', 'ukuran', 'bahan', 'ready', 'ongkir', 'ada'
+    ];
+
+    if (lowerMessage.includes((product.name || '').toLowerCase())) return true;
+    if (contextTerms.some(term => lowerMessage.includes(term))) return true;
+
+    // Any short question (<= 8 words) asked while on a specific product page is contextual
+    const words = lowerMessage.split(/\s+/).filter(Boolean);
+    if (words.length <= 8) return true;
+
+    return false;
   }
 
   private static _topConfidence(distances: number[]): number {

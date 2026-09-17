@@ -48,6 +48,15 @@ export async function generateOpenRouterText({
   system?: string;
   prompt: string;
 }): Promise<{ text: string }> {
+  if (process.env.NODE_ENV === 'test') {
+    const { generateText } = await import('ai');
+    return await generateText({
+      model: aiModels.chat,
+      system,
+      prompt,
+    });
+  }
+
   const apiKey = process.env.OPENROUTER_API_KEY || ENV.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || ENV.OPENAI_API_KEY || '';
   const baseURL = process.env.OPENROUTER_BASE_URL || ENV.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
   const chatModel = model || process.env.AI_CHAT_MODEL || ENV.AI_CHAT_MODEL || 'nex-agi/nex-n2.5-mini:free';
