@@ -13,6 +13,7 @@
     "AI_EMBEDDING_MODEL": "liquid/lfm-2.5-embedding-350m:free",
     "POLAR_API_URL": "https://api.polar.sh",
     "POLAR_PRO_PRODUCT_ID": "prod_placeholder",
-    "HEALTH_CHECK_PATH": "/api/internal/health-check-9x7f2k"
+    "HEALTH_CHECK_PATH": "/api/internal/health-check-9x7f2k",
+    "AI_MOCK_MODE": false
   }
 }
