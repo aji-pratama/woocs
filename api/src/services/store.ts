@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import * as crypto from 'node:crypto'; // Use node crypto for now, can be polyfilled in edge
 import { SyncRequestInSchema } from '../schemas/store';
 import { z } from 'zod';
+import { appCache } from '../common/cache';
 
 export class StoreService {
   static generateApiKey(): string {
@@ -52,6 +53,10 @@ export class StoreService {
         })
         .where(eq(stores.id, store.id))
         .returning();
+
+      appCache.delete(`store:id:${store.id}`);
+      appCache.delete(`store:hash:${apiKeyHash}`);
+      appCache.delete(`dashboard_stats:${store.id}`);
         
       return { store: updatedStore, rawApiKey: null, isValid: true };
     } else {
@@ -138,17 +143,27 @@ export class SyncService {
       }
     }
 
-    // Upsert FAQs
-    for (const fIn of payload.faqs) {
+    // Upsert FAQs (batch-fetch existing to avoid N+1 queries)
+    if (payload.faqs.length > 0) {
       const existingFaqs = await db.select().from(faqs).where(eq(faqs.storeId, storeId));
-      const match = existingFaqs.find(f => f.question === fIn.question);
-      if (match) {
-        await db.update(faqs).set({ answer: fIn.answer }).where(eq(faqs.id, match.id));
-      } else {
-        await db.insert(faqs).values({ storeId, question: fIn.question, answer: fIn.answer });
+      const faqMap = new Map(existingFaqs.map(f => [f.question, f]));
+
+      for (const fIn of payload.faqs) {
+        const match = faqMap.get(fIn.question);
+        if (match) {
+          if (match.answer !== fIn.answer) {
+            await db.update(faqs).set({ answer: fIn.answer, updatedAt: new Date() }).where(eq(faqs.id, match.id));
+          }
+        } else {
+          await db.insert(faqs).values({ storeId, question: fIn.question, answer: fIn.answer });
+        }
+        faqsCount++;
       }
-      faqsCount++;
     }
+
+    // Invalidate caches when catalog or FAQs change
+    appCache.delete(`dashboard_stats:${storeId}`);
+    appCache.delete(`catalog_overview:${storeId}`);
 
     return { productsCount, variationsCount, faqsCount };
   }

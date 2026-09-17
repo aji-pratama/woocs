@@ -1,23 +1,34 @@
 import { db } from '../db/client';
-import { knowledgeDocuments, knowledgeChunks, stores } from '../db/schema/stores';
-import { eq } from 'drizzle-orm';
-import crypto from 'node:crypto';
+import { knowledgeDocuments, stores } from '../db/schema/stores';
+import { eq, and, sql } from 'drizzle-orm';
+import { appCache } from '../common/cache';
 
 export class KnowledgeService {
   static async getDocuments(storeId: string) {
-    return await db.select().from(knowledgeDocuments).where(eq(knowledgeDocuments.storeId, storeId)).orderBy(knowledgeDocuments.updatedAt);
+    return await db.select()
+      .from(knowledgeDocuments)
+      .where(eq(knowledgeDocuments.storeId, storeId))
+      .orderBy(knowledgeDocuments.updatedAt);
   }
 
   static async getDocumentCount(storeId: string) {
-    const docs = await this.getDocuments(storeId);
+    const counts = await db.select({
+      type: knowledgeDocuments.type,
+      count: sql<number>`count(*)`,
+    })
+    .from(knowledgeDocuments)
+    .where(eq(knowledgeDocuments.storeId, storeId))
+    .groupBy(knowledgeDocuments.type);
+
     let urls = 0;
     let pdfs = 0;
     let texts = 0;
-    docs.forEach(d => {
-      if (d.type === 'url') urls++;
-      if (d.type === 'pdf') pdfs++;
-      if (d.type === 'text') texts++;
-    });
+    for (const row of counts) {
+      const c = Number(row.count || 0);
+      if (row.type === 'url') urls = c;
+      if (row.type === 'pdf') pdfs = c;
+      if (row.type === 'text') texts = c;
+    }
     return { total: urls + pdfs + texts, urls, pdfs, texts };
   }
 
@@ -28,10 +39,15 @@ export class KnowledgeService {
       source,
       status: 'pending',
     }).returning();
+    appCache.delete(`dashboard_stats:${storeId}`);
     return doc;
   }
 
   static async deleteDocument(storeId: string, documentId: string) {
-    return await db.delete(knowledgeDocuments).where(eq(knowledgeDocuments.id, documentId)).returning();
+    const res = await db.delete(knowledgeDocuments)
+      .where(and(eq(knowledgeDocuments.id, documentId), eq(knowledgeDocuments.storeId, storeId)))
+      .returning();
+    appCache.delete(`dashboard_stats:${storeId}`);
+    return res;
   }
 }

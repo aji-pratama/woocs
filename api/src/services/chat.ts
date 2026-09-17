@@ -10,18 +10,35 @@ import { RouterService } from './router';
 type Store = InferSelectModel<typeof stores>;
 type ChatSession = InferSelectModel<typeof chatSessions>;
 
-import { BOT_CONFIG, TEMPLATES } from '../config/constants';
+import { BOT_CONFIG, TEMPLATES, CACHE_CONFIG } from '../config/constants';
+import { appCache } from '../common/cache';
 
 export const ESCALATION_KEYWORDS = BOT_CONFIG.ESCALATION_KEYWORDS;
 
 export class ChatService {
   static async getOrCreateSession(storeId: string, sessionId: string): Promise<ChatSession> {
+    const cacheKey = `chat_session:${sessionId}`;
+    const cached = appCache.get<ChatSession>(cacheKey);
+    if (cached) return cached;
+
     const existing = await db.select().from(chatSessions).where(eq(chatSessions.sessionId, sessionId));
     if (existing.length > 0) {
+      appCache.set(cacheKey, existing[0], CACHE_CONFIG.STORE_TTL_SECONDS);
       return existing[0];
     }
-    const [newSession] = await db.insert(chatSessions).values({ sessionId, storeId }).returning();
-    return newSession;
+
+    try {
+      const [newSession] = await db.insert(chatSessions).values({ sessionId, storeId }).returning();
+      appCache.set(cacheKey, newSession, CACHE_CONFIG.STORE_TTL_SECONDS);
+      return newSession;
+    } catch {
+      const [retry] = await db.select().from(chatSessions).where(eq(chatSessions.sessionId, sessionId));
+      if (retry) {
+        appCache.set(cacheKey, retry, CACHE_CONFIG.STORE_TTL_SECONDS);
+        return retry;
+      }
+      throw new Error(`Failed to create or find session: ${sessionId}`);
+    }
   }
 
 
@@ -41,6 +58,7 @@ export class ChatService {
       await db.update(chatSessions)
         .set(updateData)
         .where(eq(chatSessions.id, session.id));
+      appCache.delete(`chat_session:${sessionId}`);
     }
 
     // Save user message

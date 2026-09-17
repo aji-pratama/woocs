@@ -12,7 +12,7 @@ import { taskRecords } from '../db/schema/tasks';
 import { KnowledgeService } from '../services/knowledge';
 import { stores, products, productVariations, faqs } from '../db/schema/stores';
 import { chatSessions, chatMessages } from '../db/schema/chat';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, inArray } from 'drizzle-orm';
 import { executeTaskById, safeWaitUntil } from '../worker/runner.js';
 import { appCache } from '../common/cache.js';
 import { CACHE_CONFIG } from '../config/constants.js';
@@ -380,19 +380,46 @@ storeRouter.get('/chat-history', requireApiKey, async (c) => {
     .limit(pageSize)
     .offset(offset);
   
-  const enrichedSessions = await Promise.all(sessions.map(async (s) => {
-    const [firstMsg] = await db.select().from(chatMessages)
-      .where(eq(chatMessages.sessionId, s.id))
-      .orderBy(chatMessages.createdAt)
-      .limit(1);
-    
-    const [countResult] = await db.select({ count: sql<number>`count(*)` })
-      .from(chatMessages).where(eq(chatMessages.sessionId, s.id));
-      
-    const [escalatedResult] = await db.select({ count: sql<number>`count(*)` })
-      .from(chatMessages)
-      .where(sql`${chatMessages.sessionId} = ${s.id} AND ${chatMessages.escalated} = true`);
+  if (sessions.length === 0) {
+    return c.json({ sessions: [], total: 0, page, page_size: pageSize });
+  }
 
+  const sessionIds = sessions.map(s => s.id);
+
+  // Batch query 1: message count and escalation status per session
+  const statsList = await db.select({
+    sessionId: chatMessages.sessionId,
+    count: sql<number>`count(*)`,
+    escalatedCount: sql<number>`count(*) filter (where ${chatMessages.escalated} = true)`,
+  })
+  .from(chatMessages)
+  .where(inArray(chatMessages.sessionId, sessionIds))
+  .groupBy(chatMessages.sessionId);
+
+  const statsMap = new Map<string, { count: number; escalated: boolean }>();
+  for (const row of statsList) {
+    statsMap.set(row.sessionId, {
+      count: Number(row.count || 0),
+      escalated: Number(row.escalatedCount || 0) > 0,
+    });
+  }
+
+  // Batch query 2: first message per session using DISTINCT ON
+  const firstMessages = await db.selectDistinctOn([chatMessages.sessionId], {
+    sessionId: chatMessages.sessionId,
+    content: chatMessages.content,
+  })
+  .from(chatMessages)
+  .where(inArray(chatMessages.sessionId, sessionIds))
+  .orderBy(chatMessages.sessionId, chatMessages.createdAt);
+
+  const firstMsgMap = new Map<string, string>();
+  for (const row of firstMessages) {
+    firstMsgMap.set(row.sessionId, row.content);
+  }
+
+  const enrichedSessions = sessions.map((s) => {
+    const st = statsMap.get(s.id);
     return {
       session_id: s.sessionId,
       created_at: s.createdAt,
@@ -400,11 +427,11 @@ storeRouter.get('/chat-history', requireApiKey, async (c) => {
       customer_email: s.customerEmail,
       customer_phone: s.customerPhone,
       lead_label: s.leadLabel || 'lead',
-      first_message: firstMsg?.content || null,
-      message_count: Number(countResult?.count || 0),
-      escalated: Number(escalatedResult?.count || 0) > 0,
+      first_message: firstMsgMap.get(s.id) || null,
+      message_count: st?.count || 0,
+      escalated: st?.escalated || false,
     };
-  }));
+  });
   
   const [totalResult] = await db.select({ count: sql<number>`count(*)` })
     .from(chatSessions)

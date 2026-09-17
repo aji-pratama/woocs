@@ -3,7 +3,7 @@ import { aiModels, to1024Vector, generateOpenRouterText } from './ai.js';
 import { db } from '../db/client.js';
 import { stores, products, faqs, knowledgeChunks, knowledgeDocuments } from '../db/schema/stores.js';
 import { chatMessages, chatSessions } from '../db/schema/chat.js';
-import { eq, sql, and, desc, isNotNull } from 'drizzle-orm';
+import { eq, sql, and, or, desc, isNotNull } from 'drizzle-orm';
 import { InferSelectModel } from 'drizzle-orm';
 import { logger } from '../common/logger.js';
 import { appCache } from '../common/cache.js';
@@ -81,37 +81,37 @@ export class RagService {
       confidence = 0.95;
       contextUsed = 'page_context';
     } else if (queryVector) {
-      // Vector search products
-      const pResults = await db.select({
-        product: products,
-        distance: sql<number>`${products.embedding} <=> ${queryVector}::vector`
-      })
-      .from(products)
-      .where(and(eq(products.storeId, store.id), isNotNull(products.embedding)))
-      .orderBy(sql`${products.embedding} <=> ${queryVector}::vector`)
-      .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
+      // Vector search products, FAQs, and knowledge chunks concurrently
+      const [pResults, fResults, kResults] = await Promise.all([
+        db.select({
+          product: products,
+          distance: sql<number>`${products.embedding} <=> ${queryVector}::vector`
+        })
+        .from(products)
+        .where(and(eq(products.storeId, store.id), isNotNull(products.embedding)))
+        .orderBy(sql`${products.embedding} <=> ${queryVector}::vector`)
+        .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS),
 
-      // Vector search FAQs
-      const fResults = await db.select({
-        faq: faqs,
-        distance: sql<number>`${faqs.embedding} <=> ${queryVector}::vector`
-      })
-      .from(faqs)
-      .where(and(eq(faqs.storeId, store.id), isNotNull(faqs.embedding)))
-      .orderBy(sql`${faqs.embedding} <=> ${queryVector}::vector`)
-      .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
+        db.select({
+          faq: faqs,
+          distance: sql<number>`${faqs.embedding} <=> ${queryVector}::vector`
+        })
+        .from(faqs)
+        .where(and(eq(faqs.storeId, store.id), isNotNull(faqs.embedding)))
+        .orderBy(sql`${faqs.embedding} <=> ${queryVector}::vector`)
+        .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS),
 
-      // Vector search Knowledge Chunks
-      const kResults = await db.select({
-        chunk: knowledgeChunks,
-        doc: knowledgeDocuments,
-        distance: sql<number>`${knowledgeChunks.embedding} <=> ${queryVector}::vector`
-      })
-      .from(knowledgeChunks)
-      .innerJoin(knowledgeDocuments, eq(knowledgeChunks.documentId, knowledgeDocuments.id))
-      .where(and(eq(knowledgeDocuments.storeId, store.id), isNotNull(knowledgeChunks.embedding)))
-      .orderBy(sql`${knowledgeChunks.embedding} <=> ${queryVector}::vector`)
-      .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
+        db.select({
+          chunk: knowledgeChunks,
+          doc: knowledgeDocuments,
+          distance: sql<number>`${knowledgeChunks.embedding} <=> ${queryVector}::vector`
+        })
+        .from(knowledgeChunks)
+        .innerJoin(knowledgeDocuments, eq(knowledgeChunks.documentId, knowledgeDocuments.id))
+        .where(and(eq(knowledgeDocuments.storeId, store.id), isNotNull(knowledgeChunks.embedding)))
+        .orderBy(sql`${knowledgeChunks.embedding} <=> ${queryVector}::vector`)
+        .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS),
+      ]);
 
       retrievedProducts = pResults.map(r => r.product);
       retrievedFaqs = fResults.map(r => r.faq);
@@ -126,23 +126,17 @@ export class RagService {
       const words = message.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
       
       if (words.length > 0) {
-        // Search products by keywords
-        const productMatches: Product[] = [];
-        for (const w of words.slice(0, 3)) {
-          const matched = await db.select().from(products)
-            .where(and(
-              eq(products.storeId, store.id),
-              sql`LOWER(${products.name}) LIKE ${'%' + w + '%'}`
-            ))
-            .limit(3);
-          for (const m of matched) {
-            if (!productMatches.some(p => p.id === m.id)) {
-              productMatches.push(m);
-            }
-          }
-        }
-        if (productMatches.length > 0) {
-          retrievedProducts = productMatches.slice(0, LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
+        // Search products by keywords in a single batch query
+        const wordConditions = words.slice(0, 3).map(w => sql`LOWER(${products.name}) LIKE ${'%' + w + '%'}`);
+        const matched = await db.select().from(products)
+          .where(and(
+            eq(products.storeId, store.id),
+            or(...wordConditions)
+          ))
+          .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
+
+        if (matched.length > 0) {
+          retrievedProducts = matched;
           confidence = 0.88;
           contextUsed = 'text_search';
         }

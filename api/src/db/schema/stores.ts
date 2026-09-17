@@ -84,19 +84,26 @@ export const faqs = pgTable(
       'hnsw',
       table.embedding.op('vector_cosine_ops')
     ),
+    storeIdx: index('store_faq_store_idx').on(table.storeId),
   })
 );
 
-export const knowledgeDocuments = pgTable('store_knowledgedocument', {
-  id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  storeId: uuid('store_id')
-    .references(() => stores.id, { onDelete: 'cascade' })
-    .notNull(),
-  type: varchar('type', { length: 20 }).notNull(), // 'url' or 'pdf'
-  source: varchar('source', { length: 2048 }).notNull(),
-  status: varchar('status', { length: 50 }).notNull(), // 'pending', 'processing', 'completed', 'error'
-  updatedAt: timestamp('updated_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
-});
+export const knowledgeDocuments = pgTable(
+  'store_knowledgedocument',
+  {
+    id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    storeId: uuid('store_id')
+      .references(() => stores.id, { onDelete: 'cascade' })
+      .notNull(),
+    type: varchar('type', { length: 20 }).notNull(), // 'url' or 'pdf'
+    source: varchar('source', { length: 2048 }).notNull(),
+    status: varchar('status', { length: 50 }).notNull(), // 'pending', 'processing', 'completed', 'error'
+    updatedAt: timestamp('updated_at', { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
+  },
+  (table) => ({
+    storeIdx: index('store_knowledgedoc_store_idx').on(table.storeId),
+  })
+);
 
 export const knowledgeChunks = pgTable('store_knowledgechunk', {
   id: uuid('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -110,4 +117,5 @@ export const knowledgeChunks = pgTable('store_knowledgechunk', {
     'hnsw',
     table.embedding.op('vector_cosine_ops')
   ),
+  docIdx: index('store_knowledgechunk_doc_idx').on(table.documentId),
 }));

@@ -19,7 +19,8 @@ export class OrderService {
       const response = await fetch(url, {
         headers: {
           'Authorization': `Basic ${auth}`,
-        }
+        },
+        signal: AbortSignal.timeout(10000),
       });
 
       if (response.status === 200) {
