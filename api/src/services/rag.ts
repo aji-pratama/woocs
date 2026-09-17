@@ -6,7 +6,8 @@ import { chatMessages, chatSessions } from '../db/schema/chat.js';
 import { eq, sql, and, desc, isNotNull } from 'drizzle-orm';
 import { InferSelectModel } from 'drizzle-orm';
 import { logger } from '../common/logger.js';
-import { PROMPTS } from '../config/constants.js';
+import { appCache } from '../common/cache.js';
+import { PROMPTS, CACHE_CONFIG, LIMITS, STOP_WORDS } from '../config/constants.js';
 
 type Store = InferSelectModel<typeof stores>;
 type Product = InferSelectModel<typeof products>;
@@ -62,13 +63,8 @@ export class RagService {
       return this._getMockResponse(message);
     }
 
-    // 1. Get embedding for the message
-    const { embedding } = await embed({
-      model: aiModels.embedding,
-      value: message,
-    });
-
-    const queryVector = `[${to1024Vector(embedding).join(',')}]`;
+    // 1. Get embedding for the message with caching and graceful fallback
+    const queryVector = await this.getQueryEmbedding(message, store.id);
 
     // 2. Page context
     const primaryProduct = await this._getPrimaryProduct(store.id, pageContext);
@@ -84,7 +80,7 @@ export class RagService {
       retrievedProducts = [primaryProduct];
       confidence = 0.95;
       contextUsed = 'page_context';
-    } else {
+    } else if (queryVector) {
       // Vector search products
       const pResults = await db.select({
         product: products,
@@ -93,7 +89,7 @@ export class RagService {
       .from(products)
       .where(and(eq(products.storeId, store.id), isNotNull(products.embedding)))
       .orderBy(sql`${products.embedding} <=> ${queryVector}::vector`)
-      .limit(5);
+      .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
 
       // Vector search FAQs
       const fResults = await db.select({
@@ -103,7 +99,7 @@ export class RagService {
       .from(faqs)
       .where(and(eq(faqs.storeId, store.id), isNotNull(faqs.embedding)))
       .orderBy(sql`${faqs.embedding} <=> ${queryVector}::vector`)
-      .limit(5);
+      .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
 
       // Vector search Knowledge Chunks
       const kResults = await db.select({
@@ -115,7 +111,7 @@ export class RagService {
       .innerJoin(knowledgeDocuments, eq(knowledgeChunks.documentId, knowledgeDocuments.id))
       .where(and(eq(knowledgeDocuments.storeId, store.id), isNotNull(knowledgeChunks.embedding)))
       .orderBy(sql`${knowledgeChunks.embedding} <=> ${queryVector}::vector`)
-      .limit(5);
+      .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
 
       retrievedProducts = pResults.map(r => r.product);
       retrievedFaqs = fResults.map(r => r.faq);
@@ -123,14 +119,51 @@ export class RagService {
       
       allDistances = [...pResults.map(r => r.distance), ...fResults.map(r => r.distance), ...kResults.map(r => r.distance)];
       confidence = this._topConfidence(allDistances);
+    }
 
-      // If no high similarity products found, fetch store catalog as general context for conversational queries
+    // 3. Fallback: If vector search returned 0 items or embedding failed, search by keywords
+    if (retrievedProducts.length === 0 && retrievedFaqs.length === 0 && retrievedKnowledge.length === 0) {
+      const words = message.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+      
+      if (words.length > 0) {
+        // Search products by keywords
+        const productMatches: Product[] = [];
+        for (const w of words.slice(0, 3)) {
+          const matched = await db.select().from(products)
+            .where(and(
+              eq(products.storeId, store.id),
+              sql`LOWER(${products.name}) LIKE ${'%' + w + '%'}`
+            ))
+            .limit(3);
+          for (const m of matched) {
+            if (!productMatches.some(p => p.id === m.id)) {
+              productMatches.push(m);
+            }
+          }
+        }
+        if (productMatches.length > 0) {
+          retrievedProducts = productMatches.slice(0, LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
+          confidence = 0.88;
+          contextUsed = 'text_search';
+        }
+      }
+
+      // If still no products found, fetch general store catalog overview (cached)
       if (retrievedProducts.length === 0 && retrievedFaqs.length === 0 && retrievedKnowledge.length === 0) {
-        const storeProducts = await db.select().from(products)
-          .where(eq(products.storeId, store.id))
-          .limit(5);
-        if (storeProducts.length > 0) {
+        const overviewCacheKey = `catalog_overview:${store.id}`;
+        let storeProducts = appCache.get<Product[]>(overviewCacheKey);
+        if (!storeProducts) {
+          storeProducts = await db.select().from(products)
+            .where(eq(products.storeId, store.id))
+            .limit(LIMITS.MAX_VECTOR_RETRIEVAL_ITEMS);
+          if (storeProducts && storeProducts.length > 0) {
+            appCache.set(overviewCacheKey, storeProducts, CACHE_CONFIG.CATALOG_OVERVIEW_TTL_SECONDS);
+          }
+        }
+
+        if (storeProducts && storeProducts.length > 0) {
           retrievedProducts = storeProducts;
+          confidence = 0.85;
           contextUsed = 'catalog_overview';
         }
       }
@@ -287,6 +320,29 @@ export class RagService {
       products: [],
       contextUsed: "mock_retrieval",
     };
+  }
+
+  static async getQueryEmbedding(message: string, storeId?: string): Promise<string | null> {
+    const normalizedMsg = message.trim().toLowerCase();
+    const embCacheKey = `emb:${normalizedMsg}`;
+    const cached = appCache.get<string>(embCacheKey);
+    if (cached) return cached;
+
+    try {
+      const { embedding } = await embed({
+        model: aiModels.embedding,
+        value: message,
+      });
+      const vectorStr = `[${to1024Vector(embedding).join(',')}]`;
+      appCache.set(embCacheKey, vectorStr, CACHE_CONFIG.EMBEDDING_TTL_SECONDS);
+      return vectorStr;
+    } catch (embErr: any) {
+      logger.warn(`Query embedding failed (${embErr.message}), falling back to text search retrieval`, {
+        component: 'RAG',
+        storeId,
+      });
+      return null;
+    }
   }
 
   private static _productData(store: Store, product: Product): Record<string, any> {

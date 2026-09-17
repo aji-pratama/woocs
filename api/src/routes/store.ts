@@ -14,6 +14,8 @@ import { stores, products, productVariations, faqs } from '../db/schema/stores';
 import { chatSessions, chatMessages } from '../db/schema/chat';
 import { eq, desc, sql } from 'drizzle-orm';
 import { executeTaskById, safeWaitUntil } from '../worker/runner.js';
+import { appCache } from '../common/cache.js';
+import { CACHE_CONFIG } from '../config/constants.js';
 
 type Variables = {
   storeId: string;
@@ -64,6 +66,8 @@ storeRouter.post('/settings', requireApiKey, zValidator('json', StoreSettingsInS
     poweredByEnabled: body.powered_by_enabled,
   }).where(eq(stores.id, storeId));
 
+  appCache.delete(`store:id:${storeId}`);
+
   return c.json({ success: true });
 });
 
@@ -98,6 +102,10 @@ storeRouter.post(
       products: productsToSync,
       faqs: body.faqs,
     });
+
+    // Invalidate cached stats and catalog overview
+    appCache.delete(`dashboard_stats:${storeId}`);
+    appCache.delete(`catalog_overview:${storeId}`);
 
     // Enqueue embedding task
     const [task] = await db.insert(taskRecords).values({
@@ -325,6 +333,12 @@ storeRouter.post('/subscription/portal', requireApiKey, async (c) => {
 // GET /api/stores/dashboard/stats/
 storeRouter.get('/dashboard/stats', requireApiKey, async (c) => {
   const storeId = c.get('storeId');
+  const cacheKey = `dashboard_stats:${storeId}`;
+
+  const cachedStats = appCache.get<any>(cacheKey);
+  if (cachedStats) {
+    return c.json(cachedStats);
+  }
   
   const sessionsCount = await db.select({ count: sql<number>`count(*)` }).from(chatSessions).where(eq(chatSessions.storeId, storeId));
   
@@ -340,12 +354,16 @@ storeRouter.get('/dashboard/stats', requireApiKey, async (c) => {
 
   const productsCount = await db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.storeId, storeId));
 
-  return c.json({
+  const stats = {
     chat_sessions: Number(sessionsCount[0].count),
     total_messages: Number(messagesCount[0].count),
     products_synced: Number(productsCount[0].count),
     escalations: Number(escalationsCount[0].count),
-  });
+  };
+
+  appCache.set(cacheKey, stats, CACHE_CONFIG.DASHBOARD_STATS_TTL_SECONDS);
+
+  return c.json(stats);
 });
 
 // GET /api/stores/chat-history/

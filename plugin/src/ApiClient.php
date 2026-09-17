@@ -274,7 +274,7 @@ class ApiClient {
             return $data ?? [];
         }
 
-        $error_message = $data['error'] ?? ($data['detail'] ?? 'Unknown error from WooCS');
+        $error_message = $data['error'] ?? ($data['message'] ?? ($data['detail'] ?? 'Unknown error from WooCS'));
         $error_data = ['status' => $status_code];
         if ($include_raw_data && isset($data['upgrade_required'])) {
             $error_data['upgrade_required'] = $data['upgrade_required'];

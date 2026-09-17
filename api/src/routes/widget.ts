@@ -1,29 +1,74 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { ChatRequestInSchema, OrderStatusRequestInSchema, EscalateRequestInSchema } from '../schemas/chat';
-import { ChatService } from '../services/chat';
-import { OrderService } from '../services/order';
-import { EmailService } from '../services/email';
-import { db } from '../db/client';
-import { stores } from '../db/schema/stores';
-import { subscriptions } from '../db/schema/billing';
-import { chatMessages, chatSessions } from '../db/schema/chat';
+import { ChatRequestInSchema, OrderStatusRequestInSchema, EscalateRequestInSchema } from '../schemas/chat.js';
+import { ChatService } from '../services/chat.js';
+import { OrderService } from '../services/order.js';
+import { EmailService } from '../services/email.js';
+import { db } from '../db/client.js';
+import { stores } from '../db/schema/stores.js';
+import { subscriptions } from '../db/schema/billing.js';
+import { chatMessages, chatSessions } from '../db/schema/chat.js';
 import { eq, desc, and, gte, sql } from 'drizzle-orm';
-import { getPlanConfig } from '../config/pricing';
+import { getPlanConfig } from '../config/pricing.js';
+import { appCache } from '../common/cache.js';
+import { createRateLimiter } from '../middleware/rate-limit.js';
+import { CACHE_CONFIG, RATE_LIMIT_CONFIG, LIMITS, REGEX } from '../config/constants.js';
 
 export const widgetRouter = new Hono({ strict: false });
 
+const chatLimiter = createRateLimiter({
+  windowMs: RATE_LIMIT_CONFIG.CHAT_WINDOW_MS,
+  maxRequests: RATE_LIMIT_CONFIG.CHAT_MAX_REQUESTS,
+});
+
+const escalateLimiter = createRateLimiter({
+  windowMs: RATE_LIMIT_CONFIG.CHAT_WINDOW_MS,
+  maxRequests: RATE_LIMIT_CONFIG.ESCALATE_MAX_REQUESTS,
+});
+
+// Helper to get store with caching
+async function getCachedStore(storeId: string) {
+  const cacheKey = `store:id:${storeId}`;
+  let store = appCache.get<any>(cacheKey);
+  if (!store) {
+    const [found] = await db.select().from(stores).where(eq(stores.id, storeId));
+    if (found) {
+      store = found;
+      appCache.set(cacheKey, store, CACHE_CONFIG.STORE_TTL_SECONDS);
+    }
+  }
+  return store;
+}
+
+// Helper to get subscription with caching
+async function getCachedSubscription(storeId: string) {
+  const subCacheKey = `sub:${storeId}`;
+  let sub = appCache.get<any>(subCacheKey);
+  if (!sub) {
+    const [foundSub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, storeId));
+    if (foundSub) {
+      sub = foundSub;
+      appCache.set(subCacheKey, sub, CACHE_CONFIG.SUBSCRIPTION_TTL_SECONDS);
+    }
+  }
+  return sub;
+}
+
 // POST /api/widget/chat/
-widgetRouter.post('/chat', zValidator('json', ChatRequestInSchema), async (c) => {
+widgetRouter.post('/chat', chatLimiter, zValidator('json', ChatRequestInSchema), async (c) => {
   const body = c.req.valid('json');
   
-  const [store] = await db.select().from(stores).where(eq(stores.id, body.store_id));
+  const store = await getCachedStore(body.store_id);
   if (!store) {
     return c.json({ error: 'Store not found' }, 404);
   }
 
+  // Sanitize message length
+  const cleanMessage = body.message.slice(0, LIMITS.MAX_CHAT_MESSAGE_LENGTH);
+
   // Conversation limit check
-  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, store.id));
+  const sub = await getCachedSubscription(store.id);
+
   if (sub) {
     const plan = getPlanConfig(sub.planKey);
     let limit = plan.features.monthlyConversationsLimit;
@@ -60,7 +105,7 @@ widgetRouter.post('/chat', zValidator('json', ChatRequestInSchema), async (c) =>
     }
   }
 
-  const result = await ChatService.handleMessage(store, body.session_id, body.message, body.page_context, body.widget_config, body.customer_info);
+  const result = await ChatService.handleMessage(store, body.session_id, cleanMessage, body.page_context, body.widget_config, body.customer_info);
   
   return c.json(result);
 });
@@ -72,6 +117,10 @@ widgetRouter.get('/chat/history', async (c) => {
   
   if (!sessionId || !storeId) {
     return c.json({ error: 'Missing session_id or store_id' }, 400);
+  }
+
+  if (!REGEX.UUID.test(sessionId) || !REGEX.UUID.test(storeId)) {
+    return c.json({ error: 'Invalid store_id or session_id format' }, 400);
   }
 
   const [session] = await db.select().from(chatSessions).where(eq(chatSessions.sessionId, sessionId));
@@ -98,10 +147,10 @@ widgetRouter.get('/chat/history', async (c) => {
 });
 
 // POST /api/widget/chat/escalate
-widgetRouter.post('/chat/escalate', zValidator('json', EscalateRequestInSchema), async (c) => {
+widgetRouter.post('/chat/escalate', escalateLimiter, zValidator('json', EscalateRequestInSchema), async (c) => {
   const body = c.req.valid('json');
   
-  const [store] = await db.select().from(stores).where(eq(stores.id, body.store_id));
+  const store = await getCachedStore(body.store_id);
   if (!store) {
     return c.json({ error: 'Store not found' }, 404);
   }
@@ -140,13 +189,14 @@ widgetRouter.post('/chat/escalate', zValidator('json', EscalateRequestInSchema),
 widgetRouter.post('/order-status', zValidator('json', OrderStatusRequestInSchema), async (c) => {
   const body = c.req.valid('json');
   
-  const [store] = await db.select().from(stores).where(eq(stores.id, body.store_id));
+  const store = await getCachedStore(body.store_id);
   if (!store) {
     return c.json({ error: 'Store not found' }, 404);
   }
 
   // Feature gate: order status lookup
-  const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.storeId, store.id));
+  const sub = await getCachedSubscription(store.id);
+
   if (sub) {
     const plan = getPlanConfig(sub.planKey);
     if (!plan.features.orderStatusLookup) {

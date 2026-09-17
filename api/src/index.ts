@@ -36,6 +36,8 @@ app.use('*', async (c, next) => {
   const path = c.req.path;
   const status = c.res.status;
 
+  c.res.headers.set('Server-Timing', `total;dur=${durationMs}`);
+
   logger.http(`${method} ${path} -> ${status}`, {
     method,
     path,
