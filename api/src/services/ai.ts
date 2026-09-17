@@ -1,20 +1,38 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { ENV } from '../config/env';
 
-const apiKey = ENV.OPENROUTER_API_KEY || ENV.OPENAI_API_KEY || '';
+export function getOpenRouter() {
+  const apiKey = process.env.OPENROUTER_API_KEY || ENV.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || ENV.OPENAI_API_KEY || '';
+  const baseURL = process.env.OPENROUTER_BASE_URL || ENV.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+  const appUrl = process.env.APP_URL || ENV.APP_URL || 'https://woocs.ai';
 
-export const openrouter = createOpenAI({
-  baseURL: ENV.OPENROUTER_BASE_URL,
-  apiKey,
-  headers: {
-    'HTTP-Referer': ENV.APP_URL || 'https://woocs.ai',
-    'X-Title': 'WooCS AI',
+  return createOpenAI({
+    baseURL,
+    apiKey,
+    headers: {
+      'HTTP-Referer': appUrl,
+      'X-Title': 'WooCS AI',
+    },
+  });
+}
+
+export const openrouter = new Proxy({} as ReturnType<typeof createOpenAI>, {
+  get(_, prop) {
+    const instance = getOpenRouter() as any;
+    const value = instance[prop];
+    return typeof value === 'function' ? value.bind(instance) : value;
   },
 });
 
 export const aiModels = {
-  chat: openrouter.chat(ENV.AI_CHAT_MODEL) as any,
-  embedding: (openrouter.embedding as any)(ENV.AI_EMBEDDING_MODEL, { dimensions: 1024 }),
+  get chat() {
+    const model = process.env.AI_CHAT_MODEL || ENV.AI_CHAT_MODEL || 'nex-agi/nex-n2.5-mini:free';
+    return getOpenRouter().chat(model) as any;
+  },
+  get embedding() {
+    const model = process.env.AI_EMBEDDING_MODEL || ENV.AI_EMBEDDING_MODEL || 'liquid/lfm-2.5-embedding-350m:free';
+    return (getOpenRouter().embedding as any)(model, { dimensions: 1024 });
+  },
 };
 
 /**
