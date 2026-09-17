@@ -103,6 +103,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [slowHint, setSlowHint] = useState<"none" | "slow" | "timeout">("none");
   const [lastUserMessage, setLastUserMessage] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
@@ -180,6 +181,8 @@ export default function App() {
         }
       } catch (err) {
         console.error("Failed to load chat history", err);
+      } finally {
+        setInitialLoading(false);
       }
 
       // Fallback: new chat if no history
@@ -389,9 +392,9 @@ export default function App() {
   return (
     <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end">
       {isOpen && (
-        <div className={`mb-3 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-200 bg-white font-sans text-slate-900 shadow-xl transition-[width,height] duration-150 ${isMaximized
-          ? "h-[860px] w-[900px] rounded-xl"
-          : "h-[720px] w-[460px] rounded-xl"
+        <div className={`mb-3 flex max-h-[calc(100vh-2.5rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-200 bg-white font-sans text-slate-900 shadow-2xl transition-[width,height] duration-150 ${isMaximized
+          ? "h-[900px] w-[920px] rounded-2xl"
+          : "h-[820px] w-[460px] rounded-2xl"
           }`}>
           <header
             style={{ backgroundColor: config.primary_color }}
@@ -577,49 +580,53 @@ export default function App() {
             <>
               {/* Thread */}
               <div ref={scrollRef} className="flex-1 overflow-y-auto bg-white px-4 py-5">
-                <div className="flex flex-col gap-5">
-                  {messages.map((m) => (
-                    <MessageRow key={m.id} message={m} onEscalate={handleEscalate} />
-                  ))}
+                {initialLoading ? (
+                  <InitialLoadingSkeleton />
+                ) : (
+                  <div className="flex flex-col gap-5">
+                    {messages.map((m) => (
+                      <MessageRow key={m.id} message={m} onEscalate={handleEscalate} />
+                    ))}
 
-                  {loading && (
-                    <div className="max-w-[90%]">
-                      <div className="rounded-2xl border border-[#dcdcde] bg-[#f6f7f7] px-3 py-2.5">
-                        {slowHint === "timeout" ? (
-                          <div className="flex flex-col gap-2">
-                            <span className="text-sm text-slate-600">Taking too long — try again.</span>
-                            <button
-                              onClick={() => sendMessage(lastUserMessage)}
-                              style={{ backgroundColor: config.primary_color }}
-                              className="self-start rounded-md px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
-                            >
-                              Retry
-                            </button>
-                          </div>
-                        ) : slowHint === "slow" ? (
-                          <span className="text-sm text-slate-600">Still looking…</span>
-                        ) : (
-                          <TypingDots />
-                        )}
+                    {loading && (
+                      <div className="max-w-[90%]">
+                        <div className="rounded-2xl border border-[#dcdcde] bg-[#f6f7f7] px-3 py-2.5">
+                          {slowHint === "timeout" ? (
+                            <div className="flex flex-col gap-2">
+                              <span className="text-sm text-slate-600">Taking too long — try again.</span>
+                              <button
+                                onClick={() => sendMessage(lastUserMessage)}
+                                style={{ backgroundColor: config.primary_color }}
+                                className="self-start rounded-md px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                              >
+                                Retry
+                              </button>
+                            </div>
+                          ) : slowHint === "slow" ? (
+                            <span className="text-sm text-slate-600">Still looking…</span>
+                          ) : (
+                            <TypingDots />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && config?.enable_quick_replies && (
-                    <div className="divide-y divide-[#dcdcde] border-y border-[#dcdcde]">
-                      {(config?.page_context?.type === "product" ? ["Is this in stock?", "What are the shipping options?", "Check my order"] : QUICK_REPLIES).map((q) => (
-                        <button
-                          key={q}
-                          onClick={() => sendMessage(q)}
-                          className="group flex w-full items-center justify-between py-2.5 text-left text-[12px] font-medium text-[#2271b1] hover:text-[#135e96]"
-                        >
-                          <span>{q}</span>
-                          <ArrowRight className="text-[#8c8f94] group-hover:text-[#2271b1]" size={14} strokeWidth={1.7} aria-hidden="true" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    {!loading && messages.length > 0 && messages[messages.length - 1].role === "bot" && config?.enable_quick_replies && (
+                      <div className="divide-y divide-[#dcdcde] border-y border-[#dcdcde]">
+                        {(config?.page_context?.type === "product" ? ["Is this in stock?", "What are the shipping options?", "Check my order"] : QUICK_REPLIES).map((q) => (
+                          <button
+                            key={q}
+                            onClick={() => sendMessage(q)}
+                            className="group flex w-full items-center justify-between py-2.5 text-left text-[12px] font-medium text-[#2271b1] hover:text-[#135e96]"
+                          >
+                            <span>{q}</span>
+                            <ArrowRight className="text-[#8c8f94] group-hover:text-[#2271b1]" size={14} strokeWidth={1.7} aria-hidden="true" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Input */}
@@ -629,13 +636,13 @@ export default function App() {
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    disabled={loading}
+                    disabled={loading || initialLoading}
                     placeholder="Ask anything..."
                     className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-[#1d2327] placeholder:text-[#8c8f94] focus:outline-none disabled:opacity-50"
                   />
                   <button
                     type="submit"
-                    disabled={loading || !input.trim()}
+                    disabled={loading || initialLoading || !input.trim()}
                     style={{ backgroundColor: config.primary_color }}
                     className="woocs-embossed-btn flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-sm text-white disabled:pointer-events-none disabled:opacity-40"
                     aria-label="Send"
@@ -728,6 +735,167 @@ function HistoryList({ entries, loading, onSelect, onNew }: {
   );
 }
 
+function renderInlineFormatting(text: string): ReactNode[] {
+  const regex = /(\[[^\]]+\]\([^\)]+\)|\*\*[^*]+\*\*|__[^_]+__|`[^`]+`)/g;
+  const parts = text.split(regex);
+
+  return parts.map((part, index) => {
+    if (!part) return null;
+    if ((part.startsWith("**") && part.endsWith("**") && part.length >= 4) ||
+        (part.startsWith("__") && part.endsWith("__") && part.length >= 4)) {
+      return <strong key={index} className="font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
+      return <code key={index} className="rounded bg-black/5 px-1 py-0.5 text-xs font-mono">{part.slice(1, -1)}</code>;
+    }
+    const linkMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
+    if (linkMatch) {
+      return (
+        <a
+          key={index}
+          href={linkMatch[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline decoration-1 underline-offset-2 hover:opacity-80 transition-opacity font-medium text-inherit"
+        >
+          {linkMatch[1]}
+        </a>
+      );
+    }
+    return <span key={index}>{part}</span>;
+  });
+}
+
+function FormattedMessage({ text }: { text: string }) {
+  if (!text) return null;
+
+  const lines = text.split(/\r?\n/);
+  const elements: ReactNode[] = [];
+  let currentList: { type: "ul" | "ol"; items: ReactNode[] } | null = null;
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
+    const trimmed = line.trim();
+
+    const bulletMatch = trimmed.match(/^[-*•]\s+(.*)$/);
+    const numberMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+
+    if (bulletMatch) {
+      if (!currentList || currentList.type !== "ul") {
+        if (currentList) {
+          const listObj = currentList as { type: "ul" | "ol"; items: ReactNode[] };
+          elements.push(
+            listObj.type === "ol" ? (
+              <ol key={`list-${lineIdx}`} className="list-decimal pl-5 my-1.5 space-y-1">
+                {listObj.items}
+              </ol>
+            ) : (
+              <ul key={`list-${lineIdx}`} className="list-disc pl-5 my-1.5 space-y-1">
+                {listObj.items}
+              </ul>
+            )
+          );
+        }
+        currentList = { type: "ul", items: [] };
+      }
+      currentList.items.push(
+        <li key={`li-${lineIdx}`}>
+          {renderInlineFormatting(bulletMatch[1])}
+        </li>
+      );
+      continue;
+    }
+
+    if (numberMatch) {
+      if (!currentList || currentList.type !== "ol") {
+        if (currentList) {
+          const listObj = currentList as { type: "ul" | "ol"; items: ReactNode[] };
+          elements.push(
+            listObj.type === "ol" ? (
+              <ol key={`list-${lineIdx}`} className="list-decimal pl-5 my-1.5 space-y-1">
+                {listObj.items}
+              </ol>
+            ) : (
+              <ul key={`list-${lineIdx}`} className="list-disc pl-5 my-1.5 space-y-1">
+                {listObj.items}
+              </ul>
+            )
+          );
+        }
+        currentList = { type: "ol", items: [] };
+      }
+      currentList.items.push(
+        <li key={`li-${lineIdx}`}>
+          {renderInlineFormatting(numberMatch[2])}
+        </li>
+      );
+      continue;
+    }
+
+    if (currentList) {
+      const listObj = currentList as { type: "ul" | "ol"; items: ReactNode[] };
+      elements.push(
+        listObj.type === "ol" ? (
+          <ol key={`list-${lineIdx}`} className="list-decimal pl-5 my-1.5 space-y-1">
+            {listObj.items}
+          </ol>
+        ) : (
+          <ul key={`list-${lineIdx}`} className="list-disc pl-5 my-1.5 space-y-1">
+            {listObj.items}
+          </ul>
+        )
+      );
+      currentList = null;
+    }
+
+    if (!trimmed) {
+      elements.push(<div key={`empty-${lineIdx}`} className="h-1.5" />);
+    } else {
+      elements.push(
+        <p key={`p-${lineIdx}`} className="my-0.5 leading-relaxed">
+          {renderInlineFormatting(line)}
+        </p>
+      );
+    }
+  }
+
+  if (currentList) {
+    const listObj = currentList as { type: "ul" | "ol"; items: ReactNode[] };
+    elements.push(
+      listObj.type === "ol" ? (
+        <ol key="list-end" className="list-decimal pl-5 my-1.5 space-y-1">
+          {listObj.items}
+        </ol>
+      ) : (
+        <ul key="list-end" className="list-disc pl-5 my-1.5 space-y-1">
+          {listObj.items}
+        </ul>
+      )
+    );
+  }
+
+  return <div className="space-y-1">{elements}</div>;
+}
+
+function InitialLoadingSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 py-2 animate-in fade-in duration-300">
+      <div className="flex items-start gap-2.5 max-w-[85%]">
+        <div className="h-8 w-8 rounded-full bg-slate-200 animate-pulse shrink-0" />
+        <div className="flex-1 space-y-2 rounded-2xl rounded-tl-sm border border-[#e2e4e7] bg-[#f6f7f7] p-3.5">
+          <div className="h-3.5 w-3/4 rounded bg-slate-200 animate-pulse" />
+          <div className="h-3.5 w-1/2 rounded bg-slate-200 animate-pulse" />
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-1.5 py-6 text-xs font-medium text-slate-400">
+        <span className="inline-block h-2 w-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: "0ms" }} />
+        <span className="inline-block h-2 w-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: "150ms" }} />
+        <span className="inline-block h-2 w-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: "300ms" }} />
+      </div>
+    </div>
+  );
+}
+
 function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a: boolean) => void }) {
   if (message.role === "user") {
     return (
@@ -736,7 +904,7 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
           style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
           className="max-w-[78%] rounded-2xl rounded-tr-sm px-3.5 py-3 text-[14px] leading-relaxed text-white animate-in fade-in"
         >
-          {message.text}
+          <FormattedMessage text={message.text} />
         </div>
       </div>
     );
@@ -751,7 +919,7 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
             : "border-[#dcdcde] bg-[#f6f7f7] text-[#2c3338]"
             }`}
         >
-          {message.text}
+          <FormattedMessage text={message.text} />
           {/* Debug overlay (only shown if we have context info via metadata or a custom property in the future, for PoC we can just read it if passed) */}
           {((message as any).context_used || (message as any).latency) && (
             <div className="absolute -top-5 right-0 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] text-white opacity-80 whitespace-nowrap">
@@ -808,7 +976,7 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
           {enableCart && wcId && meta.stock_status === "instock" ? (
             <>
               <a
-                href={`${meta.wc_url}&add-to-cart=${wcId}`}
+                href={`${meta.wc_url}${meta.wc_url.includes('?') ? '&' : '?'}add-to-cart=${wcId}&quantity=1`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ backgroundColor: primaryColor }}

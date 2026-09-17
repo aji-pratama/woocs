@@ -164,4 +164,45 @@ describe('App Widget', () => {
       expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
     });
   });
+
+  test('renders markdown bold and links formatted in bot response', async () => {
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ messages: [] }),
+    });
+
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        answer: 'No, this is **not a sock**. It is a **pair of Slim Fit Jeans** — [View details](http://localhost:8080/?p=12).',
+        confidence: 0.95,
+        escalated: false,
+        session_id: 'sess-123',
+        response_type: 'text',
+        metadata: null,
+      }),
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByLabelText(/Open chat/i));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/Ask anything/i)).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText(/Ask anything/i);
+    fireEvent.change(input, { target: { value: 'is this a sock' } });
+    const form = input.closest('form');
+    if (form) fireEvent.submit(form);
+
+    await waitFor(() => {
+      // Check that bold strong elements exist
+      expect(screen.getByText('not a sock').tagName).toBe('STRONG');
+      expect(screen.getByText('pair of Slim Fit Jeans').tagName).toBe('STRONG');
+      // Check that link exists
+      const link = screen.getByRole('link', { name: 'View details' });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', 'http://localhost:8080/?p=12');
+    });
+  });
 });
