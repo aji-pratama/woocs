@@ -15,5 +15,12 @@
     "OPENROUTER_BASE_URL": "https://openrouter.ai/api/v1",
     "POLAR_API_URL": "https://api.polar.sh",
     "POLAR_PRO_PRODUCT_ID": "prod_placeholder"
-  }
+  },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "persist": true
+    }
+  },
 }
