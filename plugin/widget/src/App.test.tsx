@@ -205,4 +205,63 @@ describe('App Widget', () => {
       expect(link).toHaveAttribute('href', 'http://localhost:8080/?p=12');
     });
   });
+
+  test('clicking add to cart on a product card sends AJAX request with quantity 1', async () => {
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ messages: [] }),
+    });
+
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        answer: 'Here is the product you asked for.',
+        confidence: 0.95,
+        escalated: false,
+        session_id: 'sess-123',
+        response_type: 'product_card',
+        metadata: {
+          id: 42,
+          name: 'Cool Hoodie',
+          price: '49.99',
+          stock_status: 'instock',
+          wc_url: 'http://localhost:8080/?p=42',
+        },
+      }),
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByLabelText(/Open chat/i));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/Ask anything/i)).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText(/Ask anything/i);
+    fireEvent.change(input, { target: { value: 'show me hoodie' } });
+    const form = input.closest('form');
+    if (form) fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cool Hoodie')).toBeInTheDocument();
+      expect(screen.getByText('Add to cart')).toBeInTheDocument();
+    });
+
+    // Mock AJAX add to cart response
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ error: false }),
+    });
+
+    fireEvent.click(screen.getByText('Add to cart'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Added! ✓')).toBeInTheDocument();
+    });
+
+    // Check fetch call to ?wc-ajax=add_to_cart
+    const lastFetchCall = (globalThis.fetch as any).mock.calls[(globalThis.fetch as any).mock.calls.length - 1];
+    expect(lastFetchCall[0]).toContain('/?wc-ajax=add_to_cart');
+    expect(lastFetchCall[1].method).toBe('POST');
+  });
 });

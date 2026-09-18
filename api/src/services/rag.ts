@@ -341,6 +341,7 @@ export class RagService {
 
   private static _productData(store: Store, product: Product): Record<string, any> {
     return {
+      id: product.wcId,
       name: product.name,
       price: String(product.price),
       stock_status: product.stockStatus,

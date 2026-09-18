@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, ArrowUp, ChevronRight, ChevronDown, Clock, Maxim
 type ResponseType = "text" | "product_card" | "product_carousel" | "order_card" | "escalation";
 
 interface ProductMeta {
+  id?: number | string;
   name: string;
   price: string;
   stock_status: "instock" | "outofstock" | "onbackorder" | string;
@@ -964,6 +965,9 @@ function MessageRow({
 }
 
 function ProductCard({ meta }: { meta: ProductMeta }) {
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+
   const stock =
     meta.stock_status === "instock"
       ? "In stock"
@@ -971,12 +975,51 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
         ? "Backorder"
         : "Out of stock";
 
-  const handleAddToCart = (e: React.MouseEvent) => {
+  const isOutOfStock = meta.stock_status === "outofstock";
+
+  const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!meta.wc_url || isOutOfStock || adding) return;
+
+    let productId = meta.id ? String(meta.id) : null;
+    if (!productId && meta.wc_url) {
+      const match = meta.wc_url.match(/[?&]p=(\d+)/);
+      if (match) productId = match[1];
+    }
+
+    if (productId && typeof window !== "undefined") {
+      setAdding(true);
+      try {
+        const baseUrl = window.WooCS?.wc_url || window.location.origin;
+        const fd = new FormData();
+        fd.append("product_id", productId);
+        fd.append("quantity", "1");
+
+        const res = await fetch(`${baseUrl.replace(/\/$/, "")}/?wc-ajax=add_to_cart`, {
+          method: "POST",
+          body: fd,
+          credentials: "same-origin",
+        });
+
+        if (res.ok) {
+          setAdding(false);
+          setAdded(true);
+          setTimeout(() => setAdded(false), 2500);
+
+          if ((window as any).jQuery) {
+            (window as any).jQuery(document.body).trigger("wc_fragment_refresh");
+            (window as any).jQuery(document.body).trigger("added_to_cart");
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn("AJAX add to cart failed, falling back to direct navigation", err);
+      }
+      setAdding(false);
+    }
+
     if (meta.wc_url) {
-      const url = new URL(meta.wc_url, window.location.origin);
-      url.searchParams.set("add-to-cart", "true");
-      window.location.href = url.toString();
+      window.location.href = meta.wc_url;
     }
   };
 
@@ -992,7 +1035,7 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
       <div className="p-3">
         <h4 className="line-clamp-2 text-sm font-medium text-[#1d2327]">{meta.name}</h4>
         <div className="mt-1 flex items-center justify-between text-xs">
-          <span className="font-semibold text-[#1d2327]">{meta.price}</span>
+          <span className="font-semibold text-[#1d2327]">${meta.price}</span>
           <span
             className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${meta.stock_status === "instock"
               ? "bg-[#edfaef] text-[#116329]"
@@ -1011,10 +1054,11 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
           </a>
           <button
             onClick={handleAddToCart}
+            disabled={isOutOfStock || adding}
             style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
-            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-white transition hover:opacity-90"
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
           >
-            Add to cart
+            {adding ? "Adding..." : added ? "Added! ✓" : "Add to cart"}
           </button>
         </div>
       </div>
