@@ -1,245 +1,99 @@
 # WooCS.ai
 
-> AI-powered customer support assistant for WooCommerce — PoC
+AI-powered customer support assistant for WooCommerce stores with automated RAG retrieval and multi-provider AI chat failover.
 
-WooCS.ai is a three-layer system that brings zero-setup RAG-based chat support to WooCommerce stores. A WordPress plugin syncs the product catalog to a Hono JS backend, which handles RAG retrieval and chat generation via Claude Haiku. A React widget is injected into the storefront for customers to interact with.
-
----
-
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  Storefront (customer-facing)                            │
-│  React widget  →  POST /api/widget/chat/                 │
-│                →  GET  /api/widget/order-status/         │
-└──────────────────────┬───────────────────────────────────┘
-                       │ HTTP
-┌──────────────────────▼───────────────────────────────────┐
-│  Hono JS backend (host)                                   │
-│  Hono-ninja API  +  Background Worker workers                     │
-│  Apps: store · chat                                      │
-└──────┬──────────────────────────────┬────────────────────┘
-       │                              │
-┌──────▼──────┐              ┌────────▼───────┐
-│ PostgreSQL  │              │  Redis         │
-│ 15+pgvector │              │  (Background Worker broker│
-│ (containers)│              │   + backend)   │
-└─────────────┘              └────────────────┘
-
-┌──────────────────────────────────────────────────────────┐
-│  WordPress Plugin (PHP)                                  │
-│  Pulls WC catalog  →  POST /api/stores/sync/             │
-│  Admin UI: Settings · Sync · FAQs · Preview              │
-└──────────────────────────────────────────────────────────┘
-```
+For full technical specifications and architecture diagrams, see [`_docs/architecture.md`](./_docs/architecture.md) and [`_docs/PRD.md`](./_docs/PRD.md).
 
 ---
 
-## Stack
+## Tech Stack & Ports
 
-| Layer | Technology |
-|---|---|
-| WP Plugin | PHP 8.1 |
-| Widget | React + Vite |
-| Backend | Hono 5.x + Hono Ninja |
-| Task Queue | Background Worker + Redis |
-| Database | PostgreSQL 15 + pgvector |
-| RAG | LlamaIndex + Claude Haiku (Anthropic) |
-| Containers | Docker Compose (infra only) |
-
----
-
-## Port Allocation
-
-| Service | Port | Notes |
-|---|---|---|
-| Hono API | `8000` | `npm run dev:api` |
-| Vite (Widget) | `5173` | `make dev-widget` |
-| WordPress | `8080` | `make infra-up` |
-| PostgreSQL | `5432` | `make infra-up` |
-| MySQL | `3306` | `make infra-up` |
-| Redis | `6379` | `make infra-up` |
+| Component | Technology | Local Port | Dev Command |
+|---|---|---|---|
+| **API Backend** | Hono JS + TypeScript (Node / Cloudflare) | `8001` | `make dev-api` (or `npm run dev` in `api/`) |
+| **Storefront Widget** | React 18 + Vite | `5173` | `make dev-widget` |
+| **WordPress + WooCommerce** | PHP 8.1+ | `8080` | `make infra-up` |
+| **Database** | PostgreSQL 15 + `pgvector` | `5432` | `make infra-up` |
+| **WordPress DB** | MySQL 8.0 | `3306` | `make infra-up` |
 
 ---
 
 ## Quickstart
 
 ### Prerequisites
+- **Node.js** 20+
+- **Podman** or **Docker** (with Compose)
+- **PHP** 8.1+ (optional, for direct plugin development)
 
-- Python 3.11+
-- Node.js 20+
-- Docker + Docker Compose
-
-### 1. Start infrastructure
-
+### 1. Setup & Installation
 ```bash
-make infra-up
+# Run one-command setup (install dependencies, launch containers, run DB migrations)
+make dev-setup
+
+# Copy and configure environment variables
+cp api/.env.example api/.env
 ```
 
-Starts: PostgreSQL (port 5432), MySQL (port 3306), WordPress (port 8080), Redis (port 6379).
-
-### 2. Set up backend
-
+### 2. Run Development Environment
 ```bash
-cp backend/.env.example backend/.env
-# Edit backend/.env with your settings
+# Start FULL stack (Containers + API + Worker + Vite Widget)
+make dev
 
-npm install
-npm run migrate
-npm run setup
-```
-
-### 3. Start backend services
-
-```bash
-# In separate terminals:
-npm run dev:api       # Hono dev server → http://localhost:8000
-make dev-Background Worker    # Background Worker worker
-```
-
-### 4. Start widget
-
-```bash
-make widget-install
-make dev-widget    # Vite dev server → http://localhost:5173
-```
-
-### 5. Access WordPress
-
-WordPress is available at http://localhost:8080. The `plugin/` directory is bind-mounted into the WP container — install and activate **WooCS.ai** from WP Admin › Plugins.
-
----
-
-## Directory Layout
-
-```
-woocs/
-├── backend/          # Hono JS backend (runs on host)
-│   ├── config/       # Hono project config + Background Worker
-│   ├── store/        # Store model, registration API, catalog ingest
-│   ├── chat/         # RAG chat + escalation app
-│   └── requirements.txt
-├── plugin/           # WordPress plugin (PHP)
-├── widget/           # React widget (Vite)
-├── compose.dev.yml   # Docker Compose for infra services
-└── Makefile          # Dev orchestration
+# Or start Plugin-only mode (Containers + Widget connected to Cloud API)
+make dev-plugin
 ```
 
 ---
 
-## Development Flow
-
-The project is orchestrated entirely via `make`.
-
-### Daily Development
+## Common Dev Commands
 
 ```bash
-make dev                   # Start EVERYTHING (containers, API, Background Worker, Vite) in parallel
-```
-*Note: If port 5173 is in use, Vite will automatically try 5174.*
+# Infrastructure
+make infra-up        # Start Postgres, MySQL, and WordPress containers
+make infra-down      # Stop all containers
+make infra-logs      # Follow container logs
 
-### Individual Commands
+# Host Processes
+make dev-api         # Run Hono API server (http://localhost:8001)
+make dev-worker      # Run background sync & embedding worker
+make dev-widget      # Run Vite widget server (http://localhost:5173)
 
-```bash
-make infra-up              # Start PostgreSQL, MySQL, Redis, WordPress
-npm run dev:api               # Start Hono dev server
-make dev-Background Worker            # Start Background Worker worker
-make dev-widget            # Start Vite dev server
-```
+# Testing & Linting
+make test-all        # Run all test suites across API, Widget, and Plugin
+make lint            # Run TypeScript & PHP linters
 
-### Setup & Build
-
-```bash
-npm install       # Install Node dependencies
-npm run migrate       # Run Hono migrations
-make wp-build              # Build widget and package plugin into woocs.zip
-make db-dump               # Dump Postgres data to fixtures/init.sql
+# Build & Release
+make wp-build        # Build React widget bundle and generate plugin zip (woocs.zip)
+make db-dump         # Dump PostgreSQL schema and data to fixtures/init.sql
 ```
 
 ---
 
-### UI Mock Testing (AI_MOCK_MODE)
+## Local Services & URLs
 
-To test the Widget UI scenarios without making actual requests to the AI API (saving costs and avoiding latency), you can enable the mock mode. 
-Add this to your `api/.env` file:
-```env
-AI_MOCK_MODE=true
-```
-
-Once enabled, restart the API server. You can then trigger specific UI scenarios by typing these exact keywords in the widget chat:
-- `mock_product` - Simulates an AI response returning a single product, rendering a Product Card.
-- `mock_carousel` - Simulates an AI response returning multiple products, rendering a Product Carousel.
-- `mock_escalate` - Simulates a low-confidence AI response, triggering the escalation flow.
-- `mock_error` - Simulates an internal AI service error to test error handling.
+- **WordPress Admin**: [http://localhost:8080/wp-admin](http://localhost:8080/wp-admin) (`admin` / `admin`)
+- **Storefront**: [http://localhost:8080](http://localhost:8080)
+- **Internal Health Check**:
+  ```bash
+  curl -s -H "X-Health-Key: woocs-secret-health-key-2026" \
+    http://localhost:8001/api/internal/health-check-9x7f2k
+  ```
 
 ---
 
-## Internal Health Check & Diagnostics (Secured)
+## Testing Utilities
 
-To protect internal infrastructure details (database host, live latency, AI provider status, Polar secrets), the health diagnostic endpoint is obfuscated and secured behind an authentication key.
-
-* **Endpoint Path:** `/api/internal/health-check-9x7f2k` *(Configurable via `HEALTH_CHECK_PATH`)*
-* **Auth Requirement:** Valid `X-Health-Key` header or `?key=` query parameter matching `HEALTH_CHECK_SECRET`.
-* **Default Dev Secret:** `woocs-secret-health-key-2026`
-* **Public `/health`:** Disabled / returns `404 Not Found` to prevent reconnaissance scans.
-
-### Usage Examples
-
-```bash
-# 1. Inspect live Cloudflare API health using Header (Recommended)
-curl -s -H "X-Health-Key: woocs-secret-health-key-2026" \
-  https://woocs.bisatekno-id.workers.dev/api/internal/health-check-9x7f2k
-
-# 2. Inspect live Cloudflare API health using Query Parameter
-curl -s "https://woocs.bisatekno-id.workers.dev/api/internal/health-check-9x7f2k?key=woocs-secret-health-key-2026"
-
-# 3. Inspect Local Dev API
-curl -s -H "X-Health-Key: woocs-secret-health-key-2026" \
-  http://localhost:8001/api/internal/health-check-9x7f2k
-```
-
-### Sample Response (200 OK)
-
-```json
-{
-  "status": "healthy",
-  "service": "woocs-api",
-  "timestamp": "2026-09-14T15:10:00.000Z",
-  "duration_ms": 36,
-  "checks": {
-    "database": {
-      "status": "connected",
-      "host": "ep-res....neon.tech",
-      "latency_ms": 36
-    },
-    "ai_provider": {
-      "openrouter_configured": false,
-      "chat_model": "openai/gpt-4o-mini"
-    },
-    "billing": {
-      "polar_configured": false
-    }
-  }
-}
-```
-
-If an invalid or missing key is sent, the API immediately rejects the request:
-```json
-// HTTP 401 Unauthorized
-{
-  "error": "Unauthorized: Invalid or missing health check key",
-  "message": "Provide valid X-Health-Key header or ?key= query parameter"
-}
-```
+### Widget UI Mock Keywords (`AI_MOCK_MODE`)
+Set `AI_MOCK_MODE=true` in `api/.env` to test widget components without calling external LLMs:
+- `mock_product` → Test single Product Card with "Add to Cart".
+- `mock_carousel` → Test Product Recommendation Carousel.
+- `mock_escalate` → Test Human Escalation form.
+- `mock_error` → Test Server Error & Retry UI.
 
 ---
 
-## PoC Scope
+## Documentation Index
 
-See [PRD](./_docs/PRD.md) for the full specification.
-
-**Hypotheses to validate:**
-- H1: 100+ products synced and embedded in < 3 min
-- H2: 15/20 manual queries answered correctly without hallucination
-- H3: Escalation fires correctly on keyword/low-confidence triggers
+- **System Architecture & Diagrams**: [`_docs/architecture.md`](./_docs/architecture.md)
+- **Product Requirements & Business Specs**: [`_docs/PRD.md`](./_docs/PRD.md)
+- **Roadmap & Active Tasks**: [`_docs/plans/roadmap.md`](./_docs/plans/roadmap.md)

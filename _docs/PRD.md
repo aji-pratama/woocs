@@ -51,15 +51,13 @@ Prove three technical hypotheses in 4 weeks:
 
 ## 4. Architecture overview
 
-Two Modules, all connected through a single API surface:
+WooCS.ai consists of three core components connected through a single API surface:
 
-**WordPress layer** — WP plugin (PHP) is the bridge between the merchant's store and Hono. It pulls catalog data from WooCommerce REST API, forwards it to Hono, and injects the widget into the storefront.
+1. **WordPress Plugin (PHP)** — Bridge between the merchant's WooCommerce store and the backend. Pulls catalog data, synchronizes FAQs/Knowledge, and injects the chat widget.
+2. **Hono JS Backend** — High-performance API handling store registration, catalog ingestion, multi-provider AI chat generation, and vector retrieval.
+3. **Storefront Widget (React)** — Lightweight customer chat interface embedded in the WooCommerce storefront.
 
-**Hono JS backend** — API for tenant management, catalog ingestion, and RAG chat. Hosted on a VPS.
-
-**External services** — PostgreSQL + pgvector for data and vectors. BullMQ for background tasks. LlamaIndex handles AI models (Anthropic/OpenAI/Gemini).
-
-**Widget** — React bundle injected via WP plugin. Communicates exclusively with the Hono API.
+> For deep technical system design, database ERD, multi-provider AI router mechanics, and security boundaries, see [`_docs/architecture.md`](./architecture.md).
 
 ---
 
