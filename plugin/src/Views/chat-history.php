@@ -252,12 +252,16 @@ $is_connected = !empty(get_option('woocs_store_id'));
                         customerDetails.innerHTML = '<span class="woocs-text-error">Failed to load session.</span>';
                         return;
                     }
-                    var s = res.data;
-                    drawerTitle.textContent = 'Conversation — ' + new Date(s.created_at).toLocaleDateString();
+                    var data = res.data;
+                    var s = (data && data.session) ? data.session : (data || {});
+                    var messages = (data && data.messages) ? data.messages : (s.messages || []);
+
+                    var dateStr = s.created_at ? new Date(s.created_at).toLocaleString([], {dateStyle:'medium', timeStyle:'short'}) : '';
+                    drawerTitle.textContent = 'Conversation' + (dateStr ? ' — ' + dateStr : '');
 
                     var parts = [];
                     if (s.customer_name)  parts.push('<strong>Name:</strong> ' + esc(s.customer_name));
-                    if (s.customer_email) parts.push('<strong>Email:</strong> ' + esc(s.customer_email));
+                    if (s.customer_email) parts.push('<strong>Email:</strong> <a href="mailto:' + esc(s.customer_email) + '">' + esc(s.customer_email) + '</a>');
                     if (s.customer_phone) parts.push('<strong>Phone:</strong> ' + esc(s.customer_phone));
                     customerDetails.innerHTML = parts.length ? parts.join('&nbsp;&nbsp;|&nbsp;&nbsp;') : '<span class="woocs-text-muted">Anonymous session</span>';
 
@@ -265,19 +269,39 @@ $is_connected = !empty(get_option('woocs_store_id'));
                         drawerLeadSelect.value = s.lead_label || 'lead';
                     }
 
-                    if (!s.messages || s.messages.length === 0) {
+                    if (!messages || messages.length === 0) {
                         messagesEl.innerHTML = '<p class="woocs-text-muted">No messages.</p>';
                         return;
                     }
 
-                    messagesEl.innerHTML = s.messages.map(function(m) {
+                    messagesEl.innerHTML = messages.map(function(m) {
                         var isBot = m.role === 'assistant';
+                        var isEscalationMsg = (m.metadata && (m.metadata.is_escalation || m.metadata.escalation)) || (m.role === 'user' && m.metadata && m.metadata.is_escalation);
                         var bubbleClass = isBot ? 'woocs-chat-bubble-bot' : 'woocs-chat-bubble-user';
                         var align = isBot ? 'flex-start' : 'flex-end';
+
+                        var badgeHtml = '';
+                        if (isEscalationMsg) {
+                            badgeHtml = ' <span class="woocs-badge woocs-badge-warning" style="margin-left:6px;font-size:10px;">Escalation Request</span>';
+                        } else if (m.escalated) {
+                            badgeHtml = ' <span class="woocs-badge woocs-badge-warning" style="margin-left:6px;font-size:10px;">Escalated (' + esc(m.escalation_reason || 'trigger') + ')</span>';
+                        }
+
+                        var extraMetaHtml = '';
+                        if (isEscalationMsg && m.metadata) {
+                            var metaParts = [];
+                            if (m.metadata.customer_name) metaParts.push('<strong>Name:</strong> ' + esc(m.metadata.customer_name));
+                            if (m.metadata.customer_email) metaParts.push('<strong>Email:</strong> ' + esc(m.metadata.customer_email));
+                            if (metaParts.length > 0) {
+                                extraMetaHtml = '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #c3c4c7;font-size:11px;color:#50575e;">' + metaParts.join('&nbsp;&nbsp;|&nbsp;&nbsp;') + '</div>';
+                            }
+                        }
+
                         return '<div style="display:flex;justify-content:' + align + ';">' +
-                            '<div class="' + bubbleClass + '">' +
-                            '<span class="woocs-chat-bubble-label">' + (isBot ? 'Assistant' : 'Customer') + '</span>' +
-                            esc(m.content) +
+                            '<div class="' + bubbleClass + '"' + (isEscalationMsg ? ' style="border:1px solid #dba617;background:#fef8ee;"' : '') + '>' +
+                            '<span class="woocs-chat-bubble-label">' + (isBot ? 'Assistant' : 'Customer') + badgeHtml + '</span>' +
+                            '<div style="white-space:pre-wrap;">' + esc(m.content) + '</div>' +
+                            extraMetaHtml +
                             '</div></div>';
                     }).join('');
                 })

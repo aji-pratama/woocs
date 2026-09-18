@@ -879,13 +879,14 @@ function FormattedMessage({ text }: { text: string }) {
 
 function InitialLoadingSkeleton() {
   return (
-    <div className="flex flex-col gap-4 py-2 animate-in fade-in duration-300">
-      <div className="flex items-start gap-2.5 max-w-[85%]">
-        <div className="h-8 w-8 rounded-full bg-slate-200 animate-pulse shrink-0" />
-        <div className="flex-1 space-y-2 rounded-2xl rounded-tl-sm border border-[#e2e4e7] bg-[#f6f7f7] p-3.5">
-          <div className="h-3.5 w-3/4 rounded bg-slate-200 animate-pulse" />
-          <div className="h-3.5 w-1/2 rounded bg-slate-200 animate-pulse" />
-        </div>
+    <div className="flex flex-col gap-4 animate-pulse">
+      <div className="flex max-w-[85%] flex-col gap-2 rounded-2xl rounded-tl-sm border border-[#dcdcde] bg-[#f6f7f7] p-3.5">
+        <div className="h-3 w-3/4 rounded bg-slate-200" />
+        <div className="h-3 w-1/2 rounded bg-slate-200" />
+      </div>
+      <div className="flex max-w-[85%] flex-col gap-2 rounded-2xl rounded-tl-sm border border-[#dcdcde] bg-[#f6f7f7] p-3.5">
+        <div className="h-3 w-4/5 rounded bg-slate-200" />
+        <div className="h-3 w-2/3 rounded bg-slate-200" />
       </div>
       <div className="flex items-center justify-center gap-1.5 py-6 text-xs font-medium text-slate-400">
         <span className="inline-block h-2 w-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: "0ms" }} />
@@ -896,12 +897,24 @@ function InitialLoadingSkeleton() {
   );
 }
 
-function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a: boolean) => void }) {
+function MessageRow({
+  message,
+  onEscalate,
+  sessionId,
+  config,
+  customerInfo,
+}: {
+  message: Message;
+  onEscalate: (a: boolean) => void;
+  sessionId?: string;
+  config?: Config | null;
+  customerInfo?: { name?: string; email?: string; phone?: string };
+}) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
         <div
-          style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+          style={{ backgroundColor: config?.primary_color || (typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1") }}
           className="max-w-[78%] rounded-2xl rounded-tr-sm px-3.5 py-3 text-[14px] leading-relaxed text-white animate-in fade-in"
         >
           <FormattedMessage text={message.text} />
@@ -938,7 +951,12 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
           <OrderCard meta={message.metadata as OrderMeta} />
         )}
         {message.response_type === "escalation" && (
-          <EscalationCard onEscalate={onEscalate} />
+          <EscalationCard
+            onEscalate={onEscalate}
+            sessionId={sessionId}
+            config={config}
+            customerInfo={customerInfo}
+          />
         )}
       </div>
     </div>
@@ -948,62 +966,56 @@ function MessageRow({ message, onEscalate }: { message: Message; onEscalate: (a:
 function ProductCard({ meta }: { meta: ProductMeta }) {
   const stock =
     meta.stock_status === "instock"
-      ? { label: meta.stock_quantity != null ? `In stock (${meta.stock_quantity})` : "In stock", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200" }
-      : meta.stock_status === "outofstock"
-        ? { label: "Out of stock", cls: "bg-red-50 text-red-700 ring-red-200" }
-        : { label: "Backorder", cls: "bg-amber-50 text-amber-700 ring-amber-200" };
+      ? "In stock"
+      : meta.stock_status === "onbackorder"
+        ? "Backorder"
+        : "Out of stock";
 
-  const enableCart = typeof window !== "undefined" ? window.WooCS?.widget_config?.enable_cart_action ?? true : true;
-  const primaryColor = typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1";
-
-  // Basic extract ID from URL (e.g. /?p=123) for simple Add to Cart link
-  const wcIdMatch = meta.wc_url?.match(/p=(\d+)/);
-  const wcId = wcIdMatch ? wcIdMatch[1] : null;
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (meta.wc_url) {
+      const url = new URL(meta.wc_url, window.location.origin);
+      url.searchParams.set("add-to-cart", "true");
+      window.location.href = url.toString();
+    }
+  };
 
   return (
-    <div className="overflow-hidden rounded border border-[#c3c4c7] bg-white w-[240px] shrink-0 snap-center">
-      {meta.image_url && (
-        <img src={meta.image_url} alt={meta.name} className="h-28 w-full object-cover" />
-      )}
-      <div className="p-4 flex flex-col h-full">
-        <div className="text-[14px] font-semibold leading-tight text-[#1d2327] line-clamp-2 flex-1">{meta.name}</div>
-        <div className="mt-2.5 flex items-center justify-between">
-          <span className="font-bold text-[#1d2327]">${meta.price}</span>
-          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 ${stock.cls}`}>{stock.label}</span>
+    <div className="overflow-hidden rounded-xl border border-[#dcdcde] bg-white shadow-sm transition hover:shadow-md">
+      {meta.image_url ? (
+        <img src={meta.image_url} alt={meta.name} className="h-36 w-full object-cover" />
+      ) : (
+        <div className="flex h-28 items-center justify-center bg-[#f0f0f1] text-xs text-[#646970]">
+          No image
         </div>
-
-        <div className="mt-4 flex flex-col gap-2">
-          {enableCart && wcId && meta.stock_status === "instock" ? (
-            <>
-              <a
-                href={`${meta.wc_url}${meta.wc_url.includes('?') ? '&' : '?'}add-to-cart=${wcId}&quantity=1`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ backgroundColor: primaryColor }}
-                className="woocs-embossed-btn block w-full rounded-sm px-4 py-2 text-center text-[13px] font-semibold text-white"
-              >
-                Add to cart
-              </a>
-              <a
-                href={meta.wc_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full rounded-sm border border-[#c3c4c7] bg-white px-4 py-2 text-center text-[13px] font-medium text-[#2c3338] hover:bg-slate-50 transition-colors"
-              >
-                View details
-              </a>
-            </>
-          ) : (
-            <a
-              href={meta.wc_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ backgroundColor: primaryColor }}
-              className="woocs-embossed-btn block w-full rounded-sm px-4 py-2 text-center text-[13px] font-semibold text-white"
-            >
-              View product
-            </a>
-          )}
+      )}
+      <div className="p-3">
+        <h4 className="line-clamp-2 text-sm font-medium text-[#1d2327]">{meta.name}</h4>
+        <div className="mt-1 flex items-center justify-between text-xs">
+          <span className="font-semibold text-[#1d2327]">{meta.price}</span>
+          <span
+            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${meta.stock_status === "instock"
+              ? "bg-[#edfaef] text-[#116329]"
+              : "bg-[#fcf0f1] text-[#8a2424]"
+              }`}
+          >
+            {stock}
+          </span>
+        </div>
+        <div className="mt-2.5 flex items-center gap-1.5">
+          <a
+            href={meta.wc_url || "#"}
+            className="flex-1 rounded-md border border-[#c3c4c7] px-2.5 py-1.5 text-center text-xs font-medium text-[#2c3338] transition hover:bg-[#f6f7f7]"
+          >
+            View product
+          </a>
+          <button
+            onClick={handleAddToCart}
+            style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-white transition hover:opacity-90"
+          >
+            Add to cart
+          </button>
         </div>
       </div>
     </div>
@@ -1011,46 +1023,89 @@ function ProductCard({ meta }: { meta: ProductMeta }) {
 }
 
 function ProductCarousel({ products }: { products: ProductMeta[] }) {
+  const [index, setIndex] = useState(0);
+
+  if (!products || products.length === 0) return null;
+
   return (
-    <div className="w-full rounded-2xl border border-[#dcdcde] bg-[#f6f7f7] p-3">
-      <div className="flex w-full overflow-x-auto gap-3 pb-2 snap-x">
-        {products.map((p, i) => (
-          <div key={i} className="snap-start shrink-0">
-            <ProductCard meta={p} />
-          </div>
-        ))}
+    <div className="relative">
+      <div className="w-full">
+        <ProductCard meta={products[index]} />
       </div>
+      {products.length > 1 && (
+        <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+          <button
+            onClick={() => setIndex((i) => Math.max(0, i - 1))}
+            disabled={index === 0}
+            className="flex items-center gap-1 rounded px-2 py-1 hover:bg-slate-100 disabled:opacity-40"
+          >
+            <ArrowLeft className="h-3 w-3" /> Prev
+          </button>
+          <span>
+            {index + 1} / {products.length}
+          </span>
+          <button
+            onClick={() => setIndex((i) => Math.min(products.length - 1, i + 1))}
+            disabled={index === products.length - 1}
+            className="flex items-center gap-1 rounded px-2 py-1 hover:bg-slate-100 disabled:opacity-40"
+          >
+            Next <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 function OrderCard({ meta }: { meta: OrderMeta }) {
+  const statusColor: Record<string, string> = {
+    completed: "bg-[#edfaef] text-[#116329]",
+    processing: "bg-[#f0f6fc] text-[#0969da]",
+    pending: "bg-[#fff8c5] text-[#9a6700]",
+    cancelled: "bg-[#fcf0f1] text-[#8a2424]",
+    refunded: "bg-[#fcf0f1] text-[#8a2424]",
+  };
+
   return (
-    <div className="rounded border border-[#c3c4c7] bg-white p-4">
-      <div className="text-[14px] font-semibold text-slate-900">Order #{meta.order_id}</div>
-      <div className="mt-3 space-y-2.5 text-[13px]">
-        <div className="flex justify-between border-b border-slate-100 pb-2">
-          <span className="text-slate-500">Status</span>
-          <span className="font-medium text-indigo-600">{meta.status}</span>
-        </div>
-        <div className="border-b border-slate-100 pb-2">
-          <div className="mb-1.5 text-slate-500">Items</div>
-          <ul className="space-y-1 text-slate-800">
-            {meta.items.map((i, idx) => (
-              <li key={idx}>{i}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="flex justify-between pt-1">
-          <span className="text-slate-500">Total</span>
-          <span className="font-semibold text-slate-900">${meta.total}</span>
-        </div>
+    <div className="rounded-xl border border-[#dcdcde] bg-white p-3.5 shadow-sm">
+      <div className="flex items-center justify-between border-b border-[#f0f0f1] pb-2">
+        <span className="text-xs font-semibold text-[#1d2327]">Order #{meta.order_id}</span>
+        <span
+          className={`rounded px-1.5 py-0.5 text-[10px] font-medium capitalize ${statusColor[meta.status] || "bg-[#f0f0f1] text-[#646970]"
+            }`}
+        >
+          {meta.status}
+        </span>
       </div>
+      {meta.items && meta.items.length > 0 && (
+        <ul className="mt-2 space-y-1 text-xs text-[#50575e]">
+          {meta.items.map((item, i) => (
+            <li key={i} className="line-clamp-1">
+              • {item}
+            </li>
+          ))}
+        </ul>
+      )}
+      {meta.total && (
+        <div className="mt-2.5 border-t border-[#f0f0f1] pt-2 text-right text-xs font-semibold text-[#1d2327]">
+          Total: {meta.total}
+        </div>
+      )}
     </div>
   );
 }
 
-function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string) => void }) {
+function EscalationCard({
+  onEscalate,
+  sessionId,
+  config,
+  customerInfo,
+}: {
+  onEscalate: (a: boolean, msg?: string) => void;
+  sessionId?: string;
+  config?: Config | null;
+  customerInfo?: { name?: string; email?: string; phone?: string };
+}) {
   const [step, setStep] = useState<'initial' | 'form' | 'submitting' | 'done'>('initial');
 
   if (step === 'done') return null;
@@ -1065,25 +1120,32 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string)
           const fd = new FormData(e.currentTarget);
           try {
             const wc = typeof window !== "undefined" ? window.WooCS : undefined;
-            const apiUrl = wc?.api_url ?? "http://localhost:8001";
-            const storeId = wc?.store_id ?? "";
+            const apiUrl = config?.api_url ?? wc?.api_url ?? "http://localhost:8001";
+            const storeId = config?.store_id ?? wc?.store_id ?? "";
 
-            let sessionId = "";
-            const raw = typeof window !== "undefined" ? window.localStorage.getItem("woocs_chat_v1") : null;
-            if (raw) sessionId = JSON.parse(raw).sessionId;
+            let activeSessionId = sessionId;
+            if (!activeSessionId) {
+              const raw = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
+              if (raw) activeSessionId = JSON.parse(raw).sessionId;
+            }
 
-            await fetch(`${apiUrl}/api/widget/chat/escalate`, {
+            const res = await fetch(`${apiUrl}/api/widget/chat/escalate`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 store_id: storeId,
-                session_id: sessionId || "unknown",
-                name: fd.get('name') as string,
-                email: fd.get('email') as string,
-                message: fd.get('message') as string,
+                session_id: activeSessionId,
+                name: (fd.get('name') as string)?.trim() || undefined,
+                email: (fd.get('email') as string)?.trim(),
+                message: (fd.get('message') as string)?.trim(),
               }),
             });
-            onEscalate(true, fd.get('message') as string);
+
+            if (!res.ok) {
+              throw new Error(`Escalation failed: ${res.statusText}`);
+            }
+
+            onEscalate(true, (fd.get('message') as string)?.trim());
             setStep('done');
           } catch (err) {
             console.error('Failed to submit escalation', err);
@@ -1096,6 +1158,7 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string)
           <input
             type="text"
             name="name"
+            defaultValue={customerInfo?.name || ""}
             placeholder="Your name (optional)"
             className="block w-full rounded-sm border border-[#c3c4c7] px-3 py-1.5 text-[13px] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
           />
@@ -1103,6 +1166,7 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string)
             type="email"
             name="email"
             required
+            defaultValue={customerInfo?.email || ""}
             placeholder="Your email address"
             className="block w-full rounded-sm border border-[#c3c4c7] px-3 py-1.5 text-[13px] focus:border-[#2271b1] focus:outline-none focus:ring-1 focus:ring-[#2271b1]"
           />
@@ -1116,7 +1180,7 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string)
           <button
             type="submit"
             disabled={step === 'submitting'}
-            style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+            style={{ backgroundColor: config?.primary_color || (typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1") }}
             className="woocs-embossed-btn w-full rounded-sm px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-70"
           >
             {step === 'submitting' ? 'Sending...' : 'Send Message'}
@@ -1135,7 +1199,7 @@ function EscalationCard({ onEscalate }: { onEscalate: (a: boolean, msg?: string)
           <div className="mt-3 flex flex-wrap gap-2.5">
             <button
               onClick={() => setStep('form')}
-              style={{ backgroundColor: typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1" }}
+              style={{ backgroundColor: config?.primary_color || (typeof window !== "undefined" ? window.WooCS?.primary_color || "#2271b1" : "#2271b1") }}
               className="woocs-embossed-btn rounded-sm px-4 py-2 text-[13px] font-semibold text-white"
             >
               Talk to someone

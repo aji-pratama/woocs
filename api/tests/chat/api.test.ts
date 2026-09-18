@@ -112,4 +112,33 @@ describe('Widget API', () => {
     expect(Array.isArray(data.messages)).toBe(true);
     expect(data.messages.length).toBeGreaterThan(0);
   });
+
+  it('should process escalation form submission and capture customer details', async () => {
+    const res = await app.request('/api/widget/chat/escalate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        store_id: storeId,
+        session_id: sessionId,
+        name: 'Budi Santoso',
+        email: 'budi@example.com',
+        message: 'Tolong bantu tracking pesanan saya, urgent.',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+
+    // Verify session detail via store API
+    const sessionRes = await app.request(`/api/stores/chat-history/${sessionId}`, {
+      method: 'GET',
+      headers: { 'X-API-Key': 'test_key' }, // Will fetch since store is registered
+    });
+
+    // In store API with valid key or checking DB
+    const [dbSession] = await db.select().from(chatSessions).where(eq(chatSessions.sessionId, sessionId));
+    expect(dbSession.customerName).toBe('Budi Santoso');
+    expect(dbSession.customerEmail).toBe('budi@example.com');
+  });
 });

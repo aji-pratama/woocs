@@ -157,16 +157,25 @@ widgetRouter.post('/chat/escalate', escalateLimiter, zValidator('json', Escalate
   const session = await ChatService.getOrCreateSession(store.id, body.session_id);
 
   // Update session with customer info
+  const updateData: any = { customerEmail: body.email };
+  if (body.name) {
+    updateData.customerName = body.name;
+  }
   await db.update(chatSessions)
-    .set({ customerEmail: body.email, customerName: body.name || null })
+    .set(updateData)
     .where(eq(chatSessions.id, session.id));
+  appCache.delete(`chat_session:${body.session_id}`);
 
   // Save the escalation message as a user message in history
   await db.insert(chatMessages).values({
     sessionId: session.id,
     role: 'user',
     content: body.message,
-    metadata: { is_escalation: true },
+    metadata: {
+      is_escalation: true,
+      customer_name: body.name || null,
+      customer_email: body.email,
+    },
   });
 
   // Fire and forget email sending to not block the API response
