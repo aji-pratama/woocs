@@ -1,11 +1,12 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateOpenRouterText, getChatModelCandidates } from '../../src/services/ai.js';
+import { generateOpenRouterText, getChatModelCandidates, AIRouter } from '../../src/services/ai.js';
 
 describe('OpenRouter Multi-Model Rotator & Failover', () => {
   const originalFetch = globalThis.fetch;
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
+    AIRouter.resetCooldowns();
     process.env.TEST_OPENROUTER_ROTATOR = 'true';
     process.env.OPENROUTER_API_KEY = 'test-mock-key-12345';
     process.env.AI_CHAT_MODELS = 'model-primary:free,model-backup-1:free,model-backup-2:free';

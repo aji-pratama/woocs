@@ -1,6 +1,11 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { ENV } from '../config/env.js';
 import { logger } from '../common/logger.js';
+import { getAIRouterConfig, AIRouteConfig } from '../config/ai-router.js';
+
+export * from '../config/ai-router.js';
+
+// ─── 1. AI Models & Embedding Client ──────────────────────────────────────────
 
 export function getOpenRouter() {
   const apiKey = process.env.OPENROUTER_API_KEY || ENV.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || ENV.OPENAI_API_KEY || '';
@@ -10,10 +15,7 @@ export function getOpenRouter() {
   return createOpenAI({
     baseURL,
     apiKey,
-    headers: {
-      'HTTP-Referer': appUrl,
-      'X-Title': 'WooCS AI',
-    },
+    headers: { 'HTTP-Referer': appUrl, 'X-Title': 'WooCS AI' },
   });
 }
 
@@ -27,39 +29,19 @@ export const openrouter = new Proxy({} as ReturnType<typeof createOpenAI>, {
 
 export function getChatModelCandidates(overrideModel?: string): string[] {
   if (overrideModel) return [overrideModel];
-  
-  if (process.env.AI_CHAT_MODEL && !process.env.AI_CHAT_MODELS) {
-    return [process.env.AI_CHAT_MODEL];
-  }
-
+  if (process.env.AI_CHAT_MODEL && !process.env.AI_CHAT_MODELS) return [process.env.AI_CHAT_MODEL];
   const rawList = process.env.AI_CHAT_MODELS || ENV.AI_CHAT_MODELS || '';
-  const parsed = rawList
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
-
+  const parsed = rawList.split(',').map((s) => s.trim()).filter(Boolean);
   const primary = process.env.AI_CHAT_MODEL;
-  if (primary && !parsed.includes(primary)) {
-    parsed.unshift(primary);
-  }
-
-  if (parsed.length === 0) {
-    return [
-      'nex-agi/nex-n2.5-mini:free',
-      'meta-llama/llama-3.3-70b-instruct:free',
-      'mistralai/mistral-small-24b-instruct-2501:free',
-      'google/gemini-2.0-flash-exp:free',
-      'qwen/qwen-2.5-coder-32b-instruct:free',
-    ];
-  }
-
-  return parsed;
+  if (primary && !parsed.includes(primary)) parsed.unshift(primary);
+  return parsed.length > 0
+    ? parsed
+    : ['google/gemini-2.0-flash-exp:free', 'meta-llama/llama-3.3-70b-instruct:free'];
 }
 
 export const aiModels = {
   get chat() {
-    const candidates = getChatModelCandidates();
-    return getOpenRouter().chat(candidates[0]) as any;
+    return getOpenRouter().chat(getChatModelCandidates()[0]) as any;
   },
   get embedding() {
     const model = process.env.AI_EMBEDDING_MODEL || ENV.AI_EMBEDDING_MODEL || 'liquid/lfm-2.5-embedding-350m:free';
@@ -67,11 +49,186 @@ export const aiModels = {
   },
 };
 
-/**
- * Direct OpenRouter chat generation helper with automatic multi-model rotation & failover.
- * If the primary free model hits rate limits (429), capacity errors (5xx), or returns empty responses,
- * it seamlessly fails over to the next candidate model in the pool without dropping customer chat sessions.
- */
+// ─── 2. Provider API Dispatcher ───────────────────────────────────────────────
+
+async function callProviderAPI(
+  route: AIRouteConfig,
+  apiKey: string,
+  prompt: string,
+  system?: string,
+  timeoutMs = 15000
+): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    // Direct Google Gemini API
+    if (route.provider === 'gemini') {
+      const cleanModel = route.model.replace(/^models\//, '');
+      const baseURL = route.baseURL || 'https://generativelanguage.googleapis.com/v1beta';
+      const url = `${baseURL.replace(/\/$/, '')}/models/${cleanModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const contents = [
+        {
+          role: 'user',
+          parts: [{ text: system ? `[SYSTEM]: ${system}\n\n[USER]: ${prompt}` : prompt }],
+        },
+      ];
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) throw new Error(`Google Gemini Error [${res.status}]: ${(await res.text()).slice(0, 150)}`);
+      const data = (await res.json()) as any;
+      return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    }
+
+    // OpenAI / OpenRouter / Custom OpenAI-compatible endpoint
+    const baseURL =
+      route.baseURL ||
+      (route.provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com/v1');
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+    if (route.provider === 'openrouter') {
+      headers['HTTP-Referer'] = process.env.APP_URL || 'https://woocs.ai';
+      headers['X-Title'] = 'WooCS AI';
+    }
+
+    const messages = [];
+    if (system) messages.push({ role: 'system', content: system });
+    messages.push({ role: 'user', content: prompt });
+
+    const res = await fetch(`${baseURL.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model: route.model, messages }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) throw new Error(`${route.provider.toUpperCase()} Error [${res.status}]: ${(await res.text()).slice(0, 150)}`);
+    const data = (await res.json()) as any;
+    return data?.choices?.[0]?.message?.content || '';
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// ─── 3. AI Router Engine ──────────────────────────────────────────────────────
+
+export class AIRouter {
+  private static routeCooldowns = new Map<string, number>();
+
+  static resetCooldowns(): void {
+    this.routeCooldowns.clear();
+  }
+
+  static async generateText({
+    prompt,
+    system,
+    modelOverride,
+    chainOverride,
+    timeoutMs = 15000,
+  }: {
+    prompt: string;
+    system?: string;
+    modelOverride?: string;
+    chainOverride?: AIRouteConfig[];
+    timeoutMs?: number;
+  }): Promise<{
+    text: string;
+    routeUsed: string;
+    providerUsed: string;
+    modelUsed: string;
+    attemptsCount: number;
+  }> {
+    let chain = chainOverride;
+    if (!chain || chain.length === 0) {
+      if (modelOverride) {
+        const isSlash = modelOverride.includes('/');
+        chain = [
+          {
+            id: `override-${modelOverride}`,
+            provider: isSlash ? 'openrouter' : 'openai',
+            model: modelOverride,
+            apiKeyEnv: isSlash ? 'OPENROUTER_API_KEY' : 'OPENAI_API_KEY',
+            enabled: true,
+          },
+        ];
+      } else {
+        chain = getAIRouterConfig().filter((r) => r.enabled !== false);
+      }
+    }
+
+    const errors: string[] = [];
+    let attemptsCount = 0;
+
+    for (let i = 0; i < chain.length; i++) {
+      const route = chain[i];
+      const routeKey = route.id || `${route.provider}:${route.model}`;
+
+      // 1. Circuit breaker cooldown check
+      const cooldownUntil = this.routeCooldowns.get(routeKey);
+      if (cooldownUntil && Date.now() < cooldownUntil) continue;
+
+      // 2. Resolve API key
+      let apiKey = route.apiKey || (route.apiKeyEnv ? process.env[route.apiKeyEnv] : undefined);
+      if (!apiKey) {
+        if (route.provider === 'openai') apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+        else if (route.provider === 'openrouter') apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+        else if (route.provider === 'gemini') apiKey = process.env.GEMINI_API_KEY;
+      }
+      if (!apiKey && route.provider !== 'custom') continue;
+
+      attemptsCount++;
+      const startTime = Date.now();
+
+      try {
+        const text = await callProviderAPI(route, apiKey || '', prompt, system, timeoutMs || route.timeoutMs);
+
+        if (!text) {
+          errors.push(`[${routeKey}]: Empty response`);
+          if (i < chain.length - 1) continue;
+          throw new Error(`AI route [${routeKey}] returned empty content`);
+        }
+
+        this.routeCooldowns.delete(routeKey);
+        logger.ai(`Generated text via [${routeKey}]`, {
+          route: routeKey,
+          provider: route.provider,
+          model: route.model,
+          durationMs: Date.now() - startTime,
+          attemptsCount,
+        });
+
+        return {
+          text,
+          routeUsed: routeKey,
+          providerUsed: route.provider,
+          modelUsed: route.model,
+          attemptsCount,
+        };
+      } catch (err: any) {
+        const errMessage = err.message || String(err);
+        errors.push(`[${routeKey}]: ${errMessage}`);
+        this.routeCooldowns.set(routeKey, Date.now() + 30_000);
+
+        if (i < chain.length - 1) {
+          logger.warn(`AI route [${routeKey}] failed (${errMessage}), failing over...`);
+          continue;
+        }
+      }
+    }
+
+    throw new Error(`All candidate AI routes failed: ${errors.join(' | ')}`);
+  }
+}
+
+// ─── 4. Backward-Compatible Helpers ───────────────────────────────────────────
+
 export async function generateOpenRouterText({
   model,
   system,
@@ -81,147 +238,19 @@ export async function generateOpenRouterText({
   system?: string;
   prompt: string;
 }): Promise<{ text: string; modelUsed?: string }> {
-  const candidates = getChatModelCandidates(model);
-
   if (process.env.NODE_ENV === 'test' && !process.env.TEST_OPENROUTER_ROTATOR) {
-    const startTime = Date.now();
     const { generateText } = await import('ai');
-    const result = await generateText({
-      model: aiModels.chat,
-      system,
-      prompt,
-    });
-    const durationMs = Date.now() - startTime;
-    logger.ai(`Generated text via test model [${candidates[0]}]`, {
-      model: candidates[0],
-      durationMs,
-      promptLength: prompt.length,
-      responseLength: result.text.length,
-    });
-    return { text: result.text, modelUsed: candidates[0] };
+    const result = await generateText({ model: aiModels.chat, system, prompt });
+    return { text: result.text, modelUsed: getChatModelCandidates(model)[0] };
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY || ENV.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || ENV.OPENAI_API_KEY || '';
-  const baseURL = process.env.OPENROUTER_BASE_URL || ENV.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
-
-  const messages: { role: string; content: string }[] = [];
-  if (system) {
-    messages.push({ role: 'system', content: system });
-  }
-  messages.push({ role: 'user', content: prompt });
-
-  const errors: string[] = [];
-
-  for (let i = 0; i < candidates.length; i++) {
-    const currentModel = candidates[i];
-    const startTime = Date.now();
-
-    try {
-      const res = await fetch(`${baseURL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': process.env.APP_URL || ENV.APP_URL || 'https://woocs.ai',
-          'X-Title': 'WooCS AI',
-        },
-        body: JSON.stringify({
-          model: currentModel,
-          messages,
-        }),
-      });
-
-      const durationMs = Date.now() - startTime;
-
-      if (!res.ok) {
-        const errorBody = await res.text();
-        const errSummary = `[${res.status}] ${errorBody.slice(0, 150)}`;
-        errors.push(`${currentModel}: ${errSummary}`);
-
-        const nextModel = candidates[i + 1];
-        if (nextModel) {
-          logger.warn(`AI model [${currentModel}] failed (${res.status}), rotating to next candidate [${nextModel}]...`, {
-            component: 'AI',
-            failedModel: currentModel,
-            nextModel,
-            status: res.status,
-            durationMs,
-          });
-          continue;
-        } else {
-          logger.error(`AI model [${currentModel}] failed (${res.status}) and no more candidates available.`, {
-            component: 'AI',
-            model: currentModel,
-            status: res.status,
-            durationMs,
-          });
-          throw new Error(`OpenRouter Error ${res.status}: ${errorBody}`);
-        }
-      }
-
-      const data = (await res.json()) as any;
-      const content = data?.choices?.[0]?.message?.content || '';
-      const usage = data?.usage;
-
-      if (!content && candidates[i + 1]) {
-        logger.warn(`AI model [${currentModel}] returned empty content, rotating to next candidate [${candidates[i + 1]}]...`, {
-          component: 'AI',
-          failedModel: currentModel,
-          nextModel: candidates[i + 1],
-          durationMs,
-        });
-        continue;
-      }
-
-      logger.ai(`Generated text via [${currentModel}]`, {
-        model: currentModel,
-        durationMs,
-        promptTokens: usage?.prompt_tokens,
-        completionTokens: usage?.completion_tokens,
-        totalTokens: usage?.total_tokens,
-        promptLength: prompt.length,
-        responseLength: content.length,
-        attemptsCount: i + 1,
-      });
-
-      return { text: content, modelUsed: currentModel };
-    } catch (err: any) {
-      const durationMs = Date.now() - startTime;
-      const nextModel = candidates[i + 1];
-
-      if (nextModel) {
-        logger.warn(`AI model [${currentModel}] exception: ${err.message}, rotating to next candidate [${nextModel}]...`, {
-          component: 'AI',
-          failedModel: currentModel,
-          nextModel,
-          durationMs,
-        });
-        errors.push(`${currentModel}: ${err.message}`);
-        continue;
-      }
-
-      logger.error(`All AI model candidates failed. Last error [${currentModel}]: ${err.message}`, {
-        component: 'AI',
-        candidates,
-        durationMs,
-        errors,
-        stack: err.stack,
-      });
-      throw err;
-    }
-  }
-
-  throw new Error(`All candidate AI models failed: ${errors.join(' | ')}`);
+  const result = await AIRouter.generateText({ prompt, system, modelOverride: model });
+  return { text: result.text, modelUsed: result.modelUsed };
 }
 
-/**
- * Matryoshka Representation Learning (MRL) reduction:
- * If the provider returns 1536 dimensions (e.g. OpenRouter ignoring the dimensions parameter),
- * truncate to 1024 and apply L2 normalization to preserve unit length for cosine similarity.
- */
 export function to1024Vector(vector: number[]): number[] {
   if (!vector || vector.length === 1024) return vector;
   const sliced = vector.slice(0, 1024);
   const norm = Math.sqrt(sliced.reduce((sum, val) => sum + val * val, 0));
-  return sliced.map(val => val / (norm || 1));
+  return sliced.map((val) => val / (norm || 1));
 }
